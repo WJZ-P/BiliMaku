@@ -1,17 +1,18 @@
 # BiliCast 直播弹幕接入技术报告
 
-> 版本：0.1  
+> 版本：0.2
 > 日期：2026-08-05  
 > 范围：主播身份码、房间号直连、权限边界，以及头像缺失诊断
 
 ## 1. 结论摘要
 
 1. 老牌弹幕工具要求的“码”通常是 **主播身份码 Code**。它采用的是 B 站直播开放平台的“互动玩法”接入：开发者应用先用 `AccessKeyId`、`AccessKeySecret` 签名，再提交 `AppId + Code` 启动一场已获主播授权的项目会话。
-2. BiliCast 当前采用 **Web Live Adapter**。直播间 ID 只是公开直播间的寻址信息，程序以 Web 观看端的方式获取弹幕长链令牌并订阅公开事件，因此用户侧只填房间号。
+2. BiliCast 当前采用 **Web Live Adapter**，并同时支持匿名与扫码登录两种观看会话。直播间 ID 只是公开直播间的寻址信息，程序以 Web 观看端的方式获取弹幕长链令牌并订阅公开事件，因此用户侧连接房间时只填房间号。
 3. BiliCast 可以切换到其他公开直播间。短房间号会先解析成真实房间号，然后建立对应长链。这个能力等价于“进入另一个公开直播间观看事件”，并不附带主播后台、房管、发弹幕或直播控制权限。
 4. 两种模式的核心差异并非“有没有 WebSocket”，而是 **授权主体与服务边界**：身份码模式证明“某位主播允许某个开发者项目为本场直播运行”；房间号模式只表明“客户端想订阅这个公开房间的观看端事件流”。
 5. 本次头像缺失已定位为 **CDN 防盗链 Referer 策略**，不是普通 CORS。实测同一头像 URL：无 `Referer` 返回 `200 image/jpeg`，携带 `Referer: http://tauri.localhost/` 返回 `403 text/html`。
 6. 当前 Web 长链已实测收到 `INTERACT_WORD_V2`。BiliCast 已增加 Base64 Protobuf 解码，可输出进场、关注、分享三类互动事件及平台下发的昵称、头像。
+7. BiliCast 已落地二维码登录：Rust 端生成二维码、轮询确认、保存 Cookie，并在连接时把登录账号 UID 和 Cookie 注入 Web 长链。登录态是否带来更完整的进场身份字段，需要用同一房间的实际事件做 A/B 对照。
 
 ## 2. 两种连接方式
 
@@ -65,9 +66,10 @@ sequenceDiagram
 
     U->>B: 输入直播间 ID
     B->>H: 解析短号与真实 room_id
-    B->>H: 初始化匿名 Cookie 与 WBI 参数
+    B->>H: 初始化匿名 Cookie，或复用扫码登录 Cookie
+    B->>H: 查询登录状态与观看账号 UID
     B->>H: 获取 getDanmuInfo token 和 WSS 节点
-    B->>W: room_id + token 建立观看端长链
+    B->>W: room_id + token + 观看 UID 建立长链
     B->>W: 30 秒心跳
     W-->>B: DANMU_MSG / SEND_GIFT / SC 等原始事件
 ```
@@ -78,13 +80,24 @@ sequenceDiagram
 
 ### 2.3 进场昵称脱敏与登录态
 
-BiliCast 当前使用的是 **匿名 Web 会话**：长链鉴权体中的 `uid` 为 `0`，HTTP 侧也没有 `SESSDATA` 登录凭据。这一点与已经登录 B 站账号的浏览器页面并不等价。主流 Web 长链实现同样会区分匿名会话和登录会话：没有 `SESSDATA` 时使用 `uid = 0`，存在登录态时先查询账号 `mid`，再把该 UID 写入长链鉴权体。参考：[blivedm Web 客户端源码](https://github.com/xfgryujk/blivedm/blob/dev/blivedm/clients/web.py)。
+BiliCast 现在支持两种 **Web 观看会话**：匿名连接的长链鉴权 `uid = 0`；扫码登录后，Rust 会话先通过账号导航接口读取 `mid`，再将该 UID、Cookie、`buvid` 与当前会话获取的弹幕令牌用于长链握手。主流 Web 长链实现也采用相同分支：没有 `SESSDATA` 时使用 `uid = 0`，存在登录态时查询账号 `mid` 并写入鉴权体。参考：[blivedm Web 客户端源码](https://github.com/xfgryujk/blivedm/blob/dev/blivedm/clients/web.py)。
+
+扫码链路全部位于 Rust 端：
+
+1. 请求 Web 二维码生成接口，得到一次性扫码 URL 与 `qrcode_key`；
+2. 本地将 URL 渲染为 SVG 二维码，React 端只拿到图片 Data URL；
+3. 每 1.5 秒轮询一次扫码状态，区分待扫码、待手机确认、已登录和已过期；
+4. 登录成功后由 Rust Cookie Jar 接收站点 Cookie，并调用账号导航接口校验昵称、头像和 UID；
+5. 连接直播间时复用同一个 HTTP 会话，前端只得到非敏感账号摘要与 `accessMode`；
+6. 登出或切换账号时直接替换整个 Cookie Jar，避免旧会话残留。
+
+当前版本选择内存会话：Cookie 不落盘，关闭应用后重新扫码。这适合先完成同房间匿名/登录 A/B 验证；若后续增加持久化，应使用系统凭据库或强保护存储，并单独设计过期刷新与撤销流程。
 
 对两条真实 `INTERACT_WORD_V2` 原始 Protobuf 做逐字段审计后，匿名会话收到的昵称字段本身就是类似 `在***`、`啦***` 的值；`uinfo.base.name` 只是重复该脱敏值，包内没有对应的完整昵称或数字 UID。因此这不是 BiliCast 解析器主动打码，也不是漏读了另一个普通字段；星号字符串本身没有可供本地还原的映射信息。
 
-若产品需要识别进场用户，应增加两条明确的数据路径：
+若产品需要识别进场用户，应继续维护两条明确的数据路径：
 
-1. **Web 登录态适配器**：仍然输入房间号，但由用户扫码建立观看账号登录态，再进行同房间匿名/登录 A/B 验证。登录态可能改变服务端下发字段，不过结果仍受站内隐私与风控策略控制，工程上应以实测为准。
+1. **Web 登录态适配器（已实现）**：仍然输入房间号，由用户扫码建立观看账号登录态，再进行同房间匿名/登录 A/B 验证。登录态可能改变服务端下发字段，不过结果仍受站内隐私与风控策略控制，工程上以实测为准。
 2. **OpenLive 官方适配器**：由主播身份码启动项目会话。官方长连的进场事件 `OPEN_LIVEROOM_LIVE_ROOM_ENTER` 定义了 `uname`、`uface`、`open_id` 等字段，更适合稳定的用户归一化；其中 `open_id` 应作为业务主键。进场高峰时该事件存在服务端限流，最低保障不低于 10 QPS。参考：[B 站开放平台长连 CMD 文档](https://bilibili.apifox.cn/doc-7499813)。
 
 ### 2.4 实时人气与在线人数
@@ -176,8 +189,10 @@ BiliCast 已经每 30 秒解析一次 Web 长链 `operation = 3` 的四字节心
 
 ```text
 LiveAdapter
-├── WebLiveAdapter       # 默认：房间号，轻量、可跨公开房间
-└── OpenLiveAdapter      # 正式模式：身份码，官方项目会话
+├── WebLiveAdapter
+│   ├── AnonymousSession       # 房间号 + uid=0
+│   └── AuthenticatedSession   # 扫码 Cookie + 观看账号 UID
+└── OpenLiveAdapter            # 身份码，官方项目会话
         ↓
 EventNormalizer
         ↓
@@ -186,11 +201,12 @@ RuleEngine → SpeechQueue → TtsAdapter
 
 建议优先级：
 
-1. 保留房间号模式作为默认入口，继续完善播报规则与队列；
-2. 增加“官方身份码模式”开关；
-3. 正式发行时将 `AccessKeySecret` 放在签名服务中，桌面端只提交主播 Code，避免把开发者密钥打进安装包；
-4. 两种适配器统一输出 `LiveEvent`，上层播报逻辑保持解耦；
-5. 为 Web Adapter 增加协议回归样本，为 OpenLive Adapter 增加启动、心跳、结束的会话测试。
+1. 保留房间号模式作为默认入口，用已实现的扫码登录做匿名/登录字段回归；
+2. 增加原始事件诊断导出，沉淀同一房间两种会话的脱敏样本；
+3. 增加“官方身份码模式”开关；
+4. 正式发行时将 `AccessKeySecret` 放在签名服务中，桌面端只提交主播 Code，避免把开发者密钥打进安装包；
+5. 两种适配器统一输出 `LiveEvent`，上层播报逻辑保持解耦；
+6. 为 Web Adapter 增加协议回归样本，为 OpenLive Adapter 增加启动、心跳、结束的会话测试。
 
 ## 8. 本次验证记录
 
@@ -204,6 +220,10 @@ cargo test --manifest-path src-tauri/Cargo.toml PASS
 真实 INTERACT_WORD_V2 进场事件                 PASS
 V2 Protobuf 昵称、头像、互动类型解码            PASS
 头像 CDN Referer 对照实验                      200 / 403 / 200，结论明确
+二维码 SVG 生成单元测试                         PASS
+匿名账号状态单元测试                            PASS
+真实二维码生成与待扫码轮询                       PASS
+登录 Cookie / UID 注入长链                      代码与编译验证通过，待用户扫码做真实 A/B
 ```
 
 ## 9. 参考资料
