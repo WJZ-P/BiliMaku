@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "local-openai-compatible-tts",
+  "name": "本机 OpenAI 兼容 TTS",
+  "description": "连接运行在本机的 /v1/audio/speech 兼容语音服务。",
+  "version": "1.0.0",
+  "author": "Local Runtime",
+  "runtime": {
+    "type": "openai-http",
+    "endpoint": "http://127.0.0.1:8000/v1/audio/speech",
+    "model": "local-tts",
+    "apiKeyEnv": "",
+    "responseFormat": "wav",
+    "timeoutSeconds": 120
+  },
+  "voices": [
+    {
+      "id": "default",
+      "name": "默认音色",
+      "language": "zh-CN"
+    }
+  ],
+  "defaultVoice": "default"
+}

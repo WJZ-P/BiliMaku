@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "bilicast-command-smoke-test",
+  "name": "BiliCast 命令适配器测试音",
+  "description": "使用 Python 标准库生成短 WAV，用于验证自定义 TTS 导入与播放链路。",
+  "version": "1.0.0",
+  "author": "BiliCast",
+  "runtime": {
+    "type": "command",
+    "program": "python",
+    "args": [
+      "mock_tts.py",
+      "--model-dir",
+      "{modelDir}",
+      "--text",
+      "{text}",
+      "--voice",
+      "{voice}",
+      "--speed",
+      "{speed}",
+      "--output",
+      "{output}"
+    ],
+    "outputFormat": "wav",
+    "timeoutSeconds": 30
+  },
+  "voices": [
+    {
+      "id": "bright",
+      "name": "明亮测试音",
+      "language": "zh-CN"
+    },
+    {
+      "id": "soft",
+      "name": "柔和测试音",
+      "language": "zh-CN"
+    }
+  ],
+  "defaultVoice": "bright"
+}

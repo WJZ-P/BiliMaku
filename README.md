@@ -12,6 +12,11 @@ BiliCast 是一个基于 **React + Tauri + Rust** 的桌面直播弹幕智能播
 - 在播报台明确显示“匿名 Web 长链”或“登录态 Web 长链”；
 - 头像使用 `no-referrer` 请求并提供首字兜底；
 - 登录凭据只保存在当前 Rust 进程内，不进入 React 状态或日志。
+- 导入带 `bilicast-tts.json` 的自定义 TTS 目录，支持本机命令与 OpenAI 兼容 HTTP 两种推理适配器；
+- 统一系统语音与自定义模型的自动播报、试听、暂停、继续和停止队列；
+- 全屏透明滚动弹幕窗口，支持事件颜色、字体、粗细、描边、轨道、速度与滑入滑出时间；
+- 独立透明侧边事件栏，支持入场、点赞/互动、弹幕、礼物、SC 与大航海等事件及外观参数；
+- 两类悬浮组件各自订阅标准直播事件，可独立打开、关闭、预览与鼠标穿透。
 
 ## 本地开发
 
@@ -49,4 +54,6 @@ Windows 安装包会生成在 `src-tauri/target/release/bundle/`。更多资料�
 
 - [匿名 Web 与登录态 Web 数据对照](WEB_SESSION_COMPARISON.md)
 - [直播弹幕接入技术报告](docs/live-connection-technical-report.md)
+- [自定义 TTS 模型包与 ModelScope 接入](docs/tts-model-package.md)
+- [透明滚动弹幕与侧边事件栏](docs/transparent-overlays.md)
 
