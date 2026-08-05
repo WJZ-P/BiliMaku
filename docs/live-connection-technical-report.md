@@ -88,10 +88,13 @@ BiliCast 现在支持两种 **Web 观看会话**：匿名连接的长链鉴权 `
 2. 本地将 URL 渲染为 SVG 二维码，React 端只拿到图片 Data URL；
 3. 每 1.5 秒轮询一次扫码状态，区分待扫码、待手机确认、已登录和已过期；
 4. 登录成功后由 Rust Cookie Jar 接收站点 Cookie，并调用账号导航接口校验昵称、头像和 UID；
-5. 连接直播间时复用同一个 HTTP 会话，前端只得到非敏感账号摘要与 `accessMode`；
-6. 登出或切换账号时直接替换整个 Cookie Jar，避免旧会话残留。
+5. 使用 AES-256-GCM 将 Cookie 与账号摘要加密写入 Tauri 应用数据目录；
+6. 应用启动时恢复 Cookie，并通过账号导航接口重新验证 `isLogin`；
+7. 服务端确认 Cookie 过期后清理文件、重建匿名会话，并广播 `account://cookie-expired`；
+8. 连接直播间时复用同一个 HTTP 会话，前端只得到非敏感账号摘要与 `accessMode`；
+9. 登出或切换账号时替换整个 Cookie Jar 并清理本地会话文件，避免旧会话残留。
 
-当前版本选择内存会话：Cookie 不落盘，关闭应用后重新扫码。这适合先完成同房间匿名/登录 A/B 验证；若后续增加持久化，应使用系统凭据库或强保护存储，并单独设计过期刷新与撤销流程。
+加密实现采用随机 12 字节 nonce、固定 AAD 与 GCM 完整性校验；默认口令 `20040821` 经过 SHA-256 上下文派生得到 256 位密钥。统一 `account://event` 会发送 `login`、`restored`、`validated`、`cookie-expired`、`logout` 等状态，Cookie 与二维码密钥不进入事件载荷。详细格式见 [`account-session-persistence.md`](account-session-persistence.md)。
 
 对两条真实 `INTERACT_WORD_V2` 原始 Protobuf 做逐字段审计后，匿名会话收到的昵称字段本身就是类似 `在***`、`啦***` 的值；`uinfo.base.name` 只是重复该脱敏值，包内没有对应的完整昵称或数字 UID。因此这不是 BiliCast 解析器主动打码，也不是漏读了另一个普通字段；星号字符串本身没有可供本地还原的映射信息。
 

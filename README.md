@@ -11,7 +11,8 @@ BiliCast 是一个基于 **React + Tauri + Rust** 的桌面直播弹幕智能播
 - 登录后自动复用 Cookie、账号 UID、WBI 参数与弹幕令牌；
 - 在播报台明确显示“匿名 Web 长链”或“登录态 Web 长链”；
 - 头像使用 `no-referrer` 请求并提供首字兜底；
-- 登录凭据只保存在当前 Rust 进程内，不进入 React 状态或日志。
+- 登录 Cookie 由 Rust 使用 AES-256-GCM 加密持久化，启动时自动在线校验，前端事件与日志不包含 Cookie；
+- 广播登录、恢复、在线复验、Cookie 过期、退出与会话错误等账号事件；
 - 导入带 `bilicast-tts.json` 的自定义 TTS 目录，支持本机命令与 OpenAI 兼容 HTTP 两种推理适配器；
 - 统一系统语音与自定义模型的自动播报、试听、暂停、继续和停止队列；
 - 全屏透明滚动弹幕窗口，支持事件颜色、字体、粗细、描边、轨道、速度与滑入滑出时间；
@@ -39,7 +40,7 @@ npm run tauri:dev
 6. 连接成功后，顶部状态会显示 **登录态 Web 长链**，说明该连接已携带当前登录会话；退出账号后再次连接则使用匿名模式。
 7. 在同一个房间分别进行匿名与登录态测试，对比进场事件昵称、头像和事件数量。服务端最终下发哪些身份字段仍以实际数据包为准。
 
-二维码与 Cookie 的生命周期跟随当前应用进程。关闭应用后再次启动，需要重新扫码；点击“退出当前账号”会立即换成全新的匿名 Cookie 容器。
+扫码成功后 Cookie 会加密写入应用数据目录。关闭并重新启动 BiliCast 时，Rust 会恢复 Cookie 并通过账号导航接口校验；服务端确认过期后自动删除本地会话、切换匿名模式并发出 `cookie-expired` 事件。点击“退出当前账号”会清理加密文件并换成全新的匿名 Cookie 容器。
 
 ## 自动检查与构建
 
@@ -56,4 +57,5 @@ Windows 安装包会生成在 `src-tauri/target/release/bundle/`。更多资料�
 - [直播弹幕接入技术报告](docs/live-connection-technical-report.md)
 - [自定义 TTS 模型包与 ModelScope 接入](docs/tts-model-package.md)
 - [透明滚动弹幕与侧边事件栏](docs/transparent-overlays.md)
+- [登录态加密持久化与账号事件](docs/account-session-persistence.md)
 

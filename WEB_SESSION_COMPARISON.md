@@ -120,7 +120,7 @@ RuleEngine → SpeechQueue → TtsAdapter
 2. 扫码登录 Web 作为 BiliCast 默认模式，匿名 Web 作为降级与对照模式；
 3. 保留 `LiveAdapter` 抽象，而不是把 Web 命令直接耦合到播报规则；
 4. OpenLive 作为可选官方适配器，面向需要主播项目授权、稳定 `open_id` 或官方服务边界的场景；
-5. 本地版继续让 Cookie 只存在 Rust 进程内，不建设中心化账号服务器。
+5. 本地版使用 AES-256-GCM 加密持久化 Cookie，不建设中心化账号服务器；启动时在线校验，过期后自动清理并切换匿名会话。
 
 ## 7. 关注与点赞验证步骤
 
