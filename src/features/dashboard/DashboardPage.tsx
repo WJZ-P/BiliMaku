@@ -468,6 +468,14 @@ const EventUser = styled.span`
   white-space: nowrap;
 `;
 
+const EventUserId = styled.span`
+  flex: 0 0 auto;
+  color: ${theme.colors.textMuted};
+  font-family: ${theme.typography.mono};
+  font-size: 8px;
+  font-weight: 600;
+`;
+
 const EventMeta = styled.span`
   flex: 0 0 auto;
   padding: 2px 6px;
@@ -1142,6 +1150,7 @@ export function DashboardPage() {
                   <div>
                     <EventHeader>
                       <EventUser>{event.user}</EventUser>
+                      {event.userId ? <EventUserId>UID {event.userId}</EventUserId> : null}
                       {event.meta ? (
                         <EventMeta data-type={event.type}>{event.meta}</EventMeta>
                       ) : null}

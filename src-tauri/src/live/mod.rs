@@ -56,6 +56,7 @@ pub struct LiveEvent {
     pub room_id: u64,
     #[serde(rename = "type")]
     pub event_type: String,
+    pub user_id: Option<String>,
     pub user: String,
     pub avatar: String,
     pub content: String,

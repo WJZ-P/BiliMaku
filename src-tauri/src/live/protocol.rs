@@ -137,6 +137,7 @@ pub fn normalize_command(session_id: u64, room_id: u64, command: Value) -> Optio
 
 #[derive(Default)]
 struct InteractionData {
+    user_id: Option<String>,
     user: String,
     avatar: String,
     message_type: u64,
@@ -145,6 +146,7 @@ struct InteractionData {
 fn normalize_interaction_json(session_id: u64, room_id: u64, command: Value) -> Option<LiveEvent> {
     let data = command.get("data")?;
     let interaction = InteractionData {
+        user_id: value_id(data, &["uid"]),
         user: data
             .pointer("/uinfo/base/name")
             .and_then(Value::as_str)
@@ -178,6 +180,9 @@ fn interaction_event(
         1 => ("进入了直播间", "进场"),
         2 => ("关注了主播", "关注"),
         3 => ("分享了直播间", "分享"),
+        4 => ("特别关注了主播", "特别关注"),
+        5 => ("与主播互相关注", "互粉"),
+        6 => ("为主播点了赞", "点赞"),
         _ => return None,
     };
 
@@ -185,6 +190,7 @@ fn interaction_event(
         session_id,
         room_id,
         "interaction",
+        interaction.user_id,
         if interaction.user.is_empty() {
             "匿名观众".to_string()
         } else {
@@ -204,6 +210,9 @@ fn parse_interaction_v2(encoded: &str) -> Option<InteractionData> {
 
     while let Some((field, value)) = next_protobuf_field(&bytes, &mut cursor) {
         match (field, value) {
+            (1, ProtobufValue::Varint(value)) if value > 0 => {
+                interaction.user_id = Some(value.to_string());
+            }
             (2, ProtobufValue::Bytes(value)) => {
                 interaction.user = String::from_utf8(value.to_vec()).ok()?;
             }
@@ -294,9 +303,9 @@ fn read_protobuf_varint(bytes: &[u8], cursor: &mut usize) -> Option<u64> {
 fn normalize_danmaku(session_id: u64, room_id: u64, command: Value) -> Option<LiveEvent> {
     let info = command.get("info")?.as_array()?;
     let content = info.get(1)?.as_str()?.to_string();
-    let user = info
-        .get(2)
-        .and_then(Value::as_array)
+    let user_info = info.get(2).and_then(Value::as_array);
+    let user_id = user_info.and_then(|user| user.first()).and_then(json_id);
+    let user = user_info
         .and_then(|user| user.get(1))
         .and_then(Value::as_str)
         .unwrap_or("匿名观众")
@@ -315,6 +324,7 @@ fn normalize_danmaku(session_id: u64, room_id: u64, command: Value) -> Option<Li
         session_id,
         room_id,
         "message",
+        user_id,
         user,
         avatar,
         content,
@@ -336,6 +346,7 @@ fn normalize_gift(session_id: u64, room_id: u64, command: Value) -> Option<LiveE
         session_id,
         room_id,
         "gift",
+        value_id(data, &["uid"]),
         user,
         avatar,
         content,
@@ -356,6 +367,7 @@ fn normalize_super_chat(session_id: u64, room_id: u64, command: Value) -> Option
         session_id,
         room_id,
         "superchat",
+        value_id(data, &["uid"]).or_else(|| value_id(user_info, &["uid"])),
         user,
         avatar,
         content,
@@ -380,6 +392,7 @@ fn normalize_guard(session_id: u64, room_id: u64, command: Value) -> Option<Live
         session_id,
         room_id,
         "guard",
+        value_id(data, &["uid"]),
         user,
         avatar,
         format!("开通了 {role} × {count}"),
@@ -393,6 +406,7 @@ fn system_event(session_id: u64, room_id: u64, raw_command: &str, content: &str)
         session_id,
         room_id,
         "system",
+        None,
         "BiliCast".to_string(),
         String::new(),
         content.to_string(),
@@ -406,6 +420,7 @@ fn new_event(
     session_id: u64,
     room_id: u64,
     event_type: &str,
+    user_id: Option<String>,
     user: String,
     avatar: String,
     content: String,
@@ -423,6 +438,7 @@ fn new_event(
         session_id,
         room_id,
         event_type: event_type.to_string(),
+        user_id,
         user,
         avatar,
         content,
@@ -442,6 +458,21 @@ fn value_string(value: &Value, keys: &[&str], fallback: &str) -> String {
 fn value_u64(value: &Value, keys: &[&str]) -> Option<u64> {
     keys.iter()
         .find_map(|key| value.get(key).and_then(Value::as_u64))
+}
+
+fn value_id(value: &Value, keys: &[&str]) -> Option<String> {
+    keys.iter().find_map(|key| value.get(key).and_then(json_id))
+}
+
+fn json_id(value: &Value) -> Option<String> {
+    if let Some(value) = value.as_u64().filter(|value| *value > 0) {
+        return Some(value.to_string());
+    }
+    value
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && *value != "0")
+        .map(str::to_string)
 }
 
 fn read_u16(data: &[u8], offset: usize) -> Result<u16, String> {
@@ -480,6 +511,7 @@ mod tests {
         let event = normalize_command(7, 100, command).expect("danmaku event");
         assert_eq!(event.event_type, "message");
         assert_eq!(event.user, "蓝莓汽水");
+        assert_eq!(event.user_id.as_deref(), Some("123"));
         assert_eq!(event.content, "晚上好喵");
         assert_eq!(event.room_id, 100);
     }
@@ -499,6 +531,7 @@ mod tests {
         let event = normalize_command(7, 100, command).expect("interaction event");
         assert_eq!(event.event_type, "interaction");
         assert_eq!(event.user, "新观众");
+        assert_eq!(event.user_id.as_deref(), Some("123"));
         assert_eq!(event.content, "进入了直播间");
         assert_eq!(event.meta.as_deref(), Some("进场"));
     }
@@ -521,6 +554,23 @@ mod tests {
             event.avatar,
             "https://i0.hdslb.com/bfs/face/member/noface.jpg"
         );
+        assert!(event.user_id.is_none());
+    }
+
+    #[test]
+    fn decodes_interaction_v2_like_with_user_id() {
+        let command = serde_json::json!({
+            "cmd": "INTERACT_WORD_V2",
+            "data": {
+                "pb": "CJWa7zoSCExpa2VVc2VyKAY4gJ2AzAY="
+            }
+        });
+
+        let event = normalize_command(8, 101, command).expect("interaction v2 like event");
+        assert_eq!(event.user, "LikeUser");
+        assert_eq!(event.user_id.as_deref(), Some("123456789"));
+        assert_eq!(event.content, "为主播点了赞");
+        assert_eq!(event.meta.as_deref(), Some("点赞"));
     }
 
     #[test]

@@ -11,6 +11,7 @@ export interface LiveEvent {
   sessionId?: number;
   roomId?: number;
   type: LiveEventType;
+  userId?: string;
   user: string;
   avatar: string;
   content: string;
