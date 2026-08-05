@@ -4,6 +4,9 @@ dist/
 .npm-cache/
 *.local
 
+# Local AI model weights and Python runtimes
+/models/
+
 # Rust / Tauri
 src-tauri/target/
 src-tauri/gen/
