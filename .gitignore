@@ -1,0 +1,17 @@
+# JavaScript
+node_modules/
+dist/
+.npm-cache/
+*.local
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# IDE / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+*.log
