@@ -1,6 +1,7 @@
 mod bilibili;
 mod protocol;
 
+use crate::account::BiliAccountState;
 use serde::Serialize;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -34,6 +35,7 @@ pub struct RoomConnectionInfo {
     pub title: String,
     pub live_status: u8,
     pub access_mode: &'static str,
+    pub viewer_uid: Option<u64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -82,6 +84,7 @@ pub struct ConnectionSnapshot {
 pub async fn connect_live_room(
     app: AppHandle,
     state: State<'_, LiveConnectionState>,
+    account: State<'_, BiliAccountState>,
     room_id: String,
 ) -> Result<RoomConnectionInfo, String> {
     let requested_room_id = room_id
@@ -93,7 +96,7 @@ pub async fn connect_live_room(
     }
 
     let session_id = SESSION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    let config = bilibili::prepare_room(requested_room_id, session_id).await?;
+    let config = bilibili::prepare_room(requested_room_id, session_id, &account).await?;
     let info = config.connection_info();
 
     let (cancel, cancel_receiver) = watch::channel(false);

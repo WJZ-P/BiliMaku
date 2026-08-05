@@ -1,5 +1,6 @@
 use serde::Serialize;
 
+mod account;
 mod live;
 
 #[derive(Serialize)]
@@ -22,9 +23,14 @@ fn get_app_status() -> AppStatus {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(account::BiliAccountState::default())
         .manage(live::LiveConnectionState::default())
         .invoke_handler(tauri::generate_handler![
             get_app_status,
+            account::get_bilibili_login_status,
+            account::create_bilibili_login_qr,
+            account::poll_bilibili_login,
+            account::logout_bilibili_account,
             live::connect_live_room,
             live::disconnect_live_room,
             live::get_live_connection_status

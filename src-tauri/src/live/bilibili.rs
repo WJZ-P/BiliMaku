@@ -1,17 +1,18 @@
 use futures_util::{SinkExt, StreamExt};
 use md5::{Digest, Md5};
 use reqwest::cookie::{CookieStore, Jar};
-use reqwest::{Client, Url};
+#[cfg(test)]
+use reqwest::Client;
+use reqwest::Url;
 use serde::Deserialize;
 use serde_json::json;
-use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::watch;
 use tokio::time::{interval, sleep, timeout, MissedTickBehavior};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-use tokio_tungstenite::tungstenite::http::header::{ORIGIN, USER_AGENT};
+use tokio_tungstenite::tungstenite::http::header::{COOKIE, ORIGIN, USER_AGENT};
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::Message;
 
@@ -20,6 +21,7 @@ use super::{
     emit_status, LiveStatus, PopularityUpdate, RoomConnectionInfo, LIVE_EVENT_NAME,
     LIVE_POPULARITY_EVENT_NAME,
 };
+use crate::account::{cookie_header, BiliAccountState};
 
 const BILIBILI_HOME_URL: &str = "https://www.bilibili.com/";
 const NAV_URL: &str = "https://api.bilibili.com/x/web-interface/nav";
@@ -39,8 +41,10 @@ pub struct RoomConfig {
     pub owner_uid: u64,
     pub title: String,
     pub live_status: u8,
+    auth_uid: u64,
     token: String,
     buvid: String,
+    cookie_header: String,
     hosts: Vec<DanmakuHost>,
 }
 
@@ -53,7 +57,12 @@ impl RoomConfig {
             owner_uid: self.owner_uid,
             title: self.title.clone(),
             live_status: self.live_status,
-            access_mode: "web",
+            access_mode: if self.auth_uid > 0 {
+                "web-authenticated"
+            } else {
+                "web-anonymous"
+            },
+            viewer_uid: (self.auth_uid > 0).then_some(self.auth_uid),
         }
     }
 
@@ -84,6 +93,11 @@ struct RoomInfoData {
 #[derive(Debug, Deserialize)]
 struct NavData {
     wbi_img: WbiImage,
+    #[serde(rename = "isLogin", default)]
+    is_login: bool,
+    mid: Option<u64>,
+    uname: Option<String>,
+    face: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -109,15 +123,14 @@ enum SessionEnd {
     Retry(String),
 }
 
-pub async fn prepare_room(requested_room_id: u64, session_id: u64) -> Result<RoomConfig, String> {
-    let cookie_jar = Arc::new(Jar::default());
-    let client = Client::builder()
-        .cookie_provider(cookie_jar.clone())
-        .user_agent(USER_AGENT_VALUE)
-        .connect_timeout(Duration::from_secs(8))
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|error| format!("创建 B 站网络客户端失败：{error}"))?;
+pub async fn prepare_room(
+    requested_room_id: u64,
+    session_id: u64,
+    account: &BiliAccountState,
+) -> Result<RoomConfig, String> {
+    let http = account.http_session()?;
+    let client = &http.client;
+    let cookie_jar = http.jar;
 
     // 访问主页用于获得匿名 buvid Cookie。即使此请求短暂失败，后续房间
     // 信息和 WBI 初始化仍可继续，并在长链认证时使用空 buvid 降级。
@@ -158,6 +171,17 @@ pub async fn prepare_room(requested_room_id: u64, session_id: u64) -> Result<Roo
     let nav_data = nav_response
         .data
         .ok_or_else(|| "WBI 鉴权信息为空".to_string())?;
+    let auth_uid = if nav_data.is_login {
+        nav_data.mid.unwrap_or_default()
+    } else {
+        0
+    };
+    account.sync_profile(
+        nav_data.is_login,
+        nav_data.mid,
+        nav_data.uname.as_deref(),
+        nav_data.face.as_deref(),
+    )?;
     let mixin_key = make_mixin_key(&nav_data.wbi_img)?;
     let signed_url = make_signed_danmaku_url(room.room_id, &mixin_key)?;
 
@@ -192,8 +216,10 @@ pub async fn prepare_room(requested_room_id: u64, session_id: u64) -> Result<Roo
         owner_uid: room.uid,
         title: room.title,
         live_status: room.live_status,
+        auth_uid,
         token: danmaku.token,
         buvid: cookie_value(&cookie_jar, "buvid3"),
+        cookie_header: cookie_header(&cookie_jar),
         hosts: danmaku.host_list,
     })
 }
@@ -263,7 +289,7 @@ async fn run_socket_session(
     };
 
     let auth_body = json!({
-        "uid": 0,
+        "uid": config.auth_uid,
         "roomid": config.room_id,
         "protover": 3,
         "platform": "web",
@@ -325,7 +351,11 @@ async fn run_socket_session(
                                             session_id: config.session_id,
                                             room_id: config.room_id,
                                             state: "connected",
-                                            message: "弹幕长链认证成功".to_string(),
+                                            message: if config.auth_uid > 0 {
+                                                format!("登录态弹幕长链认证成功 · UID {}", config.auth_uid)
+                                            } else {
+                                                "匿名弹幕长链认证成功".to_string()
+                                            },
                                             attempt: attempt as u32,
                                         },
                                     );
@@ -399,6 +429,11 @@ async fn open_socket(
         ORIGIN,
         HeaderValue::from_static("https://live.bilibili.com"),
     );
+    if !config.cookie_header.is_empty() {
+        let cookie = HeaderValue::from_str(&config.cookie_header)
+            .map_err(|error| format!("创建弹幕 Cookie 请求头失败：{error}"))?;
+        request.headers_mut().insert(COOKIE, cookie);
+    }
 
     let (socket, _) = timeout(Duration::from_secs(12), connect_async(request))
         .await
@@ -494,10 +529,13 @@ mod tests {
             .ok()
             .and_then(|value| value.parse().ok())
             .unwrap_or(1732562239);
-        let config = prepare_room(room_id, 1).await.expect("prepare room");
+        let account = BiliAccountState::default();
+        let config = prepare_room(room_id, 1, &account)
+            .await
+            .expect("prepare room");
         let mut socket = open_socket(&config, 0).await.expect("open websocket");
         let auth_body = json!({
-            "uid": 0,
+            "uid": config.auth_uid,
             "roomid": config.room_id,
             "protover": 3,
             "platform": "web",
@@ -560,7 +598,10 @@ mod tests {
             .ok()
             .and_then(|value| value.parse().ok())
             .unwrap_or(1732562239);
-        let config = prepare_room(room_id, 2).await.expect("prepare room");
+        let account = BiliAccountState::default();
+        let config = prepare_room(room_id, 2, &account)
+            .await
+            .expect("prepare room");
         eprintln!(
             "inspecting requested_room={} real_room={} live_status={} title={}",
             room_id, config.room_id, config.live_status, config.title
@@ -568,7 +609,7 @@ mod tests {
 
         let mut socket = open_socket(&config, 0).await.expect("open websocket");
         let auth_body = json!({
-            "uid": 0,
+            "uid": config.auth_uid,
             "roomid": config.room_id,
             "protover": 3,
             "platform": "web",
@@ -663,10 +704,13 @@ mod tests {
             .ok()
             .and_then(|value| value.parse().ok())
             .unwrap_or(1732562239);
-        let config = prepare_room(room_id, 3).await.expect("prepare room");
+        let account = BiliAccountState::default();
+        let config = prepare_room(room_id, 3, &account)
+            .await
+            .expect("prepare room");
         let mut socket = open_socket(&config, 0).await.expect("open websocket");
         let auth_body = json!({
-            "uid": 0,
+            "uid": config.auth_uid,
             "roomid": config.room_id,
             "protover": 3,
             "platform": "web",
