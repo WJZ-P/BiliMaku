@@ -43,7 +43,8 @@ export interface RoomConnectionInfo {
   ownerUid: number;
   title: string;
   liveStatus: number;
-  accessMode: "web" | "open-live";
+  accessMode: "web-anonymous" | "web-authenticated" | "open-live";
+  viewerUid: number | null;
 }
 
 export interface LiveStatusPayload {

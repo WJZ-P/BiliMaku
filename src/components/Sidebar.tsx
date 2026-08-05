@@ -271,9 +271,9 @@ export function Sidebar({ activeView, onNavigate }: SidebarProps) {
         </BrandMark>
         <div>
           <BrandName>
-            Bili<span>Pop</span>
+            Bili<span>Cast</span>
           </BrandName>
-          <BrandCaption>哔哩泡泡</BrandCaption>
+          <BrandCaption>哔哩播报</BrandCaption>
         </div>
       </Brand>
 

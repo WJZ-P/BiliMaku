@@ -2,6 +2,7 @@ import { styled } from "@linaria/react";
 import { useState } from "react";
 import { AppHeader } from "./components/AppHeader";
 import { Sidebar } from "./components/Sidebar";
+import { ConnectionPage } from "./features/connection/ConnectionPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { FeaturePage } from "./features/shared/FeaturePage";
 import { GlobalStyles } from "./styles/GlobalStyles";
@@ -31,6 +32,8 @@ export default function App() {
           <AppHeader activeView={activeView} />
           {activeView === "dashboard" ? (
             <DashboardPage />
+          ) : activeView === "connection" ? (
+            <ConnectionPage onNavigateDashboard={() => setActiveView("dashboard")} />
           ) : (
             <FeaturePage
               view={activeView}

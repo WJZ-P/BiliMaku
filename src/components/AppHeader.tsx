@@ -137,7 +137,7 @@ export function AppHeader({ activeView }: AppHeaderProps) {
           <Icon name="settings" size={18} />
         </IconButton>
         <Avatar type="button" aria-label="用户菜单">
-          泡
+          播
         </Avatar>
       </Actions>
     </Header>

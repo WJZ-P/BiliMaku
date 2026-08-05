@@ -1,6 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  BilibiliLoginStatus,
+  QrLoginTicket,
+} from "../types/account";
+import type {
   ConnectionSnapshot,
   LiveEvent,
   LiveStatusPayload,
@@ -24,6 +28,38 @@ export async function getDesktopStatus(): Promise<DesktopStatus | null> {
   }
 
   return invoke<DesktopStatus>("get_app_status");
+}
+
+export async function getBilibiliLoginStatus(): Promise<BilibiliLoginStatus> {
+  if (!isDesktopRuntime()) {
+    return {
+      phase: "anonymous",
+      message: "请从 BiliCast 桌面窗口使用扫码登录",
+      profile: null,
+    };
+  }
+  return invoke<BilibiliLoginStatus>("get_bilibili_login_status");
+}
+
+export async function createBilibiliLoginQr(): Promise<QrLoginTicket> {
+  if (!isDesktopRuntime()) {
+    throw new Error("扫码登录需要从 BiliCast 桌面窗口启动");
+  }
+  return invoke<QrLoginTicket>("create_bilibili_login_qr");
+}
+
+export async function pollBilibiliLogin(): Promise<BilibiliLoginStatus> {
+  if (!isDesktopRuntime()) {
+    throw new Error("扫码登录需要从 BiliCast 桌面窗口启动");
+  }
+  return invoke<BilibiliLoginStatus>("poll_bilibili_login");
+}
+
+export async function logoutBilibiliAccount(): Promise<BilibiliLoginStatus> {
+  if (!isDesktopRuntime()) {
+    return getBilibiliLoginStatus();
+  }
+  return invoke<BilibiliLoginStatus>("logout_bilibili_account");
 }
 
 export async function connectLiveRoom(roomId: string) {

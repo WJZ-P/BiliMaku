@@ -856,7 +856,7 @@ function EventAvatarView({ event }: { event: LiveEvent }) {
 
   return (
     <EventAvatar data-type={event.type}>
-      <AvatarFallback>{event.user.slice(0, 1) || "泡"}</AvatarFallback>
+      <AvatarFallback>{event.user.slice(0, 1) || "播"}</AvatarFallback>
       {avatarUrl && !imageFailed ? (
         <AvatarImage
           src={avatarUrl}
@@ -881,6 +881,7 @@ export function DashboardPage() {
   const connecting = live.status.state === "connecting";
   const reconnecting = live.status.state === "reconnecting";
   const hasLiveContext = live.status.state !== "disconnected";
+  const authenticatedRoom = live.room?.accessMode === "web-authenticated";
   const sourceEvents = hasLiveContext ? live.events : demoEvents;
 
   const events = useMemo(
@@ -926,7 +927,11 @@ export function DashboardPage() {
     {
       icon: "radio" as const,
       value: statusLabels[live.status.state],
-      label: live.desktopRuntime ? "直播间状态 · Web 长链" : "浏览器预览 · 桌面端可连接",
+      label: live.desktopRuntime
+        ? authenticatedRoom
+          ? "直播间状态 · 登录态 Web 长链"
+          : "直播间状态 · 匿名 Web 长链"
+        : "浏览器预览 · 桌面端可连接",
       tone: "success",
     },
     {
@@ -1027,7 +1032,9 @@ export function DashboardPage() {
           <HeroBadge>
             <HeroDot />
             {connected
-              ? "LIVE CONNECTION ACTIVE"
+              ? authenticatedRoom
+                ? "AUTHENTICATED WEB MODE"
+                : "ANONYMOUS WEB MODE"
               : reconnecting
                 ? "RECONNECTING"
                 : "ROOM-ID DIRECT MODE"}
@@ -1040,8 +1047,9 @@ export function DashboardPage() {
                 : "只填直播间 ID，让每一条弹幕都有声音"}
           </HeroTitle>
           <HeroDescription>
-            当前使用 Rust 本机直连 Web 弹幕长链，无需主播身份码；房间解析、WBI
-            签名、鉴权心跳和 Brotli 解包都在桌面端完成。
+            {authenticatedRoom
+              ? `当前使用扫码账号 UID ${live.room?.viewerUid ?? "--"} 建立登录态 Web 长链；Cookie、WBI 签名与协议解包均留在 Rust 桌面端。`
+              : "当前使用 Rust 本机直连匿名 Web 弹幕长链，无需主播身份码；房间解析、WBI 签名、鉴权心跳和 Brotli 解包都在桌面端完成。"}
           </HeroDescription>
           <HeroStatusMessage data-error={live.status.state === "error"}>
             <Icon
