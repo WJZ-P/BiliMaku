@@ -45,5 +45,8 @@ cargo test --manifest-path src-tauri/Cargo.toml
 npm run tauri:build
 ```
 
-Windows 安装包会生成在 `src-tauri/target/release/bundle/`。更完整的接入方式、权限差异与数据语义见 [直播弹幕接入技术报告](docs/live-connection-technical-report.md)。
+Windows 安装包会生成在 `src-tauri/target/release/bundle/`。更多资料：
+
+- [匿名 Web 与登录态 Web 数据对照](WEB_SESSION_COMPARISON.md)
+- [直播弹幕接入技术报告](docs/live-connection-technical-report.md)
 

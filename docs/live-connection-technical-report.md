@@ -1,6 +1,6 @@
 # BiliCast 直播弹幕接入技术报告
 
-> 版本：0.2
+> 版本：0.3
 > 日期：2026-08-05  
 > 范围：主播身份码、房间号直连、权限边界，以及头像缺失诊断
 
@@ -11,7 +11,7 @@
 3. BiliCast 可以切换到其他公开直播间。短房间号会先解析成真实房间号，然后建立对应长链。这个能力等价于“进入另一个公开直播间观看事件”，并不附带主播后台、房管、发弹幕或直播控制权限。
 4. 两种模式的核心差异并非“有没有 WebSocket”，而是 **授权主体与服务边界**：身份码模式证明“某位主播允许某个开发者项目为本场直播运行”；房间号模式只表明“客户端想订阅这个公开房间的观看端事件流”。
 5. 本次头像缺失已定位为 **CDN 防盗链 Referer 策略**，不是普通 CORS。实测同一头像 URL：无 `Referer` 返回 `200 image/jpeg`，携带 `Referer: http://tauri.localhost/` 返回 `403 text/html`。
-6. 当前 Web 长链已实测收到 `INTERACT_WORD_V2`。BiliCast 已增加 Base64 Protobuf 解码，可输出进场、关注、分享三类互动事件及平台下发的昵称、头像。
+6. 当前 Web 长链已实测收到 `INTERACT_WORD_V2`。BiliCast 已增加 Base64 Protobuf 解码，可输出进场、关注、分享、特别关注、互粉、点赞六类互动事件，并保留平台下发的 UID、昵称和头像。
 7. BiliCast 已落地二维码登录：Rust 端生成二维码、轮询确认、保存 Cookie，并在连接时把登录账号 UID 和 Cookie 注入 Web 长链。登录态是否带来更完整的进场身份字段，需要用同一房间的实际事件做 A/B 对照。
 
 ## 2. 两种连接方式
@@ -76,7 +76,7 @@ sequenceDiagram
 
 这里的房间号是 **资源地址**，不是主播授权凭据。网页访客本来就需要知道当前房间并接收公开弹幕，BiliCast 复用了这条观看端数据路径，然后在本机完成 Brotli/zlib 解包、事件归一化和播报。
 
-当前进场消息已由旧版 `INTERACT_WORD` 升级为 `INTERACT_WORD_V2`，主体是 Base64 编码的 Protobuf。BiliCast 同时保留旧 JSON 解析，并实现 V2 中的昵称、头像和 `msg_type` 解码：`1` 为进场、`2` 为关注、`3` 为分享。
+当前进场消息已由旧版 `INTERACT_WORD` 升级为 `INTERACT_WORD_V2`，主体是 Base64 编码的 Protobuf。BiliCast 同时保留旧 JSON 解析，并实现 V2 中的 UID、昵称、头像和 `msg_type` 解码：`1` 为进场、`2` 为关注、`3` 为分享、`4` 为特别关注、`5` 为互粉、`6` 为点赞。
 
 ### 2.3 进场昵称脱敏与登录态
 
@@ -219,6 +219,7 @@ cargo test --manifest-path src-tauri/Cargo.toml PASS
 真实 DANMU_MSG 头像字段                        PASS
 真实 INTERACT_WORD_V2 进场事件                 PASS
 V2 Protobuf 昵称、头像、互动类型解码            PASS
+V2 Protobuf UID 与互动类型 4-6 解码              PASS
 头像 CDN Referer 对照实验                      200 / 403 / 200，结论明确
 二维码 SVG 生成单元测试                         PASS
 匿名账号状态单元测试                            PASS
