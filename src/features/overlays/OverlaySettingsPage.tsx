@@ -584,12 +584,11 @@ export function OverlaySettingsPage() {
               <SectionTitle>外观</SectionTitle>
               <ColorControls value={settings.sidebar.colors} onChange={(colors) => updateSidebar({ colors })} />
               <Fields>
-                <ColorField><input type="color" value={settings.sidebar.backgroundColor} onChange={(event) => updateSidebar({ backgroundColor: event.target.value })} />背景色</ColorField>
+                <ColorField><input type="color" value={settings.sidebar.backgroundColor} onChange={(event) => updateSidebar({ backgroundColor: event.target.value })} />气泡底色</ColorField>
                 <ColorField><input type="color" value={settings.sidebar.textColor} onChange={(event) => updateSidebar({ textColor: event.target.value })} />文字色</ColorField>
-                <NumberField label="背景透明度" value={settings.sidebar.backgroundOpacity} min={0} max={1} step={0.05} onChange={(backgroundOpacity) => updateSidebar({ backgroundOpacity })} />
-                <NumberField label="卡片透明度" value={settings.sidebar.cardOpacity} min={0} max={1} step={0.05} onChange={(cardOpacity) => updateSidebar({ cardOpacity })} />
-                <NumberField label="背景模糊" value={settings.sidebar.blur} min={0} max={40} step={1} suffix="px" onChange={(blur) => updateSidebar({ blur })} />
-                <NumberField label="圆角" value={settings.sidebar.radius} min={0} max={32} step={1} suffix="px" onChange={(radius) => updateSidebar({ radius })} />
+                <NumberField label="气泡透明度" value={settings.sidebar.cardOpacity} min={0} max={1} step={0.05} onChange={(cardOpacity) => updateSidebar({ cardOpacity })} />
+                <NumberField label="气泡模糊" value={settings.sidebar.blur} min={0} max={40} step={1} suffix="px" onChange={(blur) => updateSidebar({ blur })} />
+                <NumberField label="气泡圆角" value={settings.sidebar.radius} min={0} max={20} step={1} suffix="px" onChange={(radius) => updateSidebar({ radius })} />
               </Fields>
             </Section>
 

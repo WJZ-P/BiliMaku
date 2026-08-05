@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { LiveEvent } from "../types/events";
-import type { OverlayKind, OverlaySettings } from "../types/overlay";
+import type { OverlayKind, OverlaySettings, SidebarOverlaySettings } from "../types/overlay";
 import { isDesktopRuntime } from "./desktop";
 
 const SETTINGS_KEY = "bilicast.overlay.settings.v1";
@@ -57,16 +57,53 @@ export const defaultOverlaySettings: OverlaySettings = {
     fontWeight: 600,
     textColor: "#f7fbff",
     colors: defaultColors,
-    backgroundColor: "#10243a",
-    backgroundOpacity: 0.72,
-    cardOpacity: 0.82,
-    blur: 16,
-    radius: 18,
-    slideDistance: 42,
-    enterDurationMs: 260,
-    exitDurationMs: 360,
+    backgroundColor: "#0d1d2f",
+    cardOpacity: 0.9,
+    blur: 12,
+    radius: 8,
+    slideDistance: 52,
+    enterDurationMs: 320,
+    exitDurationMs: 280,
   },
 };
+
+type LegacySidebarSettings = Partial<SidebarOverlaySettings> & {
+  backgroundOpacity?: number;
+};
+
+function mergeSidebarSettings(stored?: LegacySidebarSettings): SidebarOverlaySettings {
+  if (!stored) return defaultOverlaySettings.sidebar;
+  const usedLegacyDefaults = stored.backgroundColor === "#10243a"
+    && stored.backgroundOpacity === 0.72
+    && stored.cardOpacity === 0.82
+    && stored.blur === 16
+    && stored.radius === 18
+    && stored.slideDistance === 42
+    && stored.enterDurationMs === 260
+    && stored.exitDurationMs === 360;
+  const current = { ...stored };
+  delete current.backgroundOpacity;
+  const merged = {
+    ...defaultOverlaySettings.sidebar,
+    ...current,
+    colors: {
+      ...defaultOverlaySettings.sidebar.colors,
+      ...stored.colors,
+    },
+  };
+  return usedLegacyDefaults
+    ? {
+        ...merged,
+        backgroundColor: defaultOverlaySettings.sidebar.backgroundColor,
+        cardOpacity: defaultOverlaySettings.sidebar.cardOpacity,
+        blur: defaultOverlaySettings.sidebar.blur,
+        radius: defaultOverlaySettings.sidebar.radius,
+        slideDistance: defaultOverlaySettings.sidebar.slideDistance,
+        enterDurationMs: defaultOverlaySettings.sidebar.enterDurationMs,
+        exitDurationMs: defaultOverlaySettings.sidebar.exitDurationMs,
+      }
+    : merged;
+}
 
 export function loadOverlaySettings(): OverlaySettings {
   try {
@@ -82,14 +119,7 @@ export function loadOverlaySettings(): OverlaySettings {
           ...parsed.danmaku?.colors,
         },
       },
-      sidebar: {
-        ...defaultOverlaySettings.sidebar,
-        ...parsed.sidebar,
-        colors: {
-          ...defaultOverlaySettings.sidebar.colors,
-          ...parsed.sidebar?.colors,
-        },
-      },
+      sidebar: mergeSidebarSettings(parsed.sidebar as LegacySidebarSettings | undefined),
     };
   } catch {
     return defaultOverlaySettings;

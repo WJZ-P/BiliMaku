@@ -53,7 +53,6 @@ export interface SidebarOverlaySettings {
   textColor: string;
   colors: EventColorMap;
   backgroundColor: string;
-  backgroundOpacity: number;
   cardOpacity: number;
   blur: number;
   radius: number;

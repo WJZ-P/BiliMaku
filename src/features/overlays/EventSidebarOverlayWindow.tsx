@@ -9,74 +9,75 @@ import { useOverlayEvents, useOverlaySettings } from "./useOverlayRuntime";
 const Canvas = styled.div`
   position: fixed;
   inset: 0;
-  display: flex;
   overflow: hidden;
-  flex-direction: column;
   background: transparent;
 `;
 
-const Shell = styled.section`
+const Feed = styled.div`
+  position: absolute;
+  inset: 0;
   display: flex;
   min-height: 0;
-  flex: 1;
   flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: white;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
-`;
+  gap: 9px;
+  overflow: hidden;
+  padding: 12px;
+  pointer-events: none;
 
-const Header = styled.header`
-  display: flex;
-  min-height: 50px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  cursor: move;
-`;
-
-const HeaderTitle = styled.div`
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-`;
-
-const LiveBadge = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: rgba(255, 255, 255, 0.68);
-  font-size: 8px;
-
-  &::before {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #55e2b0;
-    box-shadow: 0 0 10px rgba(85, 226, 176, 0.8);
-    content: "";
+  &[data-interactive="true"] {
+    pointer-events: auto;
   }
 `;
 
-const Feed = styled.div`
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 8px;
-  overflow: hidden;
-  padding: 12px;
-`;
-
 const EventCard = styled.article`
+  --event-accent: #78f0c0;
+  --bubble-background: rgba(13, 29, 47, 0.9);
+  --bubble-blur: 12px;
+  --bubble-radius: 8px;
+
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  padding: 10px 11px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-left: 3px solid currentColor;
-  will-change: transform, opacity;
+  gap: 11px;
+  overflow: hidden;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--bubble-radius);
+  background: var(--bubble-background);
+  box-shadow:
+    0 9px 26px rgba(1, 10, 22, 0.24),
+    inset 0 1px rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(var(--bubble-blur)) saturate(1.12);
+  will-change: transform, opacity, filter;
+
+  &::before {
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 0;
+    width: 3px;
+    border-radius: 0 2px 2px 0;
+    background: var(--event-accent);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--event-accent) 68%, transparent);
+    content: "";
+  }
+
+  &::after {
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--event-accent) 55%, transparent),
+      rgba(255, 255, 255, 0.2),
+      transparent 78%
+    );
+    content: "";
+  }
 
   &[data-avatar="false"] {
     grid-template-columns: minmax(0, 1fr);
@@ -85,21 +86,29 @@ const EventCard = styled.article`
 
 const Avatar = styled.div`
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 35px;
+  height: 35px;
   overflow: hidden;
   place-items: center;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid color-mix(in srgb, var(--event-accent) 44%, rgba(255, 255, 255, 0.16));
+  border-radius: 7px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.16), transparent),
+    color-mix(in srgb, var(--event-accent) 22%, rgba(7, 20, 35, 0.88));
   color: white;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 850;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
 
   img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
+`;
+
+const EventBody = styled.div`
+  min-width: 0;
 `;
 
 const EventTop = styled.div`
@@ -111,6 +120,7 @@ const EventTop = styled.div`
 
 const User = styled.strong`
   overflow: hidden;
+  min-width: 0;
   color: inherit;
   font-size: 0.92em;
   text-overflow: ellipsis;
@@ -119,11 +129,14 @@ const User = styled.strong`
 
 const EventType = styled.span`
   flex: 0 0 auto;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  font-size: 0.63em;
-  font-weight: 800;
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--event-accent) 36%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--event-accent) 16%, transparent);
+  color: color-mix(in srgb, var(--event-accent) 80%, white);
+  font-size: 0.62em;
+  font-weight: 850;
+  letter-spacing: 0.02em;
 `;
 
 const UserId = styled.span`
@@ -131,6 +144,15 @@ const UserId = styled.span`
   color: color-mix(in srgb, currentColor 48%, transparent);
   font-family: Consolas, monospace;
   font-size: 0.6em;
+`;
+
+const Time = styled.time`
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: color-mix(in srgb, currentColor 42%, transparent);
+  font-family: Consolas, monospace;
+  font-size: 0.58em;
+  font-weight: 500;
 `;
 
 const Content = styled.div`
@@ -141,6 +163,7 @@ const Content = styled.div`
   -webkit-line-clamp: 2;
   color: color-mix(in srgb, currentColor 84%, transparent);
   font-size: 0.84em;
+  font-weight: 500;
   line-height: 1.5;
 `;
 
@@ -162,6 +185,14 @@ function typeLabel(event: LiveEvent) {
   }[event.type];
 }
 
+function eventTime(timestamp: number) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(timestamp));
+}
+
 interface SidebarCardProps {
   event: LiveEvent;
   settings: SidebarOverlaySettings;
@@ -170,48 +201,78 @@ interface SidebarCardProps {
 
 function SidebarCard({ event, settings, onDone }: SidebarCardProps) {
   const ref = useRef<HTMLElement>(null);
+  const timestampRef = useRef(event.emittedAt ?? Date.now());
   const avatar = normalizeAvatar(event.avatar);
+  const timestamp = timestampRef.current;
 
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const direction = settings.side === "right"
       ? settings.slideDistance
       : -settings.slideDistance;
+    const enterDuration = reduceMotion ? 0 : settings.enterDurationMs;
+    const exitDuration = reduceMotion ? 0 : settings.exitDurationMs;
     const enter = element.animate(
       [
-        { opacity: 0, transform: `translate3d(${direction}px, 0, 0)` },
-        { opacity: 1, transform: "translate3d(0, 0, 0)" },
+        {
+          opacity: 0,
+          filter: "blur(7px)",
+          transform: `translate3d(${direction}px, 7px, 0) scale(.965)`,
+        },
+        {
+          opacity: 1,
+          filter: "blur(0)",
+          offset: 0.72,
+          transform: `translate3d(${-Math.sign(direction) * 3}px, 0, 0) scale(1.008)`,
+        },
+        { opacity: 1, filter: "blur(0)", transform: "translate3d(0, 0, 0) scale(1)" },
       ],
-      { duration: settings.enterDurationMs, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" },
+      {
+        duration: enterDuration,
+        easing: "cubic-bezier(.18,.84,.24,1)",
+        fill: "forwards",
+      },
     );
     const visibleMs = Math.max(
       500,
-      settings.lifetimeSeconds * 1_000 - settings.enterDurationMs - settings.exitDurationMs,
+      settings.lifetimeSeconds * 1_000 - enterDuration - exitDuration,
     );
+    let exit: Animation | undefined;
     const timer = window.setTimeout(() => {
-      const exit = element.animate(
+      exit = element.animate(
         [
-          { opacity: 1, transform: "translate3d(0, 0, 0)" },
-          { opacity: 0, transform: `translate3d(${direction}px, -6px, 0)` },
+          { opacity: 1, filter: "blur(0)", transform: "translate3d(0, 0, 0) scale(1)" },
+          {
+            opacity: 0,
+            filter: "blur(5px)",
+            transform: `translate3d(${direction * 0.72}px, -8px, 0) scale(.98)`,
+          },
         ],
-        { duration: settings.exitDurationMs, easing: "ease-in", fill: "forwards" },
+        {
+          duration: exitDuration,
+          easing: "cubic-bezier(.55,.06,.68,.19)",
+          fill: "forwards",
+        },
       );
-      exit.onfinish = () => onDone(event.id);
-    }, settings.enterDurationMs + visibleMs);
+      void exit.finished.then(() => onDone(event.id)).catch(() => undefined);
+    }, enterDuration + visibleMs);
     return () => {
       enter.cancel();
+      exit?.cancel();
       window.clearTimeout(timer);
     };
   }, [event.id, onDone, settings]);
 
   const accent = settings.colors[event.type];
-  const style: CSSProperties = {
+  const style = {
     color: settings.textColor,
-    borderLeftColor: accent,
-    borderRadius: settings.radius,
-    background: hexToRgba(settings.backgroundColor, settings.cardOpacity),
-  };
+    "--event-accent": accent,
+    "--bubble-background": hexToRgba(settings.backgroundColor, settings.cardOpacity),
+    "--bubble-blur": `${settings.blur}px`,
+    "--bubble-radius": `${settings.radius}px`,
+  } as CSSProperties;
 
   return (
     <EventCard ref={ref} style={style} data-avatar={settings.showAvatar}>
@@ -220,14 +281,15 @@ function SidebarCard({ event, settings, onDone }: SidebarCardProps) {
           {avatar ? <img src={avatar} alt="" referrerPolicy="no-referrer" /> : event.user.slice(0, 1)}
         </Avatar>
       ) : null}
-      <div>
+      <EventBody>
         <EventTop>
           <User>{event.user}</User>
           <EventType>{typeLabel(event)}</EventType>
           {settings.showUserId && event.userId ? <UserId>UID {event.userId}</UserId> : null}
+          <Time dateTime={new Date(timestamp).toISOString()}>{eventTime(timestamp)}</Time>
         </EventTop>
         <Content>{event.content}</Content>
-      </div>
+      </EventBody>
     </EventCard>
   );
 }
@@ -248,11 +310,7 @@ export function EventSidebarOverlayWindow() {
     setEvents((current) => current.filter((event) => event.id !== id));
   }, []);
 
-  const shellStyle: CSSProperties = {
-    margin: 8,
-    borderRadius: settings.radius + 4,
-    background: hexToRgba(settings.backgroundColor, settings.backgroundOpacity),
-    backdropFilter: `blur(${settings.blur}px)`,
+  const feedStyle: CSSProperties = {
     fontFamily: settings.fontFamily,
     fontSize: settings.fontSize,
     fontWeight: settings.fontWeight,
@@ -261,17 +319,16 @@ export function EventSidebarOverlayWindow() {
 
   return (
     <Canvas>
-      <Shell style={shellStyle}>
-        <Header data-tauri-drag-region={!settings.clickThrough || undefined}>
-          <HeaderTitle>BiliCast 实时事件</HeaderTitle>
-          <LiveBadge>LIVE</LiveBadge>
-        </Header>
-        <Feed>
-          {events.map((event) => (
-            <SidebarCard key={event.id} event={event} settings={settings} onDone={remove} />
-          ))}
-        </Feed>
-      </Shell>
+      <Feed
+        style={feedStyle}
+        data-interactive={!settings.clickThrough}
+        data-tauri-drag-region={!settings.clickThrough || undefined}
+        aria-live="polite"
+      >
+        {events.map((event) => (
+          <SidebarCard key={event.id} event={event} settings={settings} onDone={remove} />
+        ))}
+      </Feed>
     </Canvas>
   );
 }
