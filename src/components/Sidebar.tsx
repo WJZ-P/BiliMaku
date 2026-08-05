@@ -28,6 +28,12 @@ const navigation: NavigationItem[] = [
     icon: "waveform",
   },
   {
+    id: "overlays",
+    label: "悬浮组件",
+    description: "弹幕与事件层",
+    icon: "message",
+  },
+  {
     id: "connection",
     label: "连接设置",
     description: "直播间接入",

@@ -4,7 +4,9 @@ import { AppHeader } from "./components/AppHeader";
 import { Sidebar } from "./components/Sidebar";
 import { ConnectionPage } from "./features/connection/ConnectionPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
+import { OverlaySettingsPage } from "./features/overlays/OverlaySettingsPage";
 import { FeaturePage } from "./features/shared/FeaturePage";
+import { VoiceStudioPage } from "./features/voices/VoiceStudioPage";
 import { GlobalStyles } from "./styles/GlobalStyles";
 import type { AppView } from "./types/navigation";
 
@@ -30,15 +32,14 @@ export default function App() {
         <Sidebar activeView={activeView} onNavigate={setActiveView} />
         <Main>
           <AppHeader activeView={activeView} />
-          {activeView === "dashboard" ? (
-            <DashboardPage />
-          ) : activeView === "connection" ? (
+          {activeView === "dashboard" && <DashboardPage />}
+          {activeView === "rules" && (
+            <FeaturePage view="rules" />
+          )}
+          {activeView === "voices" && <VoiceStudioPage />}
+          {activeView === "overlays" && <OverlaySettingsPage />}
+          {activeView === "connection" && (
             <ConnectionPage onNavigateDashboard={() => setActiveView("dashboard")} />
-          ) : (
-            <FeaturePage
-              view={activeView}
-              onNavigateDashboard={() => setActiveView("dashboard")}
-            />
           )}
         </Main>
       </AppFrame>

@@ -10,6 +10,13 @@ import {
   PanelTitle,
 } from "../../components/ui";
 import { demoEvents, demoQueue } from "../../data/mockData";
+import {
+  cancelSpeech,
+  currentTtsLabel,
+  enqueueSpeech,
+  pauseSpeech,
+  resumeSpeech,
+} from "../../services/ttsPlayback";
 import { theme } from "../../styles/theme";
 import type { LiveEvent, LiveEventType, VoiceQueueItem } from "../../types/events";
 import { useLiveRoom } from "./useLiveRoom";
@@ -834,7 +841,7 @@ function toQueueItem(event: LiveEvent, index: number): VoiceQueueItem {
   return {
     id: event.id,
     speaker: event.user,
-    voice: "系统语音 · 中文",
+    voice: currentTtsLabel(),
     content: event.content,
     duration: estimateDuration(event.content),
     status: index === 0 ? "playing" : "waiting",
@@ -911,7 +918,7 @@ export function DashboardPage() {
   const waitingQueue: VoiceQueueItem = {
     id: "live-waiting",
     speaker: "BiliCast",
-    voice: "系统语音 · 中文",
+    voice: currentTtsLabel(),
     content: connected
       ? "长链已经就绪，正在等待下一条弹幕喵～"
       : "连接建立后，新的弹幕会自动进入播报队列。",
@@ -975,28 +982,27 @@ export function DashboardPage() {
       !latest ||
       latest.type === "system" ||
       lastSpokenId.current === latest.id ||
-      !("speechSynthesis" in window)
+      queuePaused
     ) {
       return;
     }
 
     lastSpokenId.current = latest.id;
-    const utterance = new SpeechSynthesisUtterance(makeSpeechText(latest));
-    utterance.lang = "zh-CN";
-    utterance.rate = 1.05;
-    window.speechSynthesis.speak(utterance);
-  }, [connected, live.events]);
+    void enqueueSpeech(makeSpeechText(latest)).catch((error) => {
+      console.error("BiliCast TTS playback failed", error);
+    });
+  }, [connected, live.events, queuePaused]);
 
   useEffect(() => {
-    if (live.status.state === "disconnected" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
+    if (live.status.state === "disconnected") {
+      cancelSpeech();
       lastSpokenId.current = null;
     }
   }, [live.status.state]);
 
   useEffect(
     () => () => {
-      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      cancelSpeech();
     },
     [],
   );
@@ -1017,10 +1023,8 @@ export function DashboardPage() {
   const togglePlayback = () => {
     setQueuePaused((paused) => {
       const nextPaused = !paused;
-      if ("speechSynthesis" in window) {
-        if (nextPaused) window.speechSynthesis.pause();
-        else window.speechSynthesis.resume();
-      }
+      if (nextPaused) pauseSpeech();
+      else resumeSpeech();
       return nextPaused;
     });
   };

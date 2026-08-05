@@ -27,11 +27,10 @@ interface FeatureConfig {
 }
 
 interface FeaturePageProps {
-  view: Exclude<AppView, "dashboard">;
-  onNavigateDashboard: () => void;
+  view: Extract<AppView, "rules">;
 }
 
-const configs: Record<Exclude<AppView, "dashboard">, FeatureConfig> = {
+const configs: Record<Extract<AppView, "rules">, FeatureConfig> = {
   rules: {
     icon: "sliders",
     kicker: "EVENT PIPELINE",
@@ -57,62 +56,6 @@ const configs: Record<Exclude<AppView, "dashboard">, FeatureConfig> = {
         title: "合并与限流",
         description: "合并连续礼物，并让过期消息自动离队",
         status: "接口就绪",
-      },
-    ],
-  },
-  voices: {
-    icon: "waveform",
-    kicker: "VOICE STUDIO",
-    title: "一条统一接口，连接你喜欢的每一种声音",
-    description:
-      "TTS Adapter 将文本合成、音色枚举、试听与取消任务抽象为稳定接口，后续接入本地或云端引擎时无需改动 UI。",
-    primaryAction: "添加音色",
-    modules: [
-      {
-        icon: "sparkles",
-        title: "Web Speech",
-        description: "当前已接入的系统语音基础播报器",
-        status: "已可用",
-      },
-      {
-        icon: "volume",
-        title: "GPT-SoVITS",
-        description: "面向自定义参考音频与本地推理",
-        status: "预留接口",
-      },
-      {
-        icon: "sliders",
-        title: "输出设备",
-        description: "独立选择监听设备与直播混音设备",
-        status: "预留接口",
-      },
-    ],
-  },
-  connection: {
-    icon: "plug",
-    kicker: "CONNECTION ADAPTERS",
-    title: "接入方式可替换，业务事件保持一致",
-    description:
-      "当前桌面端已可仅凭房间 ID 直连 Web 长链；官方开放平台模式继续通过独立 Adapter 接入，让零服务器自用与未来发行模式并存。",
-    primaryAction: "返回播报台连接",
-    modules: [
-      {
-        icon: "radio",
-        title: "Web Live Adapter",
-        description: "WBI 签名、长链鉴权、心跳、解包与自动重连",
-        status: "已接入 · 免身份码",
-      },
-      {
-        icon: "shield",
-        title: "Open Live Adapter",
-        description: "封装 start、heartbeat、end 会话生命周期",
-        status: "预留接口",
-      },
-      {
-        icon: "plug",
-        title: "连接诊断",
-        description: "连接阶段、重连次数、人气值与最近错误统一观测",
-        status: "已接入",
       },
     ],
   },
@@ -322,7 +265,7 @@ const StepTitle = styled.div`
   font-weight: 750;
 `;
 
-export function FeaturePage({ view, onNavigateDashboard }: FeaturePageProps) {
+export function FeaturePage({ view }: FeaturePageProps) {
   const config = configs[view];
 
   return (
@@ -337,7 +280,6 @@ export function FeaturePage({ view, onNavigateDashboard }: FeaturePageProps) {
         <IntroActions>
           <PrimaryButton
             type="button"
-            onClick={view === "connection" ? onNavigateDashboard : undefined}
           >
             {config.primaryAction}
             <Icon name="arrow" size={14} />

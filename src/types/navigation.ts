@@ -1,6 +1,11 @@
 import type { IconName } from "../components/Icon";
 
-export type AppView = "dashboard" | "rules" | "voices" | "connection";
+export type AppView =
+  | "dashboard"
+  | "rules"
+  | "voices"
+  | "overlays"
+  | "connection";
 
 export interface NavigationItem {
   id: AppView;

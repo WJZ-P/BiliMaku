@@ -11,6 +11,7 @@ const viewTitles: Record<AppView, { eyebrow: string; title: string }> = {
   dashboard: { eyebrow: "LIVE WORKSPACE", title: "晚上好，主播" },
   rules: { eyebrow: "EVENT PIPELINE", title: "弹幕规则" },
   voices: { eyebrow: "VOICE STUDIO", title: "语音角色" },
+  overlays: { eyebrow: "OVERLAY STUDIO", title: "悬浮组件" },
   connection: { eyebrow: "CONNECTION", title: "连接设置" },
 };
 
