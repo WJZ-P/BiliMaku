@@ -14,6 +14,7 @@ import {
   createBilibiliLoginQr,
   getBilibiliLoginStatus,
   isDesktopRuntime,
+  listenToBilibiliAccountEvents,
   logoutBilibiliAccount,
   pollBilibiliLogin,
 } from "../../services/desktop";
@@ -28,9 +29,11 @@ interface ConnectionPageProps {
 }
 
 const initialStatus: BilibiliLoginStatus = {
-  phase: "anonymous",
+  phase: "checking",
   message: "正在读取账号状态",
   profile: null,
+  persisted: false,
+  validatedAt: null,
 };
 
 const Page = styled.div`
@@ -427,6 +430,18 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
 
   useEffect(() => {
     let active = true;
+    let unlisten: (() => void) | undefined;
+    void listenToBilibiliAccountEvents((event) => {
+      if (!active) return;
+      setStatus(event.status);
+      if (["login", "restored", "cookie-expired", "logout"].includes(event.kind)) {
+        setTicket(null);
+        setRemainingSeconds(0);
+      }
+    }).then((stop) => {
+      if (active) unlisten = stop;
+      else stop();
+    });
     void getBilibiliLoginStatus()
       .then((nextStatus) => {
         if (active) setStatus(nextStatus);
@@ -436,6 +451,7 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
       });
     return () => {
       active = false;
+      unlisten?.();
     };
   }, []);
 
@@ -451,6 +467,8 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
             phase: "expired",
             message: "二维码已过期，请刷新后重试",
             profile: null,
+            persisted: false,
+            validatedAt: null,
           });
           return 0;
         }
@@ -502,6 +520,8 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
         phase: "waiting",
         message: "请使用哔哩哔哩客户端扫码",
         profile: null,
+        persisted: false,
+        validatedAt: null,
       });
     } catch (reason) {
       setError(errorText(reason));
@@ -526,6 +546,7 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
 
   const authenticated = status.phase === "authenticated" && status.profile;
   const expired = status.phase === "expired";
+  const checking = status.phase === "checking";
 
   return (
     <Page>
@@ -561,7 +582,9 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
               <PanelTitle>B 站账号</PanelTitle>
               <PanelDescription>{status.message}</PanelDescription>
             </PanelHeading>
-            <EyebrowBadge>{authenticated ? "SIGNED IN" : "WEB SESSION"}</EyebrowBadge>
+            <EyebrowBadge>
+              {authenticated ? (status.persisted ? "PERSISTED" : "SIGNED IN") : checking ? "CHECKING" : "WEB SESSION"}
+            </EyebrowBadge>
           </PanelHeader>
           <LoginBody>
             {authenticated ? (
@@ -583,7 +606,9 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
                 <ProfileName>{authenticated.username}</ProfileName>
                 <ProfileUid>UID {authenticated.uid}</ProfileUid>
                 <SessionNote>
-                  Cookie 仅保存在 Rust 内存会话，前端只接收昵称、头像和 UID；退出应用后重新扫码。
+                  {status.persisted
+                    ? `Cookie 已使用 AES-256-GCM 加密保存在本机；启动时自动校验${status.validatedAt ? `，最近验证 ${new Date(status.validatedAt * 1000).toLocaleString()}` : ""}。`
+                    : "当前登录态尚未写入本地会话文件。"}
                 </SessionNote>
                 <SubtleButton type="button" onClick={() => void logout()} disabled={busy}>
                   退出当前账号
@@ -618,7 +643,7 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
                 <PrimaryButton
                   type="button"
                   onClick={() => void startLogin()}
-                  disabled={busy || !desktopRuntime}
+                  disabled={busy || !desktopRuntime || checking}
                 >
                   <Icon name="shield" size={15} />
                   {busy ? "正在生成…" : "扫码登录 B 站"}
@@ -673,8 +698,8 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
             <PrivacyNote>
               <Icon name="shield" size={16} />
               <span>
-                登录态用于读取观看端事件并验证进场字段差异。二维码密钥与会话 Cookie
-                留在桌面 Rust 进程中，不写入前端状态、事件日志或技术报告。
+                登录态用于读取观看端事件并验证进场字段差异。Cookie 由 Rust 使用
+                AES-256-GCM 加密落盘；前端只接收账号资料与登录、恢复、过期、退出等状态事件。
               </span>
             </PrivacyNote>
           </AdapterBody>

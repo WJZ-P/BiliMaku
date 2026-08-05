@@ -1,7 +1,9 @@
 mod bilibili;
 mod protocol;
 
-use crate::account::BiliAccountState;
+use crate::account::{
+    apply_remote_account_validation, ensure_bilibili_session_initialized, BiliAccountState,
+};
 use serde::Serialize;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -96,8 +98,11 @@ pub async fn connect_live_room(
         return Err("直播间 ID 需要大于 0".to_string());
     }
 
+    ensure_bilibili_session_initialized(&app, &account).await?;
+
     let session_id = SESSION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let config = bilibili::prepare_room(requested_room_id, session_id, &account).await?;
+    apply_remote_account_validation(&app, &account, config.account_profile.clone())?;
     let info = config.connection_info();
 
     let (cancel, cancel_receiver) = watch::channel(false);

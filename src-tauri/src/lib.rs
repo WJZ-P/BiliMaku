@@ -1,8 +1,10 @@
 use serde::Serialize;
+use tauri::Manager;
 
 mod account;
 mod live;
 mod overlay;
+mod session_crypto;
 mod tts;
 
 #[derive(Serialize)]
@@ -29,6 +31,18 @@ pub fn run() {
         .manage(account::BiliAccountState::default())
         .manage(live::LiveConnectionState::default())
         .manage(overlay::OverlayState::default())
+        .setup(|app| {
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let state = handle.state::<account::BiliAccountState>();
+                if let Err(error) =
+                    account::ensure_bilibili_session_initialized(&handle, &state).await
+                {
+                    eprintln!("BiliCast account session initialization failed: {error}");
+                }
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_app_status,
             account::get_bilibili_login_status,

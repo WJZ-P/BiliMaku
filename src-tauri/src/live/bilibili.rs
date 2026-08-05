@@ -21,7 +21,7 @@ use super::{
     emit_status, LiveStatus, PopularityUpdate, RoomConnectionInfo, LIVE_EVENT_NAME,
     LIVE_POPULARITY_EVENT_NAME,
 };
-use crate::account::{cookie_header, BiliAccountState};
+use crate::account::{cookie_header, AccountProfile, BiliAccountState};
 
 const BILIBILI_HOME_URL: &str = "https://www.bilibili.com/";
 const NAV_URL: &str = "https://api.bilibili.com/x/web-interface/nav";
@@ -41,6 +41,7 @@ pub struct RoomConfig {
     pub owner_uid: u64,
     pub title: String,
     pub live_status: u8,
+    pub account_profile: Option<AccountProfile>,
     auth_uid: u64,
     token: String,
     buvid: String,
@@ -176,12 +177,14 @@ pub async fn prepare_room(
     } else {
         0
     };
-    account.sync_profile(
-        nav_data.is_login,
-        nav_data.mid,
-        nav_data.uname.as_deref(),
-        nav_data.face.as_deref(),
-    )?;
+    let account_profile = (auth_uid > 0).then(|| AccountProfile {
+        uid: auth_uid.to_string(),
+        username: nav_data
+            .uname
+            .clone()
+            .unwrap_or_else(|| "B 站用户".to_string()),
+        avatar: nav_data.face.clone().unwrap_or_default(),
+    });
     let mixin_key = make_mixin_key(&nav_data.wbi_img)?;
     let signed_url = make_signed_danmaku_url(room.room_id, &mixin_key)?;
 
@@ -216,10 +219,15 @@ pub async fn prepare_room(
         owner_uid: room.uid,
         title: room.title,
         live_status: room.live_status,
+        account_profile,
         auth_uid,
         token: danmaku.token,
         buvid: cookie_value(&cookie_jar, "buvid3"),
-        cookie_header: cookie_header(&cookie_jar),
+        cookie_header: if auth_uid > 0 {
+            cookie_header(&cookie_jar)
+        } else {
+            String::new()
+        },
         hosts: danmaku.host_list,
     })
 }

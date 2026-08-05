@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  BilibiliAccountEvent,
   BilibiliLoginStatus,
   QrLoginTicket,
 } from "../types/account";
@@ -36,6 +37,8 @@ export async function getBilibiliLoginStatus(): Promise<BilibiliLoginStatus> {
       phase: "anonymous",
       message: "请从 BiliCast 桌面窗口使用扫码登录",
       profile: null,
+      persisted: false,
+      validatedAt: null,
     };
   }
   return invoke<BilibiliLoginStatus>("get_bilibili_login_status");
@@ -60,6 +63,15 @@ export async function logoutBilibiliAccount(): Promise<BilibiliLoginStatus> {
     return getBilibiliLoginStatus();
   }
   return invoke<BilibiliLoginStatus>("logout_bilibili_account");
+}
+
+export async function listenToBilibiliAccountEvents(
+  callback: (event: BilibiliAccountEvent) => void,
+): Promise<UnlistenFn> {
+  if (!isDesktopRuntime()) return () => undefined;
+  return listen<BilibiliAccountEvent>("account://event", (event) =>
+    callback(event.payload),
+  );
 }
 
 export async function connectLiveRoom(roomId: string) {
