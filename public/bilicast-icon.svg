@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BiliCast">
+  <defs>
+    <linearGradient id="bg" x1="72" y1="58" x2="440" y2="458" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#63B8FF"/>
+      <stop offset="0.56" stop-color="#438FF1"/>
+      <stop offset="1" stop-color="#286CCB"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="146" y1="266" x2="368" y2="266" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.5" stop-color="#BFF8FF"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="24" stdDeviation="26" flood-color="#19549B" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="126" fill="#EEF7FF"/>
+  <g filter="url(#shadow)">
+    <path d="M106 185c0-45 36-81 81-81h138c45 0 81 36 81 81v130c0 45-36 81-81 81h-91l-71 48 15-51c-41-5-72-38-72-79V185Z" fill="url(#bg)"/>
+    <path d="m153 128 22-63 57 50M359 128l-22-63-57 50" fill="url(#bg)" stroke="#EEF7FF" stroke-width="17" stroke-linejoin="round"/>
+  </g>
+  <g fill="url(#wave)">
+    <rect x="145" y="244" width="20" height="45" rx="10"/>
+    <rect x="177" y="221" width="20" height="91" rx="10"/>
+    <rect x="209" y="188" width="20" height="157" rx="10"/>
+    <rect x="241" y="161" width="30" height="211" rx="15"/>
+    <rect x="283" y="188" width="20" height="157" rx="10"/>
+    <rect x="315" y="221" width="20" height="91" rx="10"/>
+    <rect x="347" y="244" width="20" height="45" rx="10"/>
+  </g>
+  <circle cx="370" cy="145" r="20" fill="#66E5EC" stroke="#FFFFFF" stroke-width="10"/>
+</svg>
