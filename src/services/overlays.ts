@@ -1,13 +1,20 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { LiveEvent } from "../types/events";
-import type { OverlayKind, OverlaySettings, SidebarOverlaySettings } from "../types/overlay";
+import type {
+  OverlayAutoOpenState,
+  OverlayKind,
+  OverlaySettings,
+  OverlayWindowStateUpdate,
+  SidebarOverlaySettings,
+} from "../types/overlay";
 import { isDesktopRuntime } from "./desktop";
 
 const SETTINGS_KEY = "bilimaku.overlay.settings.v1";
 const LEGACY_SETTINGS_KEY = "bilicast.overlay.settings.v1";
 const SETTINGS_EVENT = "overlay://settings";
 const PREVIEW_EVENT = "overlay://preview";
+const WINDOW_STATE_EVENT = "overlay://window-state";
 
 const DEFAULT_USERNAME_COLOR = "#66CCFF";
 
@@ -198,6 +205,43 @@ export async function closeOverlay(kind: OverlayKind) {
   await invoke("close_overlay", { kind });
 }
 
+/** 读取上次运行结束时保持开启的悬浮窗。 */
+export async function getOverlayAutoOpenState(): Promise<OverlayAutoOpenState> {
+  if (!isDesktopRuntime()) return { danmaku: false, sidebar: false };
+  return invoke<OverlayAutoOpenState>("get_overlay_auto_open");
+}
+
+/** 一次读取两个悬浮窗的实际运行状态。 */
+export async function getOverlayWindowState(): Promise<OverlayAutoOpenState> {
+  const [danmaku, sidebar] = await Promise.all([
+    isOverlayOpen("danmaku"),
+    isOverlayOpen("sidebar"),
+  ]);
+  return { danmaku, sidebar };
+}
+
+/**
+ * 冷启动时只补开“配置为开启且当前尚未创建”的窗口。
+ * 恢复在首帧之后运行，避免影响主窗口冷启动。
+ */
+export async function restoreAutoOpenOverlays(
+  settings = loadOverlaySettings(),
+): Promise<OverlayAutoOpenState> {
+  if (!isDesktopRuntime()) return { danmaku: false, sidebar: false };
+  const [autoOpen, actual] = await Promise.all([
+    getOverlayAutoOpenState(),
+    getOverlayWindowState(),
+  ]);
+  const restorations = (["danmaku", "sidebar"] as const).map(async (kind) => {
+    if (autoOpen[kind] && !actual[kind]) {
+      await openOverlay(kind, settings);
+      actual[kind] = true;
+    }
+  });
+  await Promise.all(restorations);
+  return actual;
+}
+
 /** 拖动结束后由 Rust 选择目标显示器、固定执行防溢出并持久化归一化位置。 */
 export async function finalizeSidebarOverlayPosition() {
   if (!isDesktopRuntime()) return;
@@ -219,6 +263,13 @@ export async function getRuntimeOverlaySettings(): Promise<OverlaySettings | nul
 export async function previewOverlayEvent(event: LiveEvent) {
   if (!isDesktopRuntime()) return;
   await invoke("preview_overlay_event", { event });
+}
+
+export async function listenToOverlayWindowState(
+  callback: (update: OverlayWindowStateUpdate) => void,
+): Promise<UnlistenFn> {
+  if (!isDesktopRuntime()) return () => undefined;
+  return listen<OverlayWindowStateUpdate>(WINDOW_STATE_EVENT, (event) => callback(event.payload));
 }
 
 export async function listenToOverlaySettings(

@@ -132,9 +132,12 @@ function Workspace({ accountStatus, onAccountStatusChange }: WorkspaceProps) {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void import("./services/overlays")
-        .then(({ hydrateOverlaySettings }) => hydrateOverlaySettings())
+        .then(async ({ hydrateOverlaySettings, restoreAutoOpenOverlays }) => {
+          const settings = await hydrateOverlaySettings();
+          await restoreAutoOpenOverlays(settings);
+        })
         .catch((error) => {
-          console.warn("bilimaku overlay settings hydration failed", error);
+          console.warn("bilimaku overlay startup restoration failed", error);
         });
     }, 1000);
     return () => window.clearTimeout(timer);

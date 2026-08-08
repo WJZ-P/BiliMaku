@@ -4,7 +4,8 @@ import { saveLiveRoomId } from "../../services/desktop";
 import { sendLiveDanmaku } from "../../services/liveChat";
 import {
   closeOverlay,
-  isOverlayOpen,
+  getOverlayWindowState,
+  listenToOverlayWindowState,
   openOverlay,
 } from "../../services/overlays";
 import {
@@ -464,18 +465,34 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
   useEffect(() => {
     let active = true;
-    void Promise.all([
-      isOverlayOpen("danmaku"),
-      isOverlayOpen("sidebar"),
-    ]).then(([danmakuOpen, sidebarOpen]) => {
-      if (active) setOverlaysOpen(danmakuOpen || sidebarOpen);
-    }).catch((error) => {
-      if (!active) return;
-      setOverlayError(errorMessage(error));
-      console.error("bilimaku overlay state check failed", error);
-    });
+    let unlisten: (() => void) | undefined;
+    const refresh = async () => {
+      try {
+        const state = await getOverlayWindowState();
+        if (active) setOverlaysOpen(state.danmaku || state.sidebar);
+      } catch (error) {
+        if (!active) return;
+        setOverlayError(errorMessage(error));
+        console.error("bilimaku overlay state check failed", error);
+      }
+    };
+    const initialize = async () => {
+      try {
+        const stop = await listenToOverlayWindowState(() => void refresh());
+        if (!active) {
+          stop();
+          return;
+        }
+        unlisten = stop;
+      } catch (error) {
+        console.error("bilimaku overlay state listener failed", error);
+      }
+      await refresh();
+    };
+    void initialize();
     return () => {
       active = false;
+      unlisten?.();
     };
   }, []);
 
@@ -601,11 +618,8 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       setOverlayError(errorMessage(error));
       console.error("bilimaku overlay toggle failed", error);
       try {
-        const [danmakuOpen, sidebarOpen] = await Promise.all([
-          isOverlayOpen("danmaku"),
-          isOverlayOpen("sidebar"),
-        ]);
-        setOverlaysOpen(danmakuOpen || sidebarOpen);
+        const state = await getOverlayWindowState();
+        setOverlaysOpen(state.danmaku || state.sidebar);
       } catch (stateError) {
         console.error("bilimaku overlay state refresh failed", stateError);
       }

@@ -120,6 +120,7 @@ pub fn run() {
             overlay::close_overlay,
             overlay::is_overlay_open,
             overlay::get_overlay_settings,
+            overlay::get_overlay_auto_open,
             overlay::update_overlay_settings,
             overlay::preview_overlay_event
         ])

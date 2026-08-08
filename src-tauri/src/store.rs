@@ -1,6 +1,6 @@
 use crate::types::account::AccountProfile;
 use crate::types::config::{
-    AccountStorageConfig, AppConfig, TtsUserSettings, CONFIG_SCHEMA_VERSION,
+    AccountStorageConfig, AppConfig, OverlayAutoOpenConfig, TtsUserSettings, CONFIG_SCHEMA_VERSION,
 };
 use crate::types::overlay::SidebarOverlayPlacement;
 use crate::types::tts::TtsEnvironmentCache;
@@ -263,6 +263,23 @@ impl AppConfigStore {
         self.update(|config| config.overlay.settings = Some(settings))
     }
 
+    /// 读取需要在下次启动时恢复的悬浮窗。
+    pub fn overlay_auto_open(&self) -> Result<OverlayAutoOpenConfig, String> {
+        Ok(self.snapshot()?.overlay.auto_open)
+    }
+
+    /// 记录用户对某个悬浮窗的最后一次显式开关操作。
+    pub fn set_overlay_auto_open(&self, kind: &str, enabled: bool) -> Result<bool, String> {
+        if kind != "danmaku" && kind != "sidebar" {
+            return Err(format!("不支持的悬浮组件类型：{kind}"));
+        }
+        self.update(|config| match kind {
+            "danmaku" => config.overlay.auto_open.danmaku = enabled,
+            "sidebar" => config.overlay.auto_open.sidebar = enabled,
+            _ => unreachable!("overlay kind was validated"),
+        })
+    }
+
     /// 读取侧边事件栏相对于显示器工作区的归一化位置。
     pub fn sidebar_overlay_placement(&self) -> Result<Option<SidebarOverlayPlacement>, String> {
         Ok(self.snapshot()?.overlay.sidebar_placement)
@@ -396,6 +413,41 @@ mod tests {
         disk.live.room_id = "999".to_string();
         persist_config(&path, &disk).expect("simulate manual edit while running");
         assert_eq!(store.room_id().expect("read memory"), "4457340");
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn persists_overlay_auto_open_preferences() {
+        let directory = test_directory("overlay-auto-open");
+        let path = directory.join(CONFIG_FILE_NAME);
+        let store = AppConfigStore::default();
+        store
+            .initialize_from_path(path.clone())
+            .expect("initialize store");
+
+        assert_eq!(
+            store.overlay_auto_open().expect("read defaults"),
+            OverlayAutoOpenConfig::default()
+        );
+        assert!(store
+            .set_overlay_auto_open("sidebar", true)
+            .expect("enable sidebar"));
+        assert!(!store
+            .set_overlay_auto_open("sidebar", true)
+            .expect("skip unchanged sidebar"));
+        assert!(store.set_overlay_auto_open("unknown", true).is_err());
+
+        let reloaded = AppConfigStore::default();
+        reloaded
+            .initialize_from_path(path.clone())
+            .expect("reload store");
+        assert_eq!(
+            reloaded.overlay_auto_open().expect("read preferences"),
+            OverlayAutoOpenConfig {
+                danmaku: false,
+                sidebar: true,
+            }
+        );
         let _ = fs::remove_dir_all(directory);
     }
 

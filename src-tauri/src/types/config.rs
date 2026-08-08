@@ -109,12 +109,24 @@ pub struct TtsStorageConfig {
     pub environment_cache: Vec<TtsEnvironmentCache>,
 }
 
+/// 需要在软件启动后自动恢复的悬浮窗。
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OverlayAutoOpenConfig {
+    /// 启动后恢复全屏滚动弹幕层。
+    pub danmaku: bool,
+    /// 启动后恢复侧边事件栏。
+    pub sidebar: bool,
+}
+
 /// 透明悬浮窗持久化配置。
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct OverlayStorageConfig {
     /// 前端定义的完整悬浮窗设置；首次启动时为空并使用前端默认值。
     pub settings: Option<Value>,
+    /// 上次运行时用户主动保持开启的悬浮窗。
+    pub auto_open: OverlayAutoOpenConfig,
     /// 侧边事件栏相对目标显示器工作区的位置。
     pub sidebar_placement: Option<SidebarOverlayPlacement>,
 }

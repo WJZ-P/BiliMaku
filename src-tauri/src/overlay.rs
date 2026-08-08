@@ -1,6 +1,7 @@
 use crate::store::AppConfigStore;
+use crate::types::config::OverlayAutoOpenConfig;
 use crate::types::overlay::{OverlayWindowOptions, SidebarOverlayPlacement};
-use serde_json::Value;
+use serde_json::{json, Value};
 use tauri::{
     AppHandle, Emitter, LogicalSize, Manager, Monitor, PhysicalPosition, PhysicalSize, State,
     WebviewUrl, WebviewWindow, WebviewWindowBuilder,
@@ -8,6 +9,7 @@ use tauri::{
 
 pub const SETTINGS_EVENT: &str = "overlay://settings";
 pub const PREVIEW_EVENT: &str = "overlay://preview";
+pub const WINDOW_STATE_EVENT: &str = "overlay://window-state";
 const DANMAKU_LABEL: &str = "danmaku-overlay";
 const SIDEBAR_LABEL: &str = "event-sidebar";
 
@@ -37,6 +39,11 @@ enum SidebarGeometryMode {
     Restore,
     /// 设置热更新时保留窗口当前所在的显示器与左上角位置。
     Preserve,
+}
+
+fn emit_window_state(app: &AppHandle, kind: &str, open: bool) -> Result<(), String> {
+    app.emit(WINDOW_STATE_EVENT, json!({ "kind": kind, "open": open }))
+        .map_err(|error| format!("广播悬浮窗状态失败：{error}"))
 }
 
 fn overlay_label(kind: &str) -> Result<&'static str, String> {
@@ -350,6 +357,8 @@ pub async fn open_overlay(
         window
             .show()
             .map_err(|error| format!("显示悬浮窗失败：{error}"))?;
+        store.set_overlay_auto_open(&kind, true)?;
+        emit_window_state(&app, &kind, true)?;
         return Ok(());
     }
 
@@ -387,6 +396,8 @@ pub async fn open_overlay(
     window
         .show()
         .map_err(|error| format!("显示悬浮窗失败：{error}"))?;
+    store.set_overlay_auto_open(&kind, true)?;
+    emit_window_state(&app, &kind, true)?;
     Ok(())
 }
 
@@ -443,14 +454,19 @@ pub fn finalize_sidebar_overlay_position(
 }
 
 #[tauri::command]
-pub fn close_overlay(app: AppHandle, kind: String) -> Result<(), String> {
+pub fn close_overlay(
+    app: AppHandle,
+    store: State<'_, AppConfigStore>,
+    kind: String,
+) -> Result<(), String> {
     let label = overlay_label(&kind)?;
     if let Some(window) = app.get_webview_window(label) {
         window
             .close()
             .map_err(|error| format!("关闭悬浮窗失败：{error}"))?;
     }
-    Ok(())
+    store.set_overlay_auto_open(&kind, false)?;
+    emit_window_state(&app, &kind, false)
 }
 
 /// 返回指定悬浮组件对应的窗口是否已经创建且仍然存在。
@@ -463,6 +479,14 @@ pub fn is_overlay_open(app: AppHandle, kind: String) -> Result<bool, String> {
 #[tauri::command]
 pub fn get_overlay_settings(store: State<'_, AppConfigStore>) -> Result<Option<Value>, String> {
     store.overlay_settings()
+}
+
+/// 读取用户上次保持开启的悬浮窗，用于冷启动恢复。
+#[tauri::command]
+pub fn get_overlay_auto_open(
+    store: State<'_, AppConfigStore>,
+) -> Result<OverlayAutoOpenConfig, String> {
+    store.overlay_auto_open()
 }
 
 #[tauri::command]

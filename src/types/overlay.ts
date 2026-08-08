@@ -1,6 +1,23 @@
 import type { LiveEventType } from "./events";
 
 export type OverlayKind = "danmaku" | "sidebar";
+
+/** 软件冷启动时需要自动恢复的悬浮窗。 */
+export interface OverlayAutoOpenState {
+  /** 是否恢复全屏滚动弹幕层。 */
+  danmaku: boolean;
+  /** 是否恢复侧边事件栏。 */
+  sidebar: boolean;
+}
+
+/** 悬浮窗的实时开关变更。 */
+export interface OverlayWindowStateUpdate {
+  /** 发生变更的悬浮窗。 */
+  kind: OverlayKind;
+  /** 变更后窗口是否存在。 */
+  open: boolean;
+}
+
 /** 侧边事件栏中新消息从窗口顶部或底部进入。 */
 export type SidebarEntryDirection = "top" | "bottom";
 /** 侧边事件栏内容在窗口中的纵向停靠位置。 */
