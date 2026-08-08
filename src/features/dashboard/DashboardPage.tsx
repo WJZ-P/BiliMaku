@@ -136,6 +136,14 @@ const eventTypeLabels: Record<LiveEventType, string> = {
   system: "系统",
 };
 
+/** 仅普通弹幕需要根据发送者 UID 提升为主播消息。 */
+function isAnchorDanmaku(event: LiveEvent, ownerUid: number | null) {
+  if (event.type !== "message" || ownerUid === null || ownerUid <= 0) {
+    return false;
+  }
+  return event.userId?.trim() === String(ownerUid);
+}
+
 function formatCompact(value: number) {
   return new Intl.NumberFormat("zh-CN", {
     notation: value >= 10_000 ? "compact" : "standard",
@@ -293,6 +301,8 @@ function EventAvatarView({ event }: { event: LiveEvent }) {
 interface AnimatedMessageRowProps {
   /** 已归一化的直播消息。 */
   event: LiveEvent;
+  /** 当前直播间主播 UID；用来识别主播本人发送的普通弹幕。 */
+  ownerUid: number | null;
   /** 仅新收到的消息在首次挂载时播放入场动画。 */
   enterOnMount: boolean;
 }
@@ -303,7 +313,15 @@ interface AnimatedMessageRowProps {
  * 外层负责从 0 高度展开并推动旧消息上移，内层负责左下到右上的弹簧入场；
  * 动画结束后移除裁剪，避免头像和气泡阴影被长期截断。
  */
-function AnimatedMessageRow({ event, enterOnMount }: AnimatedMessageRowProps) {
+function AnimatedMessageRow({
+  event,
+  ownerUid,
+  enterOnMount,
+}: AnimatedMessageRowProps) {
+  const anchorDanmaku = isAnchorDanmaku(event, ownerUid);
+  const eventTag = anchorDanmaku
+    ? "主播"
+    : event.meta || eventTypeLabels[event.type];
   const [entering, setEntering] = useState(
     () => enterOnMount && !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
@@ -328,8 +346,8 @@ function AnimatedMessageRow({ event, enterOnMount }: AnimatedMessageRowProps) {
                   UID {event.userId}
                 </EventUserId>
               ) : null}
-              <EventType data-type={event.type}>
-                {event.meta || eventTypeLabels[event.type]}
+              <EventType data-type={event.type} data-anchor={anchorDanmaku}>
+                {eventTag}
               </EventType>
               <EventTime>{formatEventTime(event)}</EventTime>
             </MessageMeta>
@@ -771,6 +789,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                   <AnimatedMessageRow
                     key={event.id}
                     event={event}
+                    ownerUid={live.room?.ownerUid ?? null}
                     enterOnMount={animateLatestEvent && event.id === latestEventId}
                   />
                 ))}

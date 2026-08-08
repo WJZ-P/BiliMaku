@@ -610,6 +610,16 @@ export const EventType = styled.span`
     background: ${theme.colors.successSoft};
     color: ${theme.colors.success};
   }
+
+  &[data-anchor="true"] {
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, ${theme.colors.brand} 18%, white),
+      color-mix(in srgb, ${theme.colors.cyan} 14%, white)
+    );
+    color: ${theme.colors.brandDeep};
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, ${theme.colors.brand} 22%, transparent);
+  }
 `;
 
 export const EventTime = styled.time`
