@@ -50,12 +50,30 @@ pub struct AccountStorageConfig {
     pub saved_at: u64,
 }
 
-/// 直播间连接相关配置。
+/// 直播间聊天区外观设置。
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct LiveAppearanceSettings {
+    /// 消息气泡的 #RRGGBB 基础主题色。
+    pub message_bubble_color: String,
+}
+
+impl Default for LiveAppearanceSettings {
+    fn default() -> Self {
+        Self {
+            message_bubble_color: "#66CCFF".to_string(),
+        }
+    }
+}
+
+/// 直播间连接与界面配置。
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct LiveStorageConfig {
     /// 用户最近一次输入并通过格式校验的房间号。
     pub room_id: String,
+    /// 聊天区的可持久化外观。
+    pub appearance: LiveAppearanceSettings,
 }
 
 /// TTS 播报偏好，字段与 React 前端设置保持一致。

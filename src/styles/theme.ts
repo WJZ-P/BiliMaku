@@ -1,3 +1,6 @@
+/** 浅蓝主题下的默认聊天气泡色。 */
+export const DEFAULT_MESSAGE_BUBBLE_COLOR = "#66CCFF";
+
 /**
  * bilimaku design tokens.
  *
@@ -18,6 +21,7 @@ export const lightTheme = {
     brandDeep: "#2369c5",
     brandSoft: "#dcecff",
     brandSubtle: "#eef6ff",
+    messageBubble: DEFAULT_MESSAGE_BUBBLE_COLOR,
     cyan: "#5dd7e8",
     cyanSoft: "#e1f9fc",
     textPrimary: "#18324d",
@@ -54,6 +58,7 @@ export const theme = {
     brandDeep: "var(--bc-color-brand-deep)",
     brandSoft: "var(--bc-color-brand-soft)",
     brandSubtle: "var(--bc-color-brand-subtle)",
+    messageBubble: "var(--bc-color-message-bubble)",
     cyan: "var(--bc-color-cyan)",
     cyanSoft: "var(--bc-color-cyan-soft)",
     textPrimary: "var(--bc-color-text-primary)",

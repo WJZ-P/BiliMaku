@@ -1,6 +1,7 @@
 use crate::types::account::AccountProfile;
 use crate::types::config::{
-    AccountStorageConfig, AppConfig, OverlayAutoOpenConfig, TtsUserSettings, CONFIG_SCHEMA_VERSION,
+    AccountStorageConfig, AppConfig, LiveAppearanceSettings, OverlayAutoOpenConfig,
+    TtsUserSettings, CONFIG_SCHEMA_VERSION,
 };
 use crate::types::overlay::SidebarOverlayPlacement;
 use crate::types::tts::TtsEnvironmentCache;
@@ -30,6 +31,19 @@ impl Default for AppConfigStore {
             path: OnceLock::new(),
         }
     }
+}
+
+fn normalize_hex_color(value: &str) -> Result<String, String> {
+    let color = value.trim();
+    if color.len() != 7
+        || !color.starts_with('#')
+        || !color[1..]
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+    {
+        return Err("颜色需要使用 #RRGGBB 格式".to_string());
+    }
+    Ok(color.to_ascii_uppercase())
 }
 
 fn unix_timestamp() -> u64 {
@@ -175,6 +189,23 @@ impl AppConfigStore {
     /// 保存经过格式校验的房间号。
     pub fn set_room_id(&self, room_id: String) -> Result<bool, String> {
         self.update(|config| config.live.room_id = room_id)
+    }
+
+    /// 读取直播间聊天区外观设置。
+    pub fn live_appearance_settings(&self) -> Result<LiveAppearanceSettings, String> {
+        let mut settings = self.snapshot()?.live.appearance;
+        settings.message_bubble_color = normalize_hex_color(&settings.message_bubble_color)
+            .unwrap_or_else(|_| LiveAppearanceSettings::default().message_bubble_color);
+        Ok(settings)
+    }
+
+    /// 校验并保存直播间聊天区外观设置。
+    pub fn set_live_appearance_settings(
+        &self,
+        mut settings: LiveAppearanceSettings,
+    ) -> Result<bool, String> {
+        settings.message_bubble_color = normalize_hex_color(&settings.message_bubble_color)?;
+        self.update(|config| config.live.appearance = settings)
     }
 
     /// 读取 TTS 模型注册表的 JSON 值。
@@ -367,6 +398,23 @@ pub fn update_tts_settings(
     store.set_tts_settings(settings)
 }
 
+/// 读取直播间聊天区外观设置。
+#[tauri::command]
+pub fn get_live_appearance_settings(
+    store: State<'_, AppConfigStore>,
+) -> Result<LiveAppearanceSettings, String> {
+    store.live_appearance_settings()
+}
+
+/// 更新直播间聊天区外观设置。
+#[tauri::command]
+pub fn update_live_appearance_settings(
+    store: State<'_, AppConfigStore>,
+    settings: LiveAppearanceSettings,
+) -> Result<bool, String> {
+    store.set_live_appearance_settings(settings)
+}
+
 /// 保存用户在播报台输入的直播间号。
 #[tauri::command]
 pub fn update_saved_room_id(
@@ -413,6 +461,47 @@ mod tests {
         disk.live.room_id = "999".to_string();
         persist_config(&path, &disk).expect("simulate manual edit while running");
         assert_eq!(store.room_id().expect("read memory"), "4457340");
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn persists_and_validates_live_appearance_settings() {
+        let directory = test_directory("live-appearance");
+        let path = directory.join(CONFIG_FILE_NAME);
+        let store = AppConfigStore::default();
+        store
+            .initialize_from_path(path.clone())
+            .expect("initialize store");
+
+        assert_eq!(
+            store
+                .live_appearance_settings()
+                .expect("read default appearance")
+                .message_bubble_color,
+            "#66CCFF"
+        );
+        assert!(store
+            .set_live_appearance_settings(LiveAppearanceSettings {
+                message_bubble_color: "#ff72ad".to_string(),
+            })
+            .expect("save appearance"));
+        assert!(store
+            .set_live_appearance_settings(LiveAppearanceSettings {
+                message_bubble_color: "blue".to_string(),
+            })
+            .is_err());
+
+        let reloaded = AppConfigStore::default();
+        reloaded
+            .initialize_from_path(path.clone())
+            .expect("reload store");
+        assert_eq!(
+            reloaded
+                .live_appearance_settings()
+                .expect("read persisted appearance")
+                .message_bubble_color,
+            "#FF72AD"
+        );
         let _ = fs::remove_dir_all(directory);
     }
 

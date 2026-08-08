@@ -1,14 +1,18 @@
 import { styled } from "@linaria/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { Icon } from "../../components/Icon";
 import { EyebrowBadge, Panel, PanelDescription, PanelHeader, PanelHeading, PanelTitle } from "../../components/ui";
 import {
   disconnectLiveRoom,
   getConfigFilePath,
+  getLiveAppearanceSettings,
   logoutBilibiliAccount,
+  saveLiveAppearanceSettings,
 } from "../../services/desktop";
-import { theme } from "../../styles/theme";
+import { DEFAULT_MESSAGE_BUBBLE_COLOR, theme } from "../../styles/theme";
 import type { BilibiliLoginStatus } from "../../types/account";
+import type { LiveAppearanceSettings } from "../../types/liveAppearance";
 
 interface SettingsPageProps {
   accountStatus: BilibiliLoginStatus;
@@ -214,6 +218,61 @@ const ThemeOption = styled.div`
   box-shadow: ${theme.shadows.inset};
 `;
 
+const BubbleColorOption = styled.div`
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  padding: 13px;
+  border: 1px solid ${theme.colors.border};
+  border-radius: ${theme.radius.md};
+  background: ${theme.colors.surfaceMuted};
+`;
+
+const BubblePreview = styled.div`
+  display: grid;
+  min-height: 36px;
+  place-items: center;
+  padding: 6px 8px;
+  border: 1px solid color-mix(
+    in srgb,
+    var(--preview-bubble-color, ${theme.colors.messageBubble}) 42%,
+    ${theme.colors.border}
+  );
+  border-radius: 3px 10px 10px 10px;
+  background: color-mix(
+    in srgb,
+    var(--preview-bubble-color, ${theme.colors.messageBubble}) 14%,
+    ${theme.colors.surface}
+  );
+  color: ${theme.colors.textSecondary};
+  font-size: 8px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px color-mix(
+    in srgb,
+    var(--preview-bubble-color, ${theme.colors.messageBubble}) 12%,
+    transparent
+  );
+`;
+
+const BubbleColorInput = styled.input`
+  width: 38px;
+  height: 38px;
+  padding: 3px;
+  border: 1px solid ${theme.colors.borderStrong};
+  border-radius: 10px;
+  background: ${theme.colors.surface};
+
+  &::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+
+  &::-webkit-color-swatch {
+    border: 0;
+    border-radius: 6px;
+  }
+`;
+
 const Swatches = styled.div`
   display: grid;
   width: 48px;
@@ -268,6 +327,13 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
   const [configPath, setConfigPath] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [appearanceError, setAppearanceError] = useState("");
+  const [appearanceReady, setAppearanceReady] = useState(false);
+  const [liveAppearance, setLiveAppearance] = useState<LiveAppearanceSettings>({
+    messageBubbleColor: DEFAULT_MESSAGE_BUBBLE_COLOR,
+  });
+  const latestAppearanceRef = useRef(liveAppearance);
+  const appearanceReadyRef = useRef(false);
   const profile = accountStatus.profile;
 
   useEffect(() => {
@@ -277,6 +343,54 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
     });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    void getLiveAppearanceSettings().then((settings) => {
+      if (!active) return;
+      latestAppearanceRef.current = settings;
+      appearanceReadyRef.current = true;
+      setLiveAppearance(settings);
+      setAppearanceReady(true);
+    }).catch((reason) => {
+      if (active) setAppearanceError(errorText(reason));
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!appearanceReady) return;
+    const timer = window.setTimeout(() => {
+      void saveLiveAppearanceSettings(liveAppearance).then(() => {
+        setAppearanceError("");
+      }).catch((reason) => {
+        setAppearanceError(errorText(reason));
+      });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [appearanceReady, liveAppearance]);
+
+  useEffect(
+    () => () => {
+      if (!appearanceReadyRef.current) return;
+      void saveLiveAppearanceSettings(latestAppearanceRef.current).catch((reason) => {
+        console.error("bilimaku live appearance final save failed", reason);
+      });
+    },
+    [],
+  );
+
+  const updateMessageBubbleColor = (messageBubbleColor: string) => {
+    const next = { messageBubbleColor };
+    latestAppearanceRef.current = next;
+    setLiveAppearance(next);
+  };
+
+  const bubblePreviewStyle = {
+    "--preview-bubble-color": liveAppearance.messageBubbleColor,
+  } as CSSProperties;
 
   const logout = async () => {
     setBusy(true);
@@ -349,6 +463,23 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
               </div>
               <Icon name="check" size={17} />
             </ThemeOption>
+            <BubbleColorOption>
+              <BubblePreview style={bubblePreviewStyle}>进入了直播间</BubblePreview>
+              <div>
+                <OptionTitle>聊天气泡颜色</OptionTitle>
+                <OptionDescription>
+                  {liveAppearance.messageBubbleColor.toUpperCase()} · 直播间消息和互动事件
+                </OptionDescription>
+              </div>
+              <BubbleColorInput
+                type="color"
+                aria-label="自定义聊天气泡颜色"
+                value={liveAppearance.messageBubbleColor}
+                disabled={!appearanceReady}
+                onChange={(event) => updateMessageBubbleColor(event.target.value)}
+              />
+            </BubbleColorOption>
+            {appearanceError ? <ErrorMessage>{appearanceError}</ErrorMessage> : null}
             <Detail>配置文件：{configPath || "正在读取…"}</Detail>
           </ThemeBody>
         </Panel>

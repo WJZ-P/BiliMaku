@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { Icon, type IconName } from "../../components/Icon";
-import { saveLiveRoomId } from "../../services/desktop";
+import { getLiveAppearanceSettings, saveLiveRoomId } from "../../services/desktop";
 import { sendLiveDanmaku } from "../../services/liveChat";
 import {
   closeOverlay,
@@ -13,6 +14,7 @@ import {
   markStartup,
 } from "../../services/startupPerformance";
 import type { LiveConnectionPhase, LiveEvent, LiveEventType } from "../../types/events";
+import { DEFAULT_MESSAGE_BUBBLE_COLOR } from "../../styles/theme";
 import type { LiveOnlineRankEntry } from "../../types/liveRank";
 import { LIVE_DANMAKU_MAX_LENGTH } from "../../types/liveChat";
 import type { AppView } from "../../types/navigation";
@@ -388,6 +390,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const [sendPhase, setSendPhase] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [sendNotice, setSendNotice] = useState("");
   const [clockNow, setClockNow] = useState(() => Date.now());
+  const [messageBubbleColor, setMessageBubbleColor] = useState(DEFAULT_MESSAGE_BUBBLE_COLOR);
   const messageViewportRef = useRef<HTMLDivElement>(null);
   const messageFeedReadyRef = useRef(false);
   const renderedFeedRef = useRef<{
@@ -449,6 +452,21 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const composerAssist = sendNotice || (connected
     ? "Enter 发送 · 使用当前扫码登录账号"
     : "连接直播间后即可使用当前账号发弹幕");
+  const messageFeedStyle = {
+    "--message-bubble-color": messageBubbleColor,
+  } as CSSProperties;
+
+  useEffect(() => {
+    let active = true;
+    void getLiveAppearanceSettings().then((settings) => {
+      if (active) setMessageBubbleColor(settings.messageBubbleColor);
+    }).catch((error) => {
+      console.warn("bilimaku live appearance loading failed", error);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     setClockNow(Date.now());
@@ -743,7 +761,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
           <MessageViewport ref={messageViewportRef}>
             {events.length > 0 ? (
-              <MessageFeed>
+              <MessageFeed style={messageFeedStyle}>
                 {events.map((event) => (
                   <AnimatedMessageRow
                     key={event.id}

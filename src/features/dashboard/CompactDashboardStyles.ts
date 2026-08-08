@@ -633,32 +633,28 @@ export const MessageBubble = styled.p`
   max-width: min(620px, 92%);
   margin: 0;
   padding: 8px 10px;
-  border: 1px solid ${theme.colors.border};
+  border: 1px solid color-mix(
+    in srgb,
+    var(--message-bubble-color, ${theme.colors.messageBubble}) 42%,
+    ${theme.colors.border}
+  );
   border-radius: 3px 10px 10px 10px;
-  background: color-mix(in srgb, ${theme.colors.surface} 92%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--message-bubble-color, ${theme.colors.messageBubble}) 14%,
+    ${theme.colors.surface}
+  );
   color: ${theme.colors.textSecondary};
   font-size: 10px;
   line-height: 1.52;
   overflow-wrap: anywhere;
   box-shadow:
-    0 4px 12px color-mix(in srgb, ${theme.colors.brandDeep} 6%, transparent),
+    0 4px 12px color-mix(
+      in srgb,
+      var(--message-bubble-color, ${theme.colors.messageBubble}) 12%,
+      transparent
+    ),
     inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 72%, transparent);
-
-  &[data-type="gift"],
-  &[data-type="superchat"] {
-    border-color: color-mix(in srgb, ${theme.colors.gift} 22%, ${theme.colors.border});
-    background: color-mix(in srgb, ${theme.colors.giftSoft} 74%, ${theme.colors.surface});
-  }
-
-  &[data-type="guard"] {
-    border-color: color-mix(in srgb, ${theme.colors.cyan} 25%, ${theme.colors.border});
-    background: color-mix(in srgb, ${theme.colors.cyanSoft} 72%, ${theme.colors.surface});
-  }
-
-  &[data-type="interaction"] {
-    border-color: color-mix(in srgb, ${theme.colors.success} 18%, ${theme.colors.border});
-    background: color-mix(in srgb, ${theme.colors.successSoft} 70%, ${theme.colors.surface});
-  }
 
   [data-type="system"] & {
     max-width: 78%;

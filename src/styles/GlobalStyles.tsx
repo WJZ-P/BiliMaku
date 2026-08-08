@@ -86,6 +86,7 @@ const ThemeCanvas = styled.div`
   --bc-color-brand-deep: ${lightTheme.colors.brandDeep};
   --bc-color-brand-soft: ${lightTheme.colors.brandSoft};
   --bc-color-brand-subtle: ${lightTheme.colors.brandSubtle};
+  --bc-color-message-bubble: ${lightTheme.colors.messageBubble};
   --bc-color-cyan: ${lightTheme.colors.cyan};
   --bc-color-cyan-soft: ${lightTheme.colors.cyanSoft};
   --bc-color-text-primary: ${lightTheme.colors.textPrimary};

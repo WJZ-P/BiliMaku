@@ -14,6 +14,8 @@ import type {
   RoomConnectionInfo,
 } from "../types/events";
 import type { DesktopStatus } from "../types/app";
+import { DEFAULT_MESSAGE_BUBBLE_COLOR } from "../styles/theme";
+import type { LiveAppearanceSettings } from "../types/liveAppearance";
 import type { LiveOnlineRankSnapshot } from "../types/liveRank";
 import type {
   AnchorAnalyticsOverview,
@@ -36,6 +38,22 @@ export async function getDesktopStatus(): Promise<DesktopStatus | null> {
 export async function getConfigFilePath(): Promise<string> {
   if (!isDesktopRuntime()) return "";
   return invoke<string>("get_config_file_path");
+}
+
+/** 读取 Rust 统一配置中的直播间聊天区外观。 */
+export async function getLiveAppearanceSettings(): Promise<LiveAppearanceSettings> {
+  if (!isDesktopRuntime()) {
+    return { messageBubbleColor: DEFAULT_MESSAGE_BUBBLE_COLOR };
+  }
+  return invoke<LiveAppearanceSettings>("get_live_appearance_settings");
+}
+
+/** 保存直播间聊天区外观；Rust 会再次校验颜色格式。 */
+export async function saveLiveAppearanceSettings(
+  settings: LiveAppearanceSettings,
+): Promise<void> {
+  if (!isDesktopRuntime()) return;
+  await invoke("update_live_appearance_settings", { settings });
 }
 
 /** 使用 Rust 持久化扫码会话读取当前账号自己的主播中心数据。 */

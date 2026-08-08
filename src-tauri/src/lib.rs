@@ -102,6 +102,8 @@ pub fn run() {
             live::get_live_online_rank,
             live::send_live_danmaku,
             store::get_config_file_path,
+            store::get_live_appearance_settings,
+            store::update_live_appearance_settings,
             store::get_tts_settings,
             store::update_saved_room_id,
             store::update_tts_settings,
