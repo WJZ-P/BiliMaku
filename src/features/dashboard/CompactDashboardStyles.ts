@@ -406,6 +406,11 @@ export const MessageViewport = styled.div`
   --message-enter-duration: 820ms;
   --message-enter-offset-x: -20px;
   --message-enter-offset-y: 13px;
+  /* 消息元信息字号调参区：昵称、UID、事件标签和时间戳统一从这里调整。 */
+  --message-user-font-size: 13px;
+  --message-uid-font-size: 10px;
+  --message-tag-font-size: 9px;
+  --message-time-font-size: 9px;
 
   min-height: 0;
   overflow-x: hidden;
@@ -564,17 +569,17 @@ export const MessageMeta = styled.div`
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 5px;
-  margin: 0 0 4px 2px;
+  gap: 6px;
+  margin: 0 0 5px 2px;
   color: ${theme.colors.textMuted};
-  font-size: 8px;
+  font-size: var(--message-uid-font-size);
 `;
 
 export const EventUser = styled.strong`
   overflow: hidden;
-  max-width: 160px;
+  max-width: 200px;
   color: ${theme.colors.textSecondary};
-  font-size: 12px;
+  font-size: var(--message-user-font-size);
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -582,19 +587,22 @@ export const EventUser = styled.strong`
 
 export const EventUserId = styled.span`
   overflow: hidden;
-  max-width: 88px;
+  max-width: 110px;
   font-family: ${theme.typography.mono};
+  font-size: var(--message-uid-font-size);
+  font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
 `;
 
 export const EventType = styled.span`
-  padding: 1px 5px;
+  padding: 2px 6px;
   border-radius: ${theme.radius.pill};
   background: ${theme.colors.brandSubtle};
   color: ${theme.colors.brand};
-  font-size: 7px;
+  font-size: var(--message-tag-font-size);
   font-weight: 800;
+  line-height: 1.2;
 
   &[data-type="gift"],
   &[data-type="superchat"] {
@@ -625,7 +633,7 @@ export const EventType = styled.span`
 
 export const EventTime = styled.time`
   font-family: ${theme.typography.mono};
-  font-size: 8px;
+  font-size: var(--message-time-font-size);
   white-space: nowrap;
 `;
 
