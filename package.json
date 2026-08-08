@@ -1,13 +1,14 @@
 {
-  "name": "bilicast",
+  "name": "bilimaku",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/verify-build-artifacts.mjs",
     "preview": "vite preview",
     "check": "tsc --noEmit",
+    "perf:startup": "powershell -NoProfile -File scripts/startup-performance-report.ps1",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"

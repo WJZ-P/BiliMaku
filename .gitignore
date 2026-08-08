@@ -2,10 +2,16 @@
 node_modules/
 dist/
 .npm-cache/
+/.cache/
+/.logs/
 *.local
 
 # Local AI model weights and Python runtimes
 /models/
+/resources/tss/*
+!/resources/tss/README.md
+__pycache__/
+*.py[cod]
 
 # Rust / Tauri
 src-tauri/target/

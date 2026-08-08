@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "BiliCast",
+  "productName": "BiliMaku",
   "version": "0.1.0",
-  "identifier": "com.bilicast.desktop",
+  "identifier": "wjz.bilimaku.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
@@ -13,14 +13,25 @@
     "windows": [
       {
         "label": "main",
-        "title": "BiliCast｜哔哩播报",
-        "width": 1280,
-        "height": 820,
-        "minWidth": 980,
-        "minHeight": 680,
+        "title": "BiliMaku｜哔哩播报",
+        "width": 690,
+        "height": 460,
+        "minWidth": 690,
+        "minHeight": 460,
         "center": true,
-        "resizable": true,
-        "fullscreen": false
+        "visible": false,
+        "backgroundColor": "#00000000",
+        "resizable": false,
+        "maximizable": false,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "windowEffects": {
+          "effects": [
+            "micaLight"
+          ]
+        }
       }
     ],
     "security": {
@@ -30,6 +41,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": [],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
