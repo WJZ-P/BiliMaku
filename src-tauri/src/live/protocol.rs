@@ -6,21 +6,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::LiveEvent;
+use crate::types::live::{DecodedPacket, LiveRoomStatsUpdate, INTERACT_WORD, INTERACT_WORD_V2};
 
 const HEADER_LENGTH: usize = 16;
 const OP_HEARTBEAT_REPLY: u32 = 3;
 const OP_MESSAGE: u32 = 5;
 const OP_AUTH_REPLY: u32 = 8;
 const MAX_NESTING_DEPTH: usize = 5;
-
 static EVENT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
-
-#[derive(Debug)]
-pub enum DecodedPacket {
-    Auth(i64),
-    Popularity(u32),
-    Command(Value),
-}
 
 pub fn make_packet(body: &[u8], operation: u32) -> Vec<u8> {
     let packet_length = HEADER_LENGTH + body.len();
@@ -113,14 +106,42 @@ fn decode_into(data: &[u8], depth: usize, packets: &mut Vec<DecodedPacket>) -> R
     Ok(())
 }
 
+/// 从平台长链命令中提取本场累计观看与点赞统计。
+///
+/// 两类命令都只更新一个字段，前端按 session_id 合并为完整快照。
+pub fn normalize_room_stats_update(
+    session_id: u64,
+    room_id: u64,
+    command: &Value,
+) -> Option<LiveRoomStatsUpdate> {
+    let raw_command = command.get("cmd")?.as_str()?;
+    let command_name = raw_command.split(':').next().unwrap_or(raw_command);
+    let data = command.get("data")?;
+    let (watched_count, like_count) = match command_name {
+        "WATCHED_CHANGE" => (value_u64(data, &["num"]), None),
+        "LIKE_INFO_V3_UPDATE" => (None, value_u64(data, &["click_count", "count"])),
+        _ => return None,
+    };
+    if watched_count.is_none() && like_count.is_none() {
+        return None;
+    }
+
+    Some(LiveRoomStatsUpdate {
+        session_id,
+        room_id,
+        watched_count,
+        like_count,
+        raw_command: command_name.to_string(),
+    })
+}
 pub fn normalize_command(session_id: u64, room_id: u64, command: Value) -> Option<LiveEvent> {
     let raw_command = command.get("cmd")?.as_str()?;
     let command_name = raw_command.split(':').next().unwrap_or(raw_command);
 
     match command_name {
         "DANMU_MSG" | "DANMU_MSG_MIRROR" => normalize_danmaku(session_id, room_id, command),
-        "INTERACT_WORD" => normalize_interaction_json(session_id, room_id, command),
-        "INTERACT_WORD_V2" => normalize_interaction_v2(session_id, room_id, command),
+        INTERACT_WORD => normalize_interaction_json(session_id, room_id, command),
+        INTERACT_WORD_V2 => normalize_interaction_v2(session_id, room_id, command),
         "SEND_GIFT" => normalize_gift(session_id, room_id, command),
         "SUPER_CHAT_MESSAGE" => normalize_super_chat(session_id, room_id, command),
         "GUARD_BUY" | "USER_TOAST_MSG_V2" => normalize_guard(session_id, room_id, command),
@@ -135,11 +156,16 @@ pub fn normalize_command(session_id: u64, room_id: u64, command: Value) -> Optio
     }
 }
 
+/// JSON 与 Protobuf 互动载荷共用的内部字段。
 #[derive(Default)]
 struct InteractionData {
+    /// 互动用户 UID；上游省略或为零时为空。
     user_id: Option<String>,
+    /// 互动用户昵称。
     user: String,
+    /// 互动用户头像地址。
     avatar: String,
+    /// 平台定义的互动动作编号。
     message_type: u64,
 }
 
@@ -161,13 +187,14 @@ fn normalize_interaction_json(session_id: u64, room_id: u64, command: Value) -> 
             .to_string(),
         message_type: data.get("msg_type").and_then(Value::as_u64).unwrap_or(1),
     };
-    interaction_event(session_id, room_id, interaction, "INTERACT_WORD")
+    interaction_event(session_id, room_id, interaction, INTERACT_WORD)
 }
 
 fn normalize_interaction_v2(session_id: u64, room_id: u64, command: Value) -> Option<LiveEvent> {
     let encoded = command.pointer("/data/pb")?.as_str()?;
     let interaction = parse_interaction_v2(encoded)?;
-    interaction_event(session_id, room_id, interaction, "INTERACT_WORD_V2")
+    // raw_command 始终保留平台下发的 V2 命令字，不映射成旧版 INTERACT_WORD。
+    interaction_event(session_id, room_id, interaction, INTERACT_WORD_V2)
 }
 
 fn interaction_event(
@@ -407,7 +434,7 @@ fn system_event(session_id: u64, room_id: u64, raw_command: &str, content: &str)
         room_id,
         "system",
         None,
-        "BiliCast".to_string(),
+        "bilimaku".to_string(),
         String::new(),
         content.to_string(),
         Some("系统".to_string()),
@@ -456,8 +483,12 @@ fn value_string(value: &Value, keys: &[&str], fallback: &str) -> String {
 }
 
 fn value_u64(value: &Value, keys: &[&str]) -> Option<u64> {
-    keys.iter()
-        .find_map(|key| value.get(key).and_then(Value::as_u64))
+    keys.iter().find_map(|key| {
+        let value = value.get(key)?;
+        value
+            .as_u64()
+            .or_else(|| value.as_str().and_then(|value| value.parse().ok()))
+    })
 }
 
 fn value_id(value: &Value, keys: &[&str]) -> Option<String> {
@@ -539,7 +570,7 @@ mod tests {
     #[test]
     fn decodes_current_interaction_v2_message() {
         let command = serde_json::json!({
-            "cmd": "INTERACT_WORD_V2",
+            "cmd": INTERACT_WORD_V2,
             "data": {
                 "dmscore": 4,
                 "pb": "EgbllaYqKioiAQEoATC/mpO6Bjid3cvTBkCPsdCH/TNiAHi5joLAhcS25BiaAQCyAT8SOQoG5ZWmKioqEi9odHRwczovL2kwLmhkc2xiLmNvbS9iZnMvZmFjZS9tZW1iZXIvbm9mYWNlLmpwZyIAMgC6AQDCAQA="
@@ -555,12 +586,13 @@ mod tests {
             "https://i0.hdslb.com/bfs/face/member/noface.jpg"
         );
         assert!(event.user_id.is_none());
+        assert_eq!(event.raw_command, INTERACT_WORD_V2);
     }
 
     #[test]
     fn decodes_interaction_v2_like_with_user_id() {
         let command = serde_json::json!({
-            "cmd": "INTERACT_WORD_V2",
+            "cmd": INTERACT_WORD_V2,
             "data": {
                 "pb": "CJWa7zoSCExpa2VVc2VyKAY4gJ2AzAY="
             }
@@ -573,6 +605,38 @@ mod tests {
         assert_eq!(event.meta.as_deref(), Some("点赞"));
     }
 
+    #[test]
+    fn normalizes_watched_change_stats() {
+        let command = serde_json::json!({
+            "cmd": "WATCHED_CHANGE",
+            "data": {
+                "num": 12345,
+                "text_large": "1.2万人看过"
+            }
+        });
+
+        let update = normalize_room_stats_update(9, 102, &command).expect("watched stats update");
+        assert_eq!(update.session_id, 9);
+        assert_eq!(update.room_id, 102);
+        assert_eq!(update.watched_count, Some(12345));
+        assert_eq!(update.like_count, None);
+        assert_eq!(update.raw_command, "WATCHED_CHANGE");
+    }
+
+    #[test]
+    fn normalizes_like_count_stats_from_numeric_text() {
+        let command = serde_json::json!({
+            "cmd": "LIKE_INFO_V3_UPDATE",
+            "data": {
+                "click_count": "6789"
+            }
+        });
+
+        let update = normalize_room_stats_update(10, 103, &command).expect("like stats update");
+        assert_eq!(update.watched_count, None);
+        assert_eq!(update.like_count, Some(6789));
+        assert_eq!(update.raw_command, "LIKE_INFO_V3_UPDATE");
+    }
     #[test]
     fn decodes_auth_reply() {
         let packet = make_packet(br#"{"code":0}"#, OP_AUTH_REPLY);

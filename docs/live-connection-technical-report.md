@@ -1,18 +1,18 @@
-# BiliCast 直播弹幕接入技术报告
+# bilimaku 直播弹幕接入技术报告
 
-> 版本：0.3
-> 日期：2026-08-05  
+> 版本：0.4
+> 日期：2026-08-06
 > 范围：主播身份码、房间号直连、权限边界，以及头像缺失诊断
 
 ## 1. 结论摘要
 
 1. 老牌弹幕工具要求的“码”通常是 **主播身份码 Code**。它采用的是 B 站直播开放平台的“互动玩法”接入：开发者应用先用 `AccessKeyId`、`AccessKeySecret` 签名，再提交 `AppId + Code` 启动一场已获主播授权的项目会话。
-2. BiliCast 当前采用 **Web Live Adapter**，并同时支持匿名与扫码登录两种观看会话。直播间 ID 只是公开直播间的寻址信息，程序以 Web 观看端的方式获取弹幕长链令牌并订阅公开事件，因此用户侧连接房间时只填房间号。
-3. BiliCast 可以切换到其他公开直播间。短房间号会先解析成真实房间号，然后建立对应长链。这个能力等价于“进入另一个公开直播间观看事件”，并不附带主播后台、房管、发弹幕或直播控制权限。
+2. bilimaku 当前采用 **Web Live Adapter**，并同时支持匿名与扫码登录两种观看会话。直播间 ID 只是公开直播间的寻址信息，程序以 Web 观看端的方式获取弹幕长链令牌并订阅公开事件，因此用户侧连接房间时只填房间号。
+3. bilimaku 可以切换到其他公开直播间。短房间号会先解析成真实房间号，然后建立对应长链。这个能力等价于“进入另一个公开直播间观看事件”，并不附带主播后台、房管、发弹幕或直播控制权限。
 4. 两种模式的核心差异并非“有没有 WebSocket”，而是 **授权主体与服务边界**：身份码模式证明“某位主播允许某个开发者项目为本场直播运行”；房间号模式只表明“客户端想订阅这个公开房间的观看端事件流”。
 5. 本次头像缺失已定位为 **CDN 防盗链 Referer 策略**，不是普通 CORS。实测同一头像 URL：无 `Referer` 返回 `200 image/jpeg`，携带 `Referer: http://tauri.localhost/` 返回 `403 text/html`。
-6. 当前 Web 长链已实测收到 `INTERACT_WORD_V2`。BiliCast 已增加 Base64 Protobuf 解码，可输出进场、关注、分享、特别关注、互粉、点赞六类互动事件，并保留平台下发的 UID、昵称和头像。
-7. BiliCast 已落地二维码登录：Rust 端生成二维码、轮询确认、保存 Cookie，并在连接时把登录账号 UID 和 Cookie 注入 Web 长链。登录态是否带来更完整的进场身份字段，需要用同一房间的实际事件做 A/B 对照。
+6. 当前 Web 长链的互动消息主体是 Base64 Protobuf，平台在线协议的原始命令字是 `INTERACT_WORD_V2`。bilimaku 的协议常量、V2 解析函数与 `rawCommand` 均保留该上游名称；稳定的业务事件类型仍为 `interaction`。
+7. bilimaku 已落地二维码登录：Rust 端生成二维码、轮询确认、保存 Cookie，并在连接时把登录账号 UID 和 Cookie 注入 Web 长链。登录态是否带来更完整的进场身份字段，需要用同一房间的实际事件做 A/B 对照。
 
 ## 2. 两种连接方式
 
@@ -32,7 +32,7 @@
 ```mermaid
 sequenceDiagram
     participant U as 主播
-    participant D as BiliCast/开发者服务
+    participant D as bilimaku/开发者服务
     participant O as B站直播开放平台
     participant W as 官方长链
 
@@ -53,14 +53,14 @@ sequenceDiagram
 - 哪个开放平台应用在运行；
 - 哪一场互动玩法会话正在产生数据。
 
-### 2.2 BiliCast 当前实现：房间号 Web 模式
+### 2.2 bilimaku 当前实现：房间号 Web 模式
 
-BiliCast 当前链路：
+bilimaku 当前链路：
 
 ```mermaid
 sequenceDiagram
     participant U as 用户
-    participant B as BiliCast Rust Core
+    participant B as bilimaku Rust Core
     participant H as B站 Web HTTP 接口
     participant W as B站 Web 弹幕长链
 
@@ -74,13 +74,13 @@ sequenceDiagram
     W-->>B: DANMU_MSG / SEND_GIFT / SC 等原始事件
 ```
 
-这里的房间号是 **资源地址**，不是主播授权凭据。网页访客本来就需要知道当前房间并接收公开弹幕，BiliCast 复用了这条观看端数据路径，然后在本机完成 Brotli/zlib 解包、事件归一化和播报。
+这里的房间号是 **资源地址**，不是主播授权凭据。网页访客本来就需要知道当前房间并接收公开弹幕，bilimaku 复用了这条观看端数据路径，然后在本机完成 Brotli/zlib 解包、事件归一化和播报。
 
-当前进场消息已由旧版 `INTERACT_WORD` 升级为 `INTERACT_WORD_V2`，主体是 Base64 编码的 Protobuf。BiliCast 同时保留旧 JSON 解析，并实现 V2 中的 UID、昵称、头像和 `msg_type` 解码：`1` 为进场、`2` 为关注、`3` 为分享、`4` 为特别关注、`5` 为互粉、`6` 为点赞。
+当前 `INTERACT_WORD_V2` 消息主体是 Base64 编码的 Protobuf。bilimaku 同时兼容旧版 `INTERACT_WORD` JSON 载荷和当前 V2 Protobuf 载荷，并统一解码 UID、昵称、头像和 `msg_type`：`1` 为进场、`2` 为关注、`3` 为分享、`4` 为特别关注、`5` 为互粉、`6` 为点赞。协议常量、V2 解析函数和 `rawCommand` 保持平台命名，业务事件类型统一为 `interaction`。
 
 ### 2.3 进场昵称脱敏与登录态
 
-BiliCast 现在支持两种 **Web 观看会话**：匿名连接的长链鉴权 `uid = 0`；扫码登录后，Rust 会话先通过账号导航接口读取 `mid`，再将该 UID、Cookie、`buvid` 与当前会话获取的弹幕令牌用于长链握手。主流 Web 长链实现也采用相同分支：没有 `SESSDATA` 时使用 `uid = 0`，存在登录态时查询账号 `mid` 并写入鉴权体。参考：[blivedm Web 客户端源码](https://github.com/xfgryujk/blivedm/blob/dev/blivedm/clients/web.py)。
+bilimaku 现在支持两种 **Web 观看会话**：匿名连接的长链鉴权 `uid = 0`；扫码登录后，Rust 会话先通过账号导航接口读取 `mid`，再将该 UID、Cookie、`buvid` 与当前会话获取的弹幕令牌用于长链握手。主流 Web 长链实现也采用相同分支：没有 `SESSDATA` 时使用 `uid = 0`，存在登录态时查询账号 `mid` 并写入鉴权体。参考：[blivedm Web 客户端源码](https://github.com/xfgryujk/blivedm/blob/dev/blivedm/clients/web.py)。
 
 扫码链路全部位于 Rust 端：
 
@@ -88,15 +88,15 @@ BiliCast 现在支持两种 **Web 观看会话**：匿名连接的长链鉴权 `
 2. 本地将 URL 渲染为 SVG 二维码，React 端只拿到图片 Data URL；
 3. 每 1.5 秒轮询一次扫码状态，区分待扫码、待手机确认、已登录和已过期；
 4. 登录成功后由 Rust Cookie Jar 接收站点 Cookie，并调用账号导航接口校验昵称、头像和 UID；
-5. 使用 AES-256-GCM 将 Cookie 与账号摘要加密写入 Tauri 应用数据目录；
+5. 将 Cookie 与账号摘要写入 Rust 统一维护的可编辑 `config.json`；
 6. 应用启动时恢复 Cookie，并通过账号导航接口重新验证 `isLogin`；
-7. 服务端确认 Cookie 过期后清理文件、重建匿名会话，并广播 `account://cookie-expired`；
+7. 服务端确认 Cookie 过期后只清空统一配置中的账号段、重建匿名会话，并广播 `account://cookie-expired`；
 8. 连接直播间时复用同一个 HTTP 会话，前端只得到非敏感账号摘要与 `accessMode`；
-9. 登出或切换账号时替换整个 Cookie Jar 并清理本地会话文件，避免旧会话残留。
+9. 登出或切换账号时替换整个 Cookie Jar 并更新内存 Store，避免旧会话残留。
 
-加密实现采用随机 12 字节 nonce、固定 AAD 与 GCM 完整性校验；默认口令 `20040821` 经过 SHA-256 上下文派生得到 256 位密钥。统一 `account://event` 会发送 `login`、`restored`、`validated`、`cookie-expired`、`logout` 等状态，Cookie 与二维码密钥不进入事件载荷。详细格式见 [`account-session-persistence.md`](account-session-persistence.md)。
+统一 `account://event` 会发送 `login`、`restored`、`validated`、`cookie-expired`、`logout` 等状态，Cookie 与二维码密钥不进入事件载荷。当前 Demo 只使用统一的明文 `config.json`，方便用户在应用关闭后检查和手动调整。详细格式见 [`account-session-persistence.md`](account-session-persistence.md)。
 
-对两条真实 `INTERACT_WORD_V2` 原始 Protobuf 做逐字段审计后，匿名会话收到的昵称字段本身就是类似 `在***`、`啦***` 的值；`uinfo.base.name` 只是重复该脱敏值，包内没有对应的完整昵称或数字 UID。因此这不是 BiliCast 解析器主动打码，也不是漏读了另一个普通字段；星号字符串本身没有可供本地还原的映射信息。
+对两条真实 `INTERACT_WORD_V2` 原始 Protobuf 做逐字段审计后，匿名会话收到的昵称字段本身就是类似 `在***`、`啦***` 的值；`uinfo.base.name` 只是重复该脱敏值，包内没有对应的完整昵称或数字 UID。因此这不是 bilimaku 解析器主动打码，也不是漏读了另一个普通字段；星号字符串本身没有可供本地还原的映射信息。
 
 若产品需要识别进场用户，应继续维护两条明确的数据路径：
 
@@ -105,7 +105,7 @@ BiliCast 现在支持两种 **Web 观看会话**：匿名连接的长链鉴权 `
 
 ### 2.4 实时人气与在线人数
 
-BiliCast 已经每 30 秒解析一次 Web 长链 `operation = 3` 的四字节心跳回复，并将它作为 `popularity` 显示为“直播间人气值”。部分站内 HTTP 接口把同一类指标命名为 `online`，但该值属于经过平台计算的热度指标，不应标注为精确并发观看人数。
+bilimaku 已经每 30 秒解析一次 Web 长链 `operation = 3` 的四字节心跳回复，并将它作为 `popularity` 显示为“直播间人气值”。部分站内 HTTP 接口把同一类指标命名为 `online`，但该值属于经过平台计算的热度指标，不应标注为精确并发观看人数。
 
 2026-08-05 的同房间对照请求中，`online` 返回 `11002`，推荐流里的 `watched_show` 同时显示“52人看过”。这两个字段显然描述不同统计口径：前者是实时变化的人气/热度，后者是“人看过”展示量，也不是当前并发连接数。
 
@@ -117,14 +117,14 @@ BiliCast 已经每 30 秒解析一次 Web 长链 `operation = 3` 的四字节心
 
 **可以。** 当前输入框接受短房间号或真实房间号：
 
-1. BiliCast 查询房间信息；
+1. bilimaku 查询房间信息；
 2. 将短号解析为真实 `room_id`；
 3. 为该真实房间获取弹幕 token 与可用 WSS 节点；
 4. 断开上一条会话并建立新房间会话。
 
 适用范围是可由普通 Web 观看端访问的公开直播间。停播房间通常没有实时弹幕；受限房间、平台风控或 Web 协议调整也可能导致连接失败或事件字段减少。
 
-跨房间订阅并不表示获得该房间的主播身份。BiliCast 当前的能力是接收和播报公开事件，不执行发言、禁言、房管、开播、下播等账号操作。
+跨房间订阅并不表示获得该房间的主播身份。bilimaku 当前的能力是接收和播报公开事件，不执行发言、禁言、房管、开播、下播等账号操作。
 
 ## 4. 权限与工程属性对比
 
@@ -138,7 +138,7 @@ BiliCast 已经每 30 秒解析一次 Web 长链 `operation = 3` 的四字节心
 | 生命周期 | WSS 鉴权、长链心跳、重连 | 启动玩法、`game_id`、玩法心跳、官方 WSS、结束玩法 |
 | 主播身份确认 | 无 | 有，Code 用于建立主播授权关系 |
 | 主播后台/房管权限 | 不包含 | Code 本身也不是通用房管令牌；具体能力由开放平台项目接口决定 |
-| 稳定性责任 | BiliCast 维护 Web 协议适配 | 以官方开放平台文档和版本为接入边界 |
+| 稳定性责任 | bilimaku 维护 Web 协议适配 | 以官方开放平台文档和版本为接入边界 |
 | 推荐场景 | 本地工具、快速试用、跨公开房间监听 | 面向主播正式发行、互动玩法、长期产品化 |
 
 一个容易混淆的点是：**官方模式的授权更明确，不等于自动获得更多账号操作权。** 它主要增加主播授权、项目身份、官方会话生命周期和标准化事件边界；具体写操作仍取决于开放平台为该应用开放的接口。
@@ -153,7 +153,7 @@ BiliCast 已经每 30 秒解析一次 Web 长链 `operation = 3` 的四字节心
 4. **维护成本**：Web 观看端属于站内协议，字段、签名或风控策略变化时，需要客户端自行跟进。
 5. **功能规划**：若后续要做正式互动玩法，官方会话比匿名观看端订阅更匹配。
 
-对 BiliCast 而言，房间号模式非常适合当前“本地智能播报”目标；进入公开发行和商业化阶段后，增加官方适配器会更稳妥。
+对 bilimaku 而言，房间号模式非常适合当前“本地智能播报”目标；进入公开发行和商业化阶段后，增加官方适配器会更稳妥。
 
 ## 6. 头像缺失诊断与修复
 
@@ -186,7 +186,7 @@ BiliCast 已经每 30 秒解析一次 Web 长链 `operation = 3` 的四字节心
 - 使用 `loading="lazy"` 减少长弹幕列表的图片请求量；
 - 所有样式继续由 Linaria styled components 管理。
 
-## 7. 推荐的 BiliCast 路线
+## 7. 推荐的 bilimaku 路线
 
 采用双适配器最合适：
 
@@ -211,7 +211,28 @@ RuleEngine → SpeechQueue → TtsAdapter
 5. 两种适配器统一输出 `LiveEvent`，上层播报逻辑保持解耦；
 6. 为 Web Adapter 增加协议回归样本，为 OpenLive Adapter 增加启动、心跳、结束的会话测试。
 
-## 8. 本次验证记录
+## 8. 房间标题、直播时长与在线贡献榜
+
+直播间页顶部现在复用同一份活动连接快照，不再只保留 `room_id`：
+
+- `Room/get_info` 返回的 `title` 会保存在 Rust `LiveConnectionState` 中，React 页面重新挂载时从 `ConnectionSnapshot.room` 恢复，因此切换侧边栏后仍显示真实标题；
+- 同一响应中的 `live_time` 是本场北京时间开播时间，前端将它转换为时间戳并每秒计算一次“本次直播时长”；停播或字段为空时显示 `--`；
+- 在线榜使用 Web 直播间接口 `getOnlineGoldRank`，每 30 秒读取一次 `onlineNum` 与前三名 `OnlineRankItem`，展示榜单人数、头像和名次；请求失败只降级该统计项，不影响弹幕长链。
+- Chat 页头封面复用 `Room/get_info` 的图片字段，按 `user_cover → cover → keyframe` 选择，并跟随完整房间快照跨页面恢复。
+
+2026-08-08 对房间 `4457340` 的实时响应中，`cover` 为 `null`，`user_cover` 为主播设置的 `new_room_cover` 图片，`keyframe` 为直播画面关键帧。两张候选图片在省略 `Referer` 时均返回 `200 image/jpeg`；前端因此继续使用 `referrerPolicy="no-referrer"`，加载失败时退回连接阶段占位图。
+
+这里需要严格区分三种数字：
+
+| 字段 | 含义 | 是否等于精确在线观众数 |
+|---|---|---|
+| 长链心跳 `popularity` | 平台人气指标 | 否 |
+| `getOnlineGoldRank.onlineNum` | 当前在线贡献榜人数 | 否 |
+| `WATCHED_CHANGE.num` | 本场累计看过人数 | 否，属于累计去重口径 |
+
+`getOnlineGoldRank` 的提示文案说明投喂、点赞、发弹幕均可参与上榜，因此榜一、榜二、榜三是**在线贡献排名**，不是按停留人数或观看时长排序。该端点可由普通 Web 直播页访问，但属于站内 Web 接口而非 OpenLive 稳定契约；bilimaku 将响应收敛为独立类型并保留错误降级，以便上游字段调整时集中适配。
+
+## 9. 本次验证记录
 
 ```text
 npm run check                                  PASS
@@ -222,7 +243,7 @@ cargo test --manifest-path src-tauri/Cargo.toml PASS
 真实 DANMU_MSG 头像字段                        PASS
 真实 INTERACT_WORD_V2 进场事件                 PASS
 V2 Protobuf 昵称、头像、互动类型解码            PASS
-V2 Protobuf UID 与互动类型 4-6 解码              PASS
+V2 Protobuf UID 与互动类型 4-6 解码             PASS
 头像 CDN Referer 对照实验                      200 / 403 / 200，结论明确
 二维码 SVG 生成单元测试                         PASS
 匿名账号状态单元测试                            PASS
@@ -230,10 +251,12 @@ V2 Protobuf UID 与互动类型 4-6 解码              PASS
 登录 Cookie / UID 注入长链                      代码与编译验证通过，待用户扫码做真实 A/B
 ```
 
-## 9. 参考资料
+## 10. 参考资料
 
 - [B 站官方 OpenLive C# Demo](https://github.com/bilibili-openplatform/OpenLive_CSharpDemo)
 - [B 站官方 OpenLive Program.cs](https://github.com/bilibili-openplatform/OpenLive_CSharpDemo/blob/main/OpenBLiveSample/Program.cs)
 - [B 站直播开放文档](https://open-live.bilibili.com/document/)
+- [直播间信息接口（标题、开播时间）](https://api.live.bilibili.com/room/v1/Room/get_info?room_id=4457340)
+- [在线贡献榜接口（榜单人数、前三名）](https://api.live.bilibili.com/xlive/general-interface/v1/rank/getOnlineGoldRank?roomId=4457340&ruid=39684091&page=1&pageSize=3)
 - [blivedm Web 事件模型](https://github.com/xfgryujk/blivedm/blob/dev/blivedm/models/web.py)
 - [MDN `<img>` 元素与 referrer policy](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img)

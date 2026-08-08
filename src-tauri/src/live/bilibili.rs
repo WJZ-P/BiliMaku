@@ -1,6 +1,7 @@
 use futures_util::{SinkExt, StreamExt};
 use md5::{Digest, Md5};
 use reqwest::cookie::{CookieStore, Jar};
+use reqwest::header::REFERER;
 #[cfg(test)]
 use reqwest::Client;
 use reqwest::Url;
@@ -16,16 +17,20 @@ use tokio_tungstenite::tungstenite::http::header::{COOKIE, ORIGIN, USER_AGENT};
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::Message;
 
-use super::protocol::{self, DecodedPacket};
+use super::protocol;
 use super::{
     emit_status, LiveStatus, PopularityUpdate, RoomConnectionInfo, LIVE_EVENT_NAME,
-    LIVE_POPULARITY_EVENT_NAME,
+    LIVE_POPULARITY_EVENT_NAME, LIVE_ROOM_STATS_EVENT_NAME,
 };
-use crate::account::{cookie_header, AccountProfile, BiliAccountState};
+use crate::account::{cookie_header, BiliAccountState};
+use crate::types::account::AccountProfile;
+use crate::types::live::{DecodedPacket, LiveOnlineRankEntry, LiveOnlineRankSnapshot};
 
 const BILIBILI_HOME_URL: &str = "https://www.bilibili.com/";
 const NAV_URL: &str = "https://api.bilibili.com/x/web-interface/nav";
 const ROOM_INFO_URL: &str = "https://api.live.bilibili.com/room/v1/Room/get_info";
+const ONLINE_GOLD_RANK_URL: &str =
+    "https://api.live.bilibili.com/xlive/general-interface/v1/rank/getOnlineGoldRank";
 const DANMAKU_INFO_URL: &str = "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo";
 const USER_AGENT_VALUE: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
@@ -41,7 +46,11 @@ pub struct RoomConfig {
     pub owner_uid: u64,
     pub title: String,
     pub live_status: u8,
+    pub live_time: String,
+    pub cover_url: String,
     pub account_profile: Option<AccountProfile>,
+    /// 当前账号会话从导航接口取得的 WBI 混合密钥，供同一直播间内的 Web API 复用。
+    pub wbi_mixin_key: String,
     auth_uid: u64,
     token: String,
     buvid: String,
@@ -58,6 +67,8 @@ impl RoomConfig {
             owner_uid: self.owner_uid,
             title: self.title.clone(),
             live_status: self.live_status,
+            live_time: self.live_time.clone(),
+            cover_url: self.cover_url.clone(),
             access_mode: if self.auth_uid > 0 {
                 "web-authenticated"
             } else {
@@ -89,6 +100,75 @@ struct RoomInfoData {
     title: String,
     #[serde(default)]
     live_status: u8,
+    #[serde(default)]
+    live_time: String,
+    #[serde(default)]
+    cover: Option<String>,
+    #[serde(default)]
+    user_cover: Option<String>,
+    #[serde(default)]
+    keyframe: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OnlineRankData {
+    #[serde(rename = "onlineNum", default)]
+    online_num: u64,
+    #[serde(rename = "OnlineRankItem", default)]
+    items: Vec<OnlineRankItem>,
+    #[serde(rename = "onlineNumText", default)]
+    online_num_text: String,
+    #[serde(default)]
+    tips_text: String,
+    #[serde(default)]
+    value_text: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct OnlineRankItem {
+    #[serde(rename = "userRank", default)]
+    rank: u32,
+    #[serde(default)]
+    uid: u64,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    face: String,
+    #[serde(default)]
+    score: u64,
+    #[serde(default)]
+    guard_level: u8,
+    #[serde(default)]
+    wealth_level: u16,
+    #[serde(rename = "is_mystery", default)]
+    mystery: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum NavNextExp {
+    Number(u64),
+    Text(String),
+}
+
+impl NavNextExp {
+    fn into_number(self) -> Option<u64> {
+        match self {
+            Self::Number(value) => Some(value),
+            Self::Text(value) => value.parse().ok(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct NavLevelInfo {
+    #[serde(default)]
+    current_level: u8,
+    #[serde(default)]
+    current_min: u64,
+    #[serde(default)]
+    current_exp: u64,
+    next_exp: Option<NavNextExp>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -99,6 +179,10 @@ struct NavData {
     mid: Option<u64>,
     uname: Option<String>,
     face: Option<String>,
+    #[serde(default)]
+    level_info: NavLevelInfo,
+    #[serde(default)]
+    money: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -124,6 +208,31 @@ enum SessionEnd {
     Retry(String),
 }
 
+/// 选择最适合顶部 UI 的房间封面，并统一升级为 HTTPS。
+fn preferred_room_cover(room: &RoomInfoData) -> String {
+    [
+        room.user_cover.as_deref(),
+        room.cover.as_deref(),
+        room.keyframe.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .find_map(|candidate| {
+        let candidate = candidate.trim();
+        if candidate.is_empty() {
+            None
+        } else if let Some(path) = candidate.strip_prefix("//") {
+            Some(format!("https://{path}"))
+        } else if let Some(path) = candidate.strip_prefix("http://") {
+            Some(format!("https://{path}"))
+        } else if candidate.starts_with("https://") {
+            Some(candidate.to_string())
+        } else {
+            None
+        }
+    })
+    .unwrap_or_default()
+}
 pub async fn prepare_room(
     requested_room_id: u64,
     session_id: u64,
@@ -159,6 +268,8 @@ pub async fn prepare_room(
         .data
         .ok_or_else(|| "直播间信息为空，请检查房间号".to_string())?;
 
+    let cover_url = preferred_room_cover(&room);
+
     let nav_response: ApiResponse<NavData> = client
         .get(NAV_URL)
         .send()
@@ -184,6 +295,14 @@ pub async fn prepare_room(
             .clone()
             .unwrap_or_else(|| "B 站用户".to_string()),
         avatar: nav_data.face.clone().unwrap_or_default(),
+        level: nav_data.level_info.current_level,
+        current_exp: nav_data.level_info.current_exp,
+        current_min_exp: nav_data.level_info.current_min,
+        next_exp: nav_data
+            .level_info
+            .next_exp
+            .and_then(NavNextExp::into_number),
+        coins: nav_data.money,
     });
     let mixin_key = make_mixin_key(&nav_data.wbi_img)?;
     let signed_url = make_signed_danmaku_url(room.room_id, &mixin_key)?;
@@ -219,7 +338,10 @@ pub async fn prepare_room(
         owner_uid: room.uid,
         title: room.title,
         live_status: room.live_status,
+        live_time: room.live_time,
+        cover_url,
         account_profile,
+        wbi_mixin_key: mixin_key,
         auth_uid,
         token: danmaku.token,
         buvid: cookie_value(&cookie_jar, "buvid3"),
@@ -230,6 +352,72 @@ pub async fn prepare_room(
         },
         hosts: danmaku.host_list,
     })
+}
+
+fn map_online_rank(room_id: u64, data: OnlineRankData) -> LiveOnlineRankSnapshot {
+    LiveOnlineRankSnapshot {
+        room_id,
+        online_count: data.online_num,
+        online_count_text: if data.online_num_text.trim().is_empty() {
+            data.online_num.to_string()
+        } else {
+            data.online_num_text
+        },
+        entries: data
+            .items
+            .into_iter()
+            .take(3)
+            .map(|item| LiveOnlineRankEntry {
+                rank: item.rank,
+                user_id: item.uid.to_string(),
+                name: item.name,
+                avatar: item.face,
+                score: item.score,
+                guard_level: item.guard_level,
+                wealth_level: item.wealth_level,
+                mystery: item.mystery,
+            })
+            .collect(),
+        tips_text: data.tips_text,
+        value_text: data.value_text,
+    }
+}
+
+/// 读取 Web 直播间使用的在线贡献榜；该接口无需中心服务器，可复用当前账号 HTTP 会话。
+pub async fn fetch_online_rank(
+    room_id: u64,
+    owner_uid: u64,
+    account: &BiliAccountState,
+) -> Result<LiveOnlineRankSnapshot, String> {
+    let http = account.http_session()?;
+    let response: ApiResponse<OnlineRankData> = http
+        .client
+        .get(ONLINE_GOLD_RANK_URL)
+        .header(REFERER, format!("https://live.bilibili.com/{room_id}"))
+        .query(&[
+            ("roomId", room_id.to_string()),
+            ("ruid", owner_uid.to_string()),
+            ("page", "1".to_string()),
+            ("pageSize", "3".to_string()),
+        ])
+        .send()
+        .await
+        .map_err(|error| format!("读取直播间在线贡献榜失败：{error}"))?
+        .error_for_status()
+        .map_err(|error| format!("读取直播间在线贡献榜失败：{error}"))?
+        .json()
+        .await
+        .map_err(|error| format!("解析直播间在线贡献榜失败：{error}"))?;
+    if response.code != 0 {
+        return Err(format!(
+            "在线贡献榜接口返回 {}：{}",
+            response.code, response.message
+        ));
+    }
+    response
+        .data
+        .map(|data| map_online_rank(room_id, data))
+        .ok_or_else(|| "在线贡献榜接口没有返回数据".to_string())
 }
 
 pub async fn run_connection(app: AppHandle, config: RoomConfig, mut cancel: watch::Receiver<bool>) {
@@ -344,7 +532,7 @@ async fn run_socket_session(
                         let packets = match protocol::decode_packet_stream(&data) {
                             Ok(packets) => packets,
                             Err(error) => {
-                                eprintln!("BiliCast packet decode warning: {error}");
+                                eprintln!("bilimaku packet decode warning: {error}");
                                 continue;
                             }
                         };
@@ -386,6 +574,13 @@ async fn run_socket_session(
                                     );
                                 }
                                 DecodedPacket::Command(command) => {
+                                    if let Some(update) = protocol::normalize_room_stats_update(
+                                        config.session_id,
+                                        config.room_id,
+                                        &command,
+                                    ) {
+                                        let _ = app.emit(LIVE_ROOM_STATS_EVENT_NAME, update);
+                                    }
                                     if let Some(event) = protocol::normalize_command(
                                         config.session_id,
                                         config.room_id,
@@ -474,11 +669,44 @@ fn extract_wbi_filename(url: &str) -> Result<String, String> {
 }
 
 fn make_signed_danmaku_url(room_id: u64, mixin_key: &str) -> Result<Url, String> {
+    make_signed_live_api_url(
+        DANMAKU_INFO_URL,
+        vec![
+            ("id".to_string(), room_id.to_string()),
+            ("type".to_string(), "0".to_string()),
+        ],
+        mixin_key,
+    )
+}
+
+/// 使用连接直播间时取得的 WBI 混合密钥签名一个直播 Web API 地址。
+///
+/// 参数会按键名排序、过滤 WBI 不参与签名的特殊字符并进行 URL 编码；发送弹幕和
+/// 获取长链令牌因此可以复用同一套平台签名逻辑。
+pub(super) fn make_signed_live_api_url(
+    base_url: &str,
+    mut parameters: Vec<(String, String)>,
+    mixin_key: &str,
+) -> Result<Url, String> {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|error| format!("系统时间异常：{error}"))?
         .as_secs();
-    let query_to_sign = format!("id={room_id}&type=0&wts={timestamp}");
+    parameters.push(("wts".to_string(), timestamp.to_string()));
+    for (_, value) in &mut parameters {
+        value.retain(|character| !matches!(character, '!' | '\'' | '(' | ')' | '*'));
+    }
+    parameters.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let mut query_encoder = Url::parse("https://bilimaku.invalid/")
+        .map_err(|error| format!("创建 WBI 参数编码器失败：{error}"))?;
+    {
+        let mut query = query_encoder.query_pairs_mut();
+        for (key, value) in &parameters {
+            query.append_pair(key, value);
+        }
+    }
+    let query_to_sign = query_encoder.query().unwrap_or_default();
     let mut hasher = Md5::new();
     hasher.update(format!("{query_to_sign}{mixin_key}").as_bytes());
     let signature = hasher
@@ -488,12 +716,14 @@ fn make_signed_danmaku_url(room_id: u64, mixin_key: &str) -> Result<Url, String>
         .collect::<String>();
 
     let mut url =
-        Url::parse(DANMAKU_INFO_URL).map_err(|error| format!("弹幕服务器地址格式异常：{error}"))?;
-    url.query_pairs_mut()
-        .append_pair("id", &room_id.to_string())
-        .append_pair("type", "0")
-        .append_pair("wts", &timestamp.to_string())
-        .append_pair("w_rid", &signature);
+        Url::parse(base_url).map_err(|error| format!("直播 API 地址格式异常：{error}"))?;
+    {
+        let mut query = url.query_pairs_mut();
+        for (key, value) in &parameters {
+            query.append_pair(key, value);
+        }
+        query.append_pair("w_rid", &signature);
+    }
     Ok(url)
 }
 
@@ -520,6 +750,62 @@ mod tests {
     use super::*;
 
     #[test]
+    fn maps_online_rank_to_stable_top_three_types() {
+        let response: ApiResponse<OnlineRankData> = serde_json::from_value(json!({
+            "code": 0,
+            "message": "OK",
+            "data": {
+                "onlineNum": 5,
+                "onlineNumText": "5",
+                "tips_text": "投喂、点赞、发弹幕均可上榜",
+                "value_text": "贡献值",
+                "OnlineRankItem": [
+                    {"userRank": 1, "uid": 11, "name": "榜一", "face": "https://example.com/1.png", "score": 99, "guard_level": 3, "wealth_level": 12, "is_mystery": false},
+                    {"userRank": 2, "uid": 22, "name": "榜二", "face": "", "score": 88, "guard_level": 0, "wealth_level": 8, "is_mystery": false},
+                    {"userRank": 3, "uid": 33, "name": "榜三", "face": "", "score": 77, "guard_level": 0, "wealth_level": 5, "is_mystery": true},
+                    {"userRank": 4, "uid": 44, "name": "榜四", "face": "", "score": 66, "guard_level": 0, "wealth_level": 1, "is_mystery": false}
+                ]
+            }
+        }))
+        .expect("deserialize rank response");
+        let snapshot = map_online_rank(4457340, response.data.expect("rank data"));
+        assert_eq!(snapshot.room_id, 4457340);
+        assert_eq!(snapshot.online_count, 5);
+        assert_eq!(snapshot.entries.len(), 3);
+        assert_eq!(snapshot.entries[0].user_id, "11");
+        assert_eq!(snapshot.entries[2].name, "榜三");
+        assert!(snapshot.entries[2].mystery);
+    }
+
+    #[test]
+    fn prefers_configured_room_cover_and_falls_back_to_keyframe() {
+        let configured = RoomInfoData {
+            room_id: 1,
+            uid: 2,
+            title: "测试直播间".to_string(),
+            live_status: 1,
+            live_time: "2026-08-08 20:00:00".to_string(),
+            cover: Some("https://example.com/cover.jpg".to_string()),
+            user_cover: Some("http://example.com/user-cover.jpg".to_string()),
+            keyframe: Some("https://example.com/keyframe.jpg".to_string()),
+        };
+        assert_eq!(
+            preferred_room_cover(&configured),
+            "https://example.com/user-cover.jpg"
+        );
+
+        let keyframe_only = RoomInfoData {
+            user_cover: None,
+            cover: Some(String::new()),
+            keyframe: Some("//example.com/keyframe.jpg".to_string()),
+            ..configured
+        };
+        assert_eq!(
+            preferred_room_cover(&keyframe_only),
+            "https://example.com/keyframe.jpg"
+        );
+    }
+    #[test]
     fn creates_32_character_mixin_key() {
         let wbi = WbiImage {
             img_url: "https://i0.hdslb.com/bfs/wbi/7cd084941338484aae1ad9425b84077c.png"
@@ -530,10 +816,30 @@ mod tests {
         assert_eq!(make_mixin_key(&wbi).expect("mixin key").len(), 32);
     }
 
+    #[test]
+    fn signs_live_api_parameters_in_stable_order() {
+        let url = make_signed_live_api_url(
+            "https://api.live.bilibili.com/msg/send",
+            vec![("web_location".to_string(), "444.8".to_string())],
+            "ea1db124af3c7062474693fa704f4ff8",
+        )
+        .expect("signed live URL");
+        let query = url.query().expect("signed query");
+        assert!(query.starts_with("web_location=444.8&wts="));
+        assert!(query.contains("&w_rid="));
+        assert_eq!(
+            url.query_pairs()
+                .find(|(key, _)| key == "w_rid")
+                .map(|(_, value)| value.len()),
+            Some(32)
+        );
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     #[ignore = "requires a live network connection"]
     async fn authenticates_real_room() {
-        let room_id = std::env::var("BILICAST_TEST_ROOM")
+        let room_id = std::env::var("BILIMAKU_TEST_ROOM")
+            .or_else(|_| std::env::var("BILICAST_TEST_ROOM"))
             .ok()
             .and_then(|value| value.parse().ok())
             .unwrap_or(1732562239);
@@ -602,7 +908,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     #[ignore = "requires a live room with incoming danmaku"]
     async fn inspects_real_danmaku_avatar() {
-        let room_id = std::env::var("BILICAST_TEST_ROOM")
+        let room_id = std::env::var("BILIMAKU_TEST_ROOM")
+            .or_else(|_| std::env::var("BILICAST_TEST_ROOM"))
             .ok()
             .and_then(|value| value.parse().ok())
             .unwrap_or(1732562239);
@@ -708,7 +1015,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     #[ignore = "requires a live room with incoming interaction events"]
     async fn inspects_real_interaction_commands() {
-        let room_id = std::env::var("BILICAST_TEST_ROOM")
+        let room_id = std::env::var("BILIMAKU_TEST_ROOM")
+            .or_else(|_| std::env::var("BILICAST_TEST_ROOM"))
             .ok()
             .and_then(|value| value.parse().ok())
             .unwrap_or(1732562239);

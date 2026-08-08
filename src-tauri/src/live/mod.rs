@@ -1,10 +1,16 @@
 mod bilibili;
 mod protocol;
+mod sender;
 
 use crate::account::{
     apply_remote_account_validation, ensure_bilibili_session_initialized, BiliAccountState,
 };
-use serde::Serialize;
+use crate::store::AppConfigStore;
+use crate::types::live::{
+    ConnectionSnapshot, LiveEvent, LiveOnlineRankSnapshot, LiveStatus, PopularityUpdate,
+    RoomConnectionInfo,
+};
+use crate::types::live_chat::{SendLiveDanmakuRequest, SendLiveDanmakuResult};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, State};
@@ -13,6 +19,7 @@ use tokio::sync::watch;
 pub const LIVE_EVENT_NAME: &str = "live://event";
 pub const LIVE_STATUS_EVENT_NAME: &str = "live://status";
 pub const LIVE_POPULARITY_EVENT_NAME: &str = "live://popularity";
+pub const LIVE_ROOM_STATS_EVENT_NAME: &str = "live://room-stats";
 
 static SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -23,64 +30,31 @@ pub struct LiveConnectionState {
 
 struct ActiveConnection {
     session_id: u64,
-    room_id: u64,
+    room: RoomConnectionInfo,
+    wbi_mixin_key: String,
     cancel: watch::Sender<bool>,
 }
 
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RoomConnectionInfo {
-    pub session_id: u64,
-    pub requested_room_id: u64,
-    pub room_id: u64,
-    pub owner_uid: u64,
-    pub title: String,
-    pub live_status: u8,
-    pub access_mode: &'static str,
-    pub viewer_uid: Option<u64>,
+#[derive(Clone)]
+struct ActiveRoomContext {
+    room_id: u64,
+    owner_uid: u64,
+    wbi_mixin_key: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LiveStatus {
-    pub session_id: u64,
-    pub room_id: u64,
-    pub state: &'static str,
-    pub message: String,
-    pub attempt: u32,
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LiveEvent {
-    pub id: String,
-    pub session_id: u64,
-    pub room_id: u64,
-    #[serde(rename = "type")]
-    pub event_type: String,
-    pub user_id: Option<String>,
-    pub user: String,
-    pub avatar: String,
-    pub content: String,
-    pub meta: Option<String>,
-    pub raw_command: String,
-    pub emitted_at: u64,
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PopularityUpdate {
-    pub session_id: u64,
-    pub room_id: u64,
-    pub popularity: u32,
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ConnectionSnapshot {
-    pub connected: bool,
-    pub session_id: Option<u64>,
-    pub room_id: Option<u64>,
+impl LiveConnectionState {
+    fn active_room_context(&self) -> Result<ActiveRoomContext, String> {
+        self.active
+            .lock()
+            .map_err(|_| "直播连接状态锁定失败".to_string())?
+            .as_ref()
+            .map(|connection| ActiveRoomContext {
+                room_id: connection.room.room_id,
+                owner_uid: connection.room.owner_uid,
+                wbi_mixin_key: connection.wbi_mixin_key.clone(),
+            })
+            .ok_or_else(|| "请先连接一个直播间再发送弹幕".to_string())
+    }
 }
 
 #[tauri::command]
@@ -88,6 +62,7 @@ pub async fn connect_live_room(
     app: AppHandle,
     state: State<'_, LiveConnectionState>,
     account: State<'_, BiliAccountState>,
+    store: State<'_, AppConfigStore>,
     room_id: String,
 ) -> Result<RoomConnectionInfo, String> {
     let requested_room_id = room_id
@@ -97,12 +72,13 @@ pub async fn connect_live_room(
     if requested_room_id == 0 {
         return Err("直播间 ID 需要大于 0".to_string());
     }
+    store.set_room_id(requested_room_id.to_string())?;
 
-    ensure_bilibili_session_initialized(&app, &account).await?;
+    ensure_bilibili_session_initialized(&app, &account, &store).await?;
 
     let session_id = SESSION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let config = bilibili::prepare_room(requested_room_id, session_id, &account).await?;
-    apply_remote_account_validation(&app, &account, config.account_profile.clone())?;
+    apply_remote_account_validation(&app, &account, &store, config.account_profile.clone())?;
     let info = config.connection_info();
 
     let (cancel, cancel_receiver) = watch::channel(false);
@@ -116,7 +92,8 @@ pub async fn connect_live_room(
         }
         *active = Some(ActiveConnection {
             session_id,
-            room_id: config.room_id,
+            room: info.clone(),
+            wbi_mixin_key: config.wbi_mixin_key.clone(),
             cancel,
         });
     }
@@ -137,6 +114,29 @@ pub async fn connect_live_room(
     Ok(info)
 }
 
+/// 使用当前扫码登录账号向已连接的直播间发送一条普通滚动弹幕。
+#[tauri::command]
+pub async fn send_live_danmaku(
+    app: AppHandle,
+    state: State<'_, LiveConnectionState>,
+    account: State<'_, BiliAccountState>,
+    store: State<'_, AppConfigStore>,
+    request: SendLiveDanmakuRequest,
+) -> Result<SendLiveDanmakuResult, String> {
+    let context = state.active_room_context()?;
+    sender::send(&app, context, &account, &store, request).await
+}
+
+/// 读取当前活动直播间的在线贡献榜人数与前三名。
+#[tauri::command]
+pub async fn get_live_online_rank(
+    state: State<'_, LiveConnectionState>,
+    account: State<'_, BiliAccountState>,
+) -> Result<LiveOnlineRankSnapshot, String> {
+    let context = state.active_room_context()?;
+    bilibili::fetch_online_rank(context.room_id, context.owner_uid, &account).await
+}
+
 #[tauri::command]
 pub fn disconnect_live_room(
     app: AppHandle,
@@ -154,7 +154,7 @@ pub fn disconnect_live_room(
             &app,
             LiveStatus {
                 session_id: active.session_id,
-                room_id: active.room_id,
+                room_id: active.room.room_id,
                 state: "disconnected",
                 message: "已主动断开直播间".to_string(),
                 attempt: 0,
@@ -168,6 +168,7 @@ pub fn disconnect_live_room(
 #[tauri::command]
 pub fn get_live_connection_status(
     state: State<'_, LiveConnectionState>,
+    store: State<'_, AppConfigStore>,
 ) -> Result<ConnectionSnapshot, String> {
     let active = state
         .active
@@ -177,7 +178,9 @@ pub fn get_live_connection_status(
     Ok(ConnectionSnapshot {
         connected: active.is_some(),
         session_id: active.as_ref().map(|connection| connection.session_id),
-        room_id: active.as_ref().map(|connection| connection.room_id),
+        room_id: active.as_ref().map(|connection| connection.room.room_id),
+        room: active.as_ref().map(|connection| connection.room.clone()),
+        saved_room_id: store.room_id()?,
     })
 }
 

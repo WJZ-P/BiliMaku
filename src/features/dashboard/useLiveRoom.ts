@@ -4,6 +4,7 @@ import {
   connectLiveRoom,
   disconnectLiveRoom,
   getLiveConnectionStatus,
+  getLiveOnlineRank,
   isDesktopRuntime,
   listenToLiveEvents,
   listenToLiveStatus,
@@ -14,6 +15,7 @@ import type {
   LiveStatusPayload,
   RoomConnectionInfo,
 } from "../../types/events";
+import type { LiveOnlineRankSnapshot } from "../../types/liveRank";
 
 const initialStatus: LiveStatusPayload = {
   sessionId: 0,
@@ -28,6 +30,8 @@ export function useLiveRoom() {
   const [room, setRoom] = useState<RoomConnectionInfo | null>(null);
   const [events, setEvents] = useState<LiveEvent[]>([]);
   const [popularity, setPopularity] = useState(0);
+  const [onlineRank, setOnlineRank] = useState<LiveOnlineRankSnapshot | null>(null);
+  const [onlineRankError, setOnlineRankError] = useState("");
   const desktopRuntime = useMemo(() => isDesktopRuntime(), []);
 
   useEffect(() => {
@@ -60,17 +64,31 @@ export function useLiveRoom() {
 
       const snapshot = await getLiveConnectionStatus();
       if (active && snapshot.connected && snapshot.sessionId && snapshot.roomId) {
+        setRoom(snapshot.room);
         setStatus((current) =>
           current.sessionId === 0
             ? {
                 sessionId: snapshot.sessionId!,
                 roomId: snapshot.roomId!,
                 state: "connected",
-                message: "已恢复正在运行的本机弹幕长链",
+                message: "直播间已连接",
                 attempt: 0,
               }
             : current,
         );
+      } else if (active && snapshot.savedRoomId) {
+        const savedRoomId = Number(snapshot.savedRoomId);
+        if (Number.isFinite(savedRoomId) && savedRoomId > 0) {
+          setStatus((current) =>
+            current.roomId === 0
+              ? {
+                  ...current,
+                  roomId: savedRoomId,
+                  message: "已从统一配置恢复上次使用的直播间",
+                }
+              : current,
+          );
+        }
       }
     });
 
@@ -79,6 +97,35 @@ export function useLiveRoom() {
       unlisteners.forEach((unsubscribe) => unsubscribe());
     };
   }, []);
+
+  useEffect(() => {
+    if (!desktopRuntime || status.state !== "connected" || status.sessionId === 0) {
+      setOnlineRank(null);
+      setOnlineRankError("");
+      return;
+    }
+
+    let active = true;
+    let timer: number | undefined;
+    const refresh = async () => {
+      try {
+        const snapshot = await getLiveOnlineRank();
+        if (!active || snapshot.roomId !== status.roomId) return;
+        setOnlineRank(snapshot);
+        setOnlineRankError("");
+      } catch (error) {
+        if (!active) return;
+        setOnlineRankError(error instanceof Error ? error.message : String(error));
+      } finally {
+        if (active) timer = window.setTimeout(refresh, 30_000);
+      }
+    };
+    void refresh();
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [desktopRuntime, status.roomId, status.sessionId, status.state]);
 
   const connect = useCallback(
     async (roomId: string) => {
@@ -94,6 +141,8 @@ export function useLiveRoom() {
       });
       setEvents([]);
       setPopularity(0);
+      setOnlineRank(null);
+      setOnlineRankError("");
 
       try {
         const info = await connectLiveRoom(roomId);
@@ -124,6 +173,8 @@ export function useLiveRoom() {
     }));
     setRoom(null);
     setPopularity(0);
+    setOnlineRank(null);
+    setOnlineRankError("");
   }, []);
 
   const clearEvents = useCallback(() => setEvents([]), []);
@@ -134,6 +185,8 @@ export function useLiveRoom() {
     room,
     events,
     popularity,
+    onlineRank,
+    onlineRankError,
     connect,
     disconnect,
     clearEvents,
