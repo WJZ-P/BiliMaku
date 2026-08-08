@@ -1,19 +1,29 @@
 import { styled } from "@linaria/react";
+import { useState } from "react";
 import { Icon } from "./Icon";
+import { ParticleGlowHover } from "./ParticleGlowHover";
 import { theme } from "../styles/theme";
 import type { AppView, NavigationItem } from "../types/navigation";
 
 interface SidebarProps {
   activeView: AppView;
   onNavigate: (view: AppView) => void;
+  /** 提前加载即将进入的页面模块，消除首次导航等待。 */
+  onPreload?: (view: AppView) => void;
 }
 
 const navigation: NavigationItem[] = [
   {
     id: "dashboard",
-    label: "播报台",
-    description: "直播概览",
+    label: "直播间",
+    description: "实时弹幕",
     icon: "dashboard",
+  },
+  {
+    id: "debug",
+    label: "UI 调试",
+    description: "组件与动效实验",
+    icon: "sparkles",
   },
   {
     id: "rules",
@@ -39,66 +49,98 @@ const navigation: NavigationItem[] = [
     description: "直播间接入",
     icon: "plug",
   },
+  {
+    id: "settings",
+    label: "应用设置",
+    description: "账号与主题",
+    icon: "settings",
+  },
 ];
 
 const Aside = styled.aside`
   position: relative;
   z-index: 3;
   display: flex;
-  width: 238px;
-  flex: 0 0 238px;
+  width: 184px;
+  height: 100%;
+  min-height: 0;
+  flex: 0 0 184px;
   flex-direction: column;
-  min-height: 100vh;
-  padding: 24px 18px 18px;
-  border-right: 1px solid ${theme.colors.border};
-  background: color-mix(in srgb, ${theme.colors.surface} 94%, transparent);
-  box-shadow: ${theme.shadows.inset};
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 12px 8px 8px;
+  border-right: 1px solid ${theme.colors.borderStrong};
+  border-radius: 0;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, ${theme.colors.surface} 96%, transparent), color-mix(in srgb, ${theme.colors.canvasAccent} 88%, transparent));
+  box-shadow:
+    inset -1px 0 0 color-mix(in srgb, ${theme.colors.highlight} 65%, transparent),
+    ${theme.shadows.inset};
   backdrop-filter: blur(18px);
+  transition:
+    width ${theme.motion.sidebarSpring},
+    flex-basis ${theme.motion.sidebarSpring},
+    padding ${theme.motion.sidebarSpring};
 
-  @media (max-width: 1050px) {
-    width: 210px;
-    flex-basis: 210px;
+  @media (max-width: 900px) {
+    width: 166px;
+    flex-basis: 166px;
+  }
+
+  &[data-collapsed="true"] {
+    width: 60px;
+    flex-basis: 60px;
+    padding-right: 7px;
+    padding-left: 7px;
   }
 `;
 
 const Brand = styled.div`
   display: flex;
+  min-height: 38px;
   align-items: center;
-  gap: 12px;
-  padding: 2px 8px 22px;
+  gap: 8px;
+  padding: 0 4px 10px;
+
+  [data-collapsed="true"] & {
+    justify-content: center;
+    gap: 0;
+    padding-right: 0;
+    padding-left: 0;
+  }
 `;
 
 const BrandMark = styled.div`
   position: relative;
   display: grid;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   place-items: center;
   border: 1px solid color-mix(in srgb, ${theme.colors.highlight} 70%, transparent);
-  border-radius: 15px 15px 15px 7px;
+  border-radius: 2px;
   background: ${theme.gradients.brand};
   color: ${theme.colors.textOnBrand};
-  box-shadow: 0 10px 22px color-mix(in srgb, ${theme.colors.brand} 28%, transparent);
+  box-shadow: 0 8px 18px color-mix(in srgb, ${theme.colors.brand} 24%, transparent);
 
   &::before,
   &::after {
     position: absolute;
-    top: -5px;
-    width: 12px;
-    height: 12px;
-    border-radius: 3px 8px 3px 8px;
+    top: -4px;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
     background: ${theme.colors.brand};
     content: "";
     transform: rotate(45deg);
   }
 
   &::before {
-    left: 7px;
+    left: 6px;
   }
 
   &::after {
-    right: 7px;
+    right: 6px;
   }
 
   svg {
@@ -107,9 +149,25 @@ const BrandMark = styled.div`
   }
 `;
 
+const BrandText = styled.div`
+  min-width: 0;
+  overflow: hidden;
+  opacity: 1;
+  white-space: nowrap;
+  transition:
+    max-width ${theme.motion.normal},
+    opacity ${theme.motion.fast};
+
+  [data-collapsed="true"] & {
+    max-width: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+`;
+
 const BrandName = styled.div`
   color: ${theme.colors.textPrimary};
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.1;
@@ -120,83 +178,198 @@ const BrandName = styled.div`
 `;
 
 const BrandCaption = styled.div`
-  margin-top: 4px;
+  margin-top: 3px;
   color: ${theme.colors.textMuted};
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 500;
   letter-spacing: 0.06em;
 `;
 
 const SectionLabel = styled.div`
-  padding: 7px 12px 9px;
+  height: 24px;
+  padding: 4px 7px 6px;
   color: ${theme.colors.textMuted};
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 9px;
+  font-weight: 750;
   letter-spacing: 0.13em;
   text-transform: uppercase;
+  white-space: nowrap;
+
+  [data-collapsed="true"] & {
+    height: 1px;
+    margin: 6px 5px 10px;
+    padding: 0;
+    overflow: hidden;
+    background: ${theme.colors.border};
+    color: transparent;
+    font-size: 0;
+  }
 `;
 
 const Nav = styled.nav`
   display: grid;
-  gap: 7px;
+  gap: 4px;
 `;
 
 const NavButton = styled.button`
+  position: relative;
+  z-index: 1;
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) 18px;
-  align-items: center;
   width: 100%;
-  min-height: 58px;
-  padding: 8px 9px;
-  border: 1px solid transparent;
-  border-radius: ${theme.radius.md};
-  background: transparent;
+  min-height: ${theme.sidebarEffects.navigationItemMinHeightPx}px;
+  grid-template-columns: ${theme.sidebarEffects.navigationIconSlotSizePx}px minmax(0, 1fr) 14px;
+  align-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  padding: 5px 6px;
+  border: 1px solid ${theme.colors.border};
+  border-radius: 2px;
+  background: color-mix(in srgb, ${theme.colors.surface} 42%, transparent);
   color: ${theme.colors.textSecondary};
   text-align: left;
   transition:
-    background ${theme.motion.fast},
     border-color ${theme.motion.fast},
-    color ${theme.motion.fast},
-    transform ${theme.motion.fast};
+    box-shadow ${theme.motion.fast},
+    color ${theme.motion.fast};
 
-  &:hover {
-    background: ${theme.colors.brandSubtle};
-    color: ${theme.colors.textPrimary};
-    transform: translateX(2px);
+  /** 状态机底色层：进入时整层由右向左滑入，离开时原路向右退出。 */
+  &::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, ${theme.colors.brandSubtle} 84%, transparent),
+      color-mix(in srgb, ${theme.colors.cyanSoft} 72%, transparent)
+    );
+    content: "";
+    pointer-events: none;
+    transform: translate3d(102%, 0, 0);
+    transition: transform ${theme.sidebarEffects.hoverColorExitTransition};
+    will-change: transform;
+  }
+
+  /** 选中指示条绝对定位，显隐前后都不挤压图标布局。 */
+  &::after {
+    position: absolute;
+    z-index: 2;
+    top: 7px;
+    bottom: 7px;
+    left: 0;
+    width: ${theme.sidebarEffects.selectionRailWidthPx}px;
+    border-radius: 0 ${theme.radius.pill} ${theme.radius.pill} 0;
+    background: ${theme.colors.brand};
+    box-shadow: 0 0 8px color-mix(in srgb, ${theme.colors.brand} 45%, transparent);
+    content: "";
+    opacity: 0;
+    pointer-events: none;
+    transform: scaleY(0.35);
+    transition:
+      opacity ${theme.motion.fast},
+      transform ${theme.motion.spring};
+  }
+
+  & > * {
+    position: relative;
+    z-index: 1;
   }
 
   &[data-active="true"] {
-    border-color: color-mix(in srgb, ${theme.colors.brand} 14%, ${theme.colors.border});
+    border-color: color-mix(in srgb, ${theme.colors.brand} 34%, ${theme.colors.border});
     background: ${theme.colors.brandSubtle};
-    color: ${theme.colors.brandDeep};
     box-shadow: ${theme.shadows.inset};
+    color: ${theme.colors.brandDeep};
+  }
+
+  &[data-active="true"]::after {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+
+  [data-hover-phase="entering"] &,
+  [data-hover-phase="active"] & {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 46%, ${theme.colors.border});
+    box-shadow:
+      0 6px 18px color-mix(in srgb, ${theme.colors.brand} 12%, transparent),
+      ${theme.shadows.inset};
+    color: ${theme.colors.textPrimary};
+  }
+
+  [data-hover-phase="entering"] &::before,
+  [data-hover-phase="active"] &::before {
+    transform: translate3d(0, 0, 0);
+    transition: transform ${theme.sidebarEffects.hoverColorEnterTransition};
+  }
+
+  [data-hover-phase="exiting"] &::before {
+    transform: translate3d(102%, 0, 0);
+    transition: transform ${theme.sidebarEffects.hoverColorExitTransition};
+  }
+
+  [data-collapsed="true"] & {
+    min-height: ${theme.sidebarEffects.navigationItemMinHeightPx - 6}px;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before,
+    &::after {
+      transition: none;
+    }
   }
 `;
-
 const NavIcon = styled.span`
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 100%;
+  min-width: 0;
+  justify-self: stretch;
   place-items: center;
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.surfaceMuted};
   color: ${theme.colors.textMuted};
+  pointer-events: none;
+  transform: translate3d(var(--sidebar-icon-shift, 0px), 0, 0);
+  transition:
+    color ${theme.motion.fast},
+    filter ${theme.motion.fast},
+    transform ${theme.motion.spring};
+
+  svg {
+    margin-inline: auto;
+  }
 
   [data-active="true"] & {
-    background: ${theme.colors.brandSoft};
     color: ${theme.colors.brand};
   }
-`;
 
+  [data-hover-phase="entering"] &,
+  [data-hover-phase="active"] & {
+    color: ${theme.colors.brand};
+    filter: drop-shadow(0 2px 5px color-mix(in srgb, ${theme.colors.brand} 24%, transparent));
+    transform: translate3d(var(--sidebar-icon-shift, 0px), -1px, 0)
+      scale(1.07);
+  }
+`;
 const NavCopy = styled.span`
   min-width: 0;
+  overflow: hidden;
+  opacity: 1;
+  transform: translate3d(var(--sidebar-copy-shift, 0px), 0, 0);
+  transition:
+    opacity ${theme.motion.fast},
+    transform ${theme.motion.spring};
+
+  [data-collapsed="true"] & {
+    display: none;
+    opacity: 0;
+  }
 `;
 
 const NavLabel = styled.span`
   display: block;
   overflow: hidden;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: ${theme.sidebarEffects.navigationLabelFontSize};
+  font-weight: 720;
   text-overflow: ellipsis;
   white-space: nowrap;
 `;
@@ -206,7 +379,7 @@ const NavDescription = styled.span`
   margin-top: 1px;
   overflow: hidden;
   color: ${theme.colors.textMuted};
-  font-size: 10px;
+  font-size: ${theme.sidebarEffects.navigationDescriptionFontSize};
   text-overflow: ellipsis;
   white-space: nowrap;
 `;
@@ -221,101 +394,200 @@ const NavChevron = styled.span`
     opacity: 1;
     transform: translateX(0);
   }
+
+  [data-collapsed="true"] & {
+    display: none;
+  }
 `;
 
 const SidebarFooter = styled.div`
+  display: grid;
+  gap: 6px;
   margin-top: auto;
-`;
-
-const LocalCard = styled.div`
-  padding: 14px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.radius.md};
-  background: ${theme.gradients.soft};
-  box-shadow: ${theme.shadows.inset};
-`;
-
-const LocalHeader = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: ${theme.colors.success};
-  font-size: 12px;
-  font-weight: 700;
-`;
-
-const StatusDot = styled.span`
-  width: 8px;
-  height: 8px;
-  border: 2px solid ${theme.colors.successSoft};
-  border-radius: 50%;
-  background: ${theme.colors.success};
-  box-shadow: 0 0 0 3px ${theme.colors.successSoft};
-`;
-
-const LocalCopy = styled.p`
-  margin: 8px 0 0;
-  color: ${theme.colors.textMuted};
-  font-size: 10px;
-  line-height: 1.55;
+  padding-top: 8px;
 `;
 
 const Version = styled.div`
-  padding: 12px 4px 0;
+  padding: 2px 4px;
   color: ${theme.colors.textMuted};
   font-family: ${theme.typography.mono};
-  font-size: 9px;
+  font-size: 8px;
   text-align: center;
+
+  [data-collapsed="true"] & {
+    display: none;
+  }
 `;
 
-export function Sidebar({ activeView, onNavigate }: SidebarProps) {
+const CollapseButton = styled.button`
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 100%;
+  min-height: 42px;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  padding: 5px 8px;
+  border: 1px solid ${theme.colors.border};
+  border-radius: 2px;
+  background: color-mix(in srgb, ${theme.colors.surface} 58%, transparent);
+  color: ${theme.colors.textSecondary};
+  text-align: left;
+  transition:
+    border-color ${theme.motion.fast},
+    box-shadow ${theme.motion.fast},
+    color ${theme.motion.fast};
+
+  &::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, ${theme.colors.brandSubtle} 86%, transparent),
+      color-mix(in srgb, ${theme.colors.cyanSoft} 62%, transparent)
+    );
+    content: "";
+    pointer-events: none;
+    transform: translate3d(102%, 0, 0);
+    transition: transform ${theme.sidebarEffects.hoverColorExitTransition};
+    will-change: transform;
+  }
+
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  [data-hover-phase="entering"] &,
+  [data-hover-phase="active"] & {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 46%, ${theme.colors.border});
+    box-shadow: 0 6px 18px color-mix(in srgb, ${theme.colors.brand} 10%, transparent);
+    color: ${theme.colors.brandDeep};
+  }
+
+  [data-hover-phase="entering"] &::before,
+  [data-hover-phase="active"] &::before {
+    transform: translate3d(0, 0, 0);
+    transition: transform ${theme.sidebarEffects.hoverColorEnterTransition};
+  }
+
+  [data-hover-phase="exiting"] &::before {
+    transform: translate3d(102%, 0, 0);
+    transition: transform ${theme.sidebarEffects.hoverColorExitTransition};
+  }
+
+  [data-collapsed="true"] & {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 5px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before {
+      transition: none;
+    }
+  }
+`;
+const CollapseIcon = styled.span`
+  display: grid;
+  place-items: center;
+  transform: translate3d(var(--sidebar-icon-shift, 0px), 0, 0)
+    rotate(180deg);
+  transition: transform ${theme.motion.sidebarSpring};
+
+  [data-collapsed="true"] & {
+    transform: translate3d(var(--sidebar-icon-shift, 0px), 0, 0) rotate(0deg);
+  }
+`;
+
+const CollapseLabel = styled.span`
+  overflow: hidden;
+  font-size: ${theme.sidebarEffects.collapseLabelFontSize};
+  transform: translate3d(var(--sidebar-copy-shift, 0px), 0, 0);
+  transition: transform ${theme.motion.spring};
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  [data-collapsed="true"] & {
+    display: none;
+  }
+`;
+
+export function Sidebar({ activeView, onNavigate, onPreload }: SidebarProps) {
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
-    <Aside>
+    <Aside data-collapsed={collapsed}>
       <Brand>
         <BrandMark>
-          <Icon name="message" size={22} />
+          <Icon name="message" size={20} />
         </BrandMark>
-        <div>
+        <BrandText>
           <BrandName>
-            Bili<span>Cast</span>
+            Bili<span>Maku</span>
           </BrandName>
           <BrandCaption>哔哩播报</BrandCaption>
-        </div>
+        </BrandText>
       </Brand>
 
       <SectionLabel>Workspace</SectionLabel>
-      <Nav aria-label="主导航">
+      <Nav id="bilimaku-primary-navigation" aria-label="主导航">
         {navigation.map((item) => (
-          <NavButton
-            key={item.id}
-            type="button"
-            data-active={activeView === item.id}
-            aria-current={activeView === item.id ? "page" : undefined}
-            onClick={() => onNavigate(item.id)}
-          >
-            <NavIcon>
-              <Icon name={item.icon} size={18} />
-            </NavIcon>
-            <NavCopy>
-              <NavLabel>{item.label}</NavLabel>
-              <NavDescription>{item.description}</NavDescription>
-            </NavCopy>
-            <NavChevron>
-              <Icon name="chevron" size={15} />
-            </NavChevron>
-          </NavButton>
+          <ParticleGlowHover key={item.id}>
+            <NavButton
+              type="button"
+              data-active={activeView === item.id}
+              aria-current={activeView === item.id ? "page" : undefined}
+              data-tooltip={collapsed ? item.label : undefined}
+              data-tooltip-placement={collapsed ? "right" : undefined}
+              onPointerEnter={() => onPreload?.(item.id)}
+              onPointerDown={() => onPreload?.(item.id)}
+              onFocus={() => onPreload?.(item.id)}
+              onClick={() => onNavigate(item.id)}
+            >
+              <NavIcon>
+                <Icon
+                  name={item.icon}
+                  size={theme.sidebarEffects.navigationIconSizePx}
+                />
+              </NavIcon>
+              <NavCopy>
+                <NavLabel>{item.label}</NavLabel>
+                <NavDescription>{item.description}</NavDescription>
+              </NavCopy>
+              <NavChevron>
+                <Icon name="chevron" size={15} />
+              </NavChevron>
+            </NavButton>
+          </ParticleGlowHover>
         ))}
       </Nav>
 
       <SidebarFooter>
-        <LocalCard>
-          <LocalHeader>
-            <StatusDot />
-            本地优先模式
-          </LocalHeader>
-          <LocalCopy>弹幕长链与语音队列均在本机处理，适配器可按需替换。</LocalCopy>
-        </LocalCard>
-        <Version>BILICAST DESKTOP · V0.1.0</Version>
+        <Version>BILIMAKU · V0.1.0</Version>
+        <ParticleGlowHover>
+          <CollapseButton
+            type="button"
+            aria-controls="bilimaku-primary-navigation"
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
+            data-tooltip={collapsed ? "展开侧边栏" : "收起侧边栏"}
+            data-tooltip-placement="top"
+            onClick={() => setCollapsed((value) => !value)}
+          >
+            <CollapseIcon>
+              <Icon
+                name="arrow"
+                size={theme.sidebarEffects.collapseIconSizePx}
+              />
+            </CollapseIcon>
+            <CollapseLabel>收起侧边栏</CollapseLabel>
+          </CollapseButton>
+        </ParticleGlowHover>
       </SidebarFooter>
     </Aside>
   );

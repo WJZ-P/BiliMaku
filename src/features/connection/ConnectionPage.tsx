@@ -13,6 +13,7 @@ import {
 import {
   createBilibiliLoginQr,
   getBilibiliLoginStatus,
+  getConfigFilePath,
   isDesktopRuntime,
   listenToBilibiliAccountEvents,
   logoutBilibiliAccount,
@@ -426,6 +427,7 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [configPath, setConfigPath] = useState("");
   const pollBusy = useRef(false);
 
   useEffect(() => {
@@ -449,6 +451,9 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
       .catch((reason) => {
         if (active) setError(errorText(reason));
       });
+    void getConfigFilePath().then((path) => {
+      if (active) setConfigPath(path);
+    });
     return () => {
       active = false;
       unlisten?.();
@@ -560,7 +565,7 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
           </IntroDescription>
           <IntroActions>
             <PrimaryButton type="button" onClick={onNavigateDashboard}>
-              前往播报台
+              前往直播间
               <Icon name="arrow" size={14} />
             </PrimaryButton>
             <SubtleButton type="button" onClick={() => void startLogin()} disabled={busy}>
@@ -607,8 +612,8 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
                 <ProfileUid>UID {authenticated.uid}</ProfileUid>
                 <SessionNote>
                   {status.persisted
-                    ? `Cookie 已使用 AES-256-GCM 加密保存在本机；启动时自动校验${status.validatedAt ? `，最近验证 ${new Date(status.validatedAt * 1000).toLocaleString()}` : ""}。`
-                    : "当前登录态尚未写入本地会话文件。"}
+                    ? `Cookie 已写入 Rust 统一配置；启动时自动校验${status.validatedAt ? `，最近验证 ${new Date(status.validatedAt * 1000).toLocaleString()}` : ""}。${configPath ? ` 配置：${configPath}` : ""}`
+                    : "当前登录态尚未写入统一配置。"}
                 </SessionNote>
                 <SubtleButton type="button" onClick={() => void logout()} disabled={busy}>
                   退出当前账号
@@ -699,7 +704,7 @@ export function ConnectionPage({ onNavigateDashboard }: ConnectionPageProps) {
               <Icon name="shield" size={16} />
               <span>
                 登录态用于读取观看端事件并验证进场字段差异。Cookie 由 Rust 使用
-                AES-256-GCM 加密落盘；前端只接收账号资料与登录、恢复、过期、退出等状态事件。
+                内存 Store 管理并在变更时写入可编辑 JSON；前端只接收账号资料与登录、恢复、过期、退出等状态事件。
               </span>
             </PrivacyNote>
           </AdapterBody>

@@ -1,0 +1,659 @@
+import { styled } from "@linaria/react";
+import type { UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useEffect, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { Icon } from "./Icon";
+import {
+  isDesktopRuntime,
+  listenToLiveEvents,
+  listenToLiveRoomStats,
+  listenToLiveStatus,
+} from "../services/desktop";
+import { theme } from "../styles/theme";
+import type { AccountProfile } from "../types/account";
+import type { LiveRoomStatsUpdate } from "../types/events";
+
+interface WindowTitleBarProps {
+  /** 登录窗口隐藏账号区和数据摘要，只保留可拖拽区域与窗口按钮。 */
+  compact?: boolean;
+  /** 当前已登录账号资料；工作台标题栏用它绘制头像经验环。 */
+  profile?: AccountProfile | null;
+}
+
+const Bar = styled.header`
+  position: fixed;
+  z-index: 1000;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  height: ${theme.layout.titleBarHeight};
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0 0 8px;
+  border-bottom: 1px solid color-mix(in srgb, ${theme.colors.border} 78%, transparent);
+  background: color-mix(in srgb, ${theme.colors.surface} 72%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 82%, transparent);
+  user-select: none;
+  backdrop-filter: blur(26px) saturate(1.42);
+  -webkit-backdrop-filter: blur(26px) saturate(1.42);
+
+  &[data-compact="true"] {
+    right: 0;
+    left: 0;
+    height: ${theme.layout.compactTitleBarHeight};
+    padding-left: 0;
+    border-bottom: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+`;
+
+const DragRegion = styled.div`
+  display: flex;
+  min-width: 48px;
+  flex: 1;
+  align-items: center;
+  align-self: stretch;
+  gap: 6px;
+  overflow: hidden;
+`;
+
+const AvatarExperience = styled.div`
+  position: relative;
+  display: grid;
+  width: ${theme.titleBar.avatarFrameSizePx}px;
+  height: ${theme.layout.titleBarHeight};
+  flex: 0 0 ${theme.titleBar.avatarFrameSizePx}px;
+  place-items: center;
+`;
+const ExperienceSvg = styled.svg`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: ${theme.titleBar.avatarFrameSizePx}px;
+  height: ${theme.titleBar.avatarFrameSizePx}px;
+  transform: translate(-50%, -50%);
+  overflow: visible;
+  filter: drop-shadow(0 4px 9px color-mix(in srgb, ${theme.colors.brand} 24%, transparent));
+`;
+const ExperienceTrack = styled.circle`
+  fill: color-mix(in srgb, ${theme.colors.surface} 88%, transparent);
+  stroke: color-mix(in srgb, ${theme.colors.borderStrong} 78%, transparent);
+  stroke-width: 3;
+`;
+
+const ExperienceProgress = styled.circle`
+  fill: none;
+  stroke: ${theme.colors.brand};
+  stroke-linecap: round;
+  stroke-width: 3;
+  transform: rotate(-90deg);
+  transform-origin: ${theme.titleBar.avatarFrameSizePx / 2}px ${theme.titleBar.avatarFrameSizePx / 2}px;
+  transition: stroke-dashoffset ${theme.motion.spring};
+`;
+
+const AvatarImage = styled.img`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: ${theme.titleBar.avatarSizePx}px;
+  height: ${theme.titleBar.avatarSizePx}px;
+  transform: translate(-50%, -50%);
+  border: 2px solid color-mix(in srgb, ${theme.colors.surface} 94%, transparent);
+  border-radius: 50%;
+  background: ${theme.colors.brandSoft};
+  object-fit: cover;
+`;
+const AvatarFallback = styled.span`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: ${theme.titleBar.avatarSizePx}px;
+  height: ${theme.titleBar.avatarSizePx}px;
+  transform: translate(-50%, -50%);
+  place-items: center;
+  border: 2px solid color-mix(in srgb, ${theme.colors.surface} 94%, transparent);
+  border-radius: 50%;
+  background: ${theme.gradients.brand};
+  color: ${theme.colors.textOnBrand};
+  font-size: 18px;
+  font-weight: 850;
+`;
+const LevelBadge = styled.span`
+  position: absolute;
+  z-index: 2;
+  bottom: 0;
+  left: 50%;
+  min-width: 32px;
+  height: 16px;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.surface} 92%, transparent);
+  border-radius: ${theme.radius.pill};
+  background: ${theme.gradients.brand};
+  box-shadow: 0 3px 8px color-mix(in srgb, ${theme.colors.brandDeep} 27%, transparent);
+  color: ${theme.colors.textOnBrand};
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 14px;
+  text-align: center;
+  transform: translateX(-50%);
+`;
+const AvatarDivider = styled.span`
+  width: 1px;
+  height: 44px;
+  flex: 0 0 1px;
+  margin: 0 6px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in srgb, ${theme.colors.brand} 30%, ${theme.colors.borderStrong}) 22%,
+    color-mix(in srgb, ${theme.colors.cyan} 38%, ${theme.colors.borderStrong}) 72%,
+    transparent
+  );
+  box-shadow: 1px 0 0 color-mix(in srgb, ${theme.colors.highlight} 70%, transparent);
+`;
+const SummaryRail = styled.div`
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 7px;
+
+  @media (max-width: 760px) {
+    [data-live-metric="true"] {
+      display: none;
+    }
+  }
+
+  @media (max-width: 520px) {
+    display: none;
+  }
+`;
+/** 标题栏实时数据格：放大字号，并保留轻量弹幕流光反馈。 */
+const SummaryMetric = styled.div`
+  --metric-accent: ${theme.colors.brand};
+  position: relative;
+  display: grid;
+  height: ${theme.titleBar.metricHeightPx}px;
+  min-width: ${theme.titleBar.metricMinWidthPx}px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--metric-accent) 20%, ${theme.colors.border});
+  border-radius: 10px;
+  background:
+    linear-gradient(155deg, color-mix(in srgb, ${theme.colors.highlight} 54%, transparent), transparent 48%),
+    color-mix(in srgb, ${theme.colors.surface} 74%, transparent);
+  box-shadow:
+    0 5px 15px color-mix(in srgb, var(--metric-accent) 8%, transparent),
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 82%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--metric-accent) 8%, transparent);
+  white-space: nowrap;
+  transition:
+    transform ${theme.motion.spring},
+    border-color ${theme.motion.fast},
+    box-shadow ${theme.motion.fast},
+    background ${theme.motion.fast};
+
+  &::before {
+    position: absolute;
+    top: 0;
+    right: 10px;
+    left: 10px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--metric-accent) 48%, transparent), transparent);
+    content: "";
+    opacity: 0.76;
+  }
+
+  &::after {
+    position: absolute;
+    top: 10px;
+    right: -26px;
+    width: 20px;
+    height: 2px;
+    border-radius: ${theme.radius.pill};
+    background: linear-gradient(90deg, transparent, var(--metric-accent));
+    box-shadow:
+      -8px 7px 0 -0.5px color-mix(in srgb, var(--metric-accent) 44%, transparent),
+      4px 15px 0 -0.5px color-mix(in srgb, ${theme.colors.cyan} 34%, transparent);
+    content: "";
+    opacity: 0;
+  }
+
+  &[data-kind="coins"] {
+    --metric-accent: ${theme.colors.warning};
+    min-width: 92px;
+  }
+
+  &[data-kind="watched"] {
+    --metric-accent: ${theme.colors.cyan};
+  }
+
+  &[data-kind="likes"] {
+    --metric-accent: ${theme.colors.brand};
+  }
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--metric-accent) 38%, ${theme.colors.border});
+    background:
+      linear-gradient(155deg, color-mix(in srgb, ${theme.colors.highlight} 66%, transparent), transparent 48%),
+      color-mix(in srgb, ${theme.colors.surface} 86%, transparent);
+    box-shadow:
+      0 8px 20px color-mix(in srgb, var(--metric-accent) 13%, transparent),
+      inset 0 1px 0 ${theme.colors.highlight};
+    transform: translateY(-1px);
+  }
+
+  &:hover::after {
+    animation: bilimaku-title-metric-danmaku 820ms ease-out both;
+  }
+
+  @keyframes bilimaku-title-metric-danmaku {
+    0% {
+      opacity: 0;
+      transform: translateX(0) skewX(-14deg);
+    }
+    18% {
+      opacity: 0.78;
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(-132px) skewX(-14deg);
+    }
+  }
+`;
+const MetricLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: ${theme.colors.textMuted};
+  font-size: ${theme.titleBar.metricLabelFontSize};
+  font-weight: 720;
+
+  svg {
+    color: var(--metric-accent);
+    filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--metric-accent) 22%, transparent));
+  }
+`;
+const MetricValue = styled.strong`
+  overflow: hidden;
+  max-width: 96px;
+  color: ${theme.colors.textPrimary};
+  font-size: ${theme.titleBar.metricValueFontSize};
+  font-variant-numeric: tabular-nums;
+  font-weight: 860;
+  letter-spacing: -0.015em;
+  text-overflow: ellipsis;
+`;
+
+const Controls = styled.div`
+  display: flex;
+  height: 100%;
+  align-items: center;
+  gap: 0;
+  border: 0;
+  box-shadow: none;
+`;
+
+const ControlButton = styled.button`
+  position: relative;
+  display: grid;
+  width: ${theme.layout.titleBarControlWidth};
+  height: 100%;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: ${theme.colors.textSecondary};
+  transition:
+    background ${theme.motion.normal},
+    color ${theme.motion.normal};
+
+  & > svg {
+    transition: transform ${theme.motion.spring};
+  }
+
+  &:hover {
+    background: color-mix(in srgb, ${theme.colors.brandSoft} 78%, transparent);
+    color: ${theme.colors.brandDeep};
+  }
+
+  &:hover > svg {
+    transform: translateY(-1px) scale(1.18);
+  }
+
+  &:active > svg {
+    transform: translateY(1px) scale(0.78);
+    transition-duration: 90ms;
+  }
+
+  &[data-kind="close"]:hover {
+    background: ${theme.colors.dangerSoft};
+    color: ${theme.colors.danger};
+  }
+`;
+
+const LEVEL_RING_CENTER = theme.titleBar.avatarFrameSizePx / 2;
+const LEVEL_RING_RADIUS = theme.titleBar.avatarFrameSizePx / 2 - 2;
+const LEVEL_RING_CIRCUMFERENCE = 2 * Math.PI * LEVEL_RING_RADIUS;
+
+interface TitleBarLiveStats {
+  /** 当前统计所属的本地长连接会话。 */
+  sessionId: number;
+  /** 当前统计所属的真实房间号。 */
+  roomId: number;
+  /** 平台本场累计看过人数。 */
+  watchedCount: number | null;
+  /** 平台本场累计点赞次数。 */
+  likeCount: number | null;
+  /** 在累计点赞推送到达前，本机观察到的点赞互动数量。 */
+  observedLikeCount: number;
+}
+
+function createTitleBarLiveStats(
+  sessionId = 0,
+  roomId = 0,
+): TitleBarLiveStats {
+  return {
+    sessionId,
+    roomId,
+    watchedCount: null,
+    likeCount: null,
+    observedLikeCount: 0,
+  };
+}
+
+function mergeLiveRoomStats(
+  current: TitleBarLiveStats,
+  update: LiveRoomStatsUpdate,
+): TitleBarLiveStats {
+  const base =
+    current.sessionId === update.sessionId
+      ? current
+      : createTitleBarLiveStats(update.sessionId, update.roomId);
+  return {
+    ...base,
+    roomId: update.roomId,
+    watchedCount: update.watchedCount ?? base.watchedCount,
+    likeCount: update.likeCount ?? base.likeCount,
+  };
+}
+
+const compactNumber = new Intl.NumberFormat("zh-CN", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+const coinNumber = new Intl.NumberFormat("zh-CN", {
+  maximumFractionDigits: 1,
+});
+
+function levelProgress(profile: AccountProfile) {
+  if (profile.nextExp === null) {
+    return profile.level >= 6 ? 1 : 0;
+  }
+  const levelSpan = profile.nextExp - profile.currentMinExp;
+  if (levelSpan <= 0) return 0;
+  return Math.min(
+    1,
+    Math.max(0, (profile.currentExp - profile.currentMinExp) / levelSpan),
+  );
+}
+
+function levelDescription(profile: AccountProfile) {
+  if (profile.level >= 6 && profile.nextExp === null) {
+    return `${profile.username} · LV${profile.level} · 当前已满级`;
+  }
+  return `${profile.username} · LV${profile.level} · ${profile.currentExp.toLocaleString("zh-CN")} / ${profile.nextExp?.toLocaleString("zh-CN") ?? "--"} 经验`;
+}
+
+function formatLiveCount(value: number | null) {
+  return value === null ? "--" : compactNumber.format(value);
+}
+
+export function WindowTitleBar({
+  compact = false,
+  profile = null,
+}: WindowTitleBarProps) {
+  const desktopRuntime = isDesktopRuntime();
+  const [maximized, setMaximized] = useState(false);
+  const [liveStats, setLiveStats] = useState<TitleBarLiveStats>(
+    createTitleBarLiveStats,
+  );
+
+  useEffect(() => {
+    if (!desktopRuntime || compact) {
+      setMaximized(false);
+      return;
+    }
+    const appWindow = getCurrentWindow();
+    let unlisten: (() => void) | undefined;
+    const refresh = () => {
+      void appWindow.isMaximized().then(setMaximized).catch(() => undefined);
+    };
+    refresh();
+    void appWindow.onResized(refresh).then((stop) => {
+      unlisten = stop;
+    });
+    return () => unlisten?.();
+  }, [compact, desktopRuntime]);
+
+  useEffect(() => {
+    if (!desktopRuntime || compact) {
+      setLiveStats(createTitleBarLiveStats());
+      return;
+    }
+
+    let active = true;
+    const unlisteners: UnlistenFn[] = [];
+    const subscriptions = [
+      listenToLiveRoomStats((update) => {
+        if (!active) return;
+        setLiveStats((current) => mergeLiveRoomStats(current, update));
+      }),
+      listenToLiveEvents((event) => {
+        if (!active || event.meta !== "点赞") return;
+        const sessionId = event.sessionId ?? 0;
+        const roomId = event.roomId ?? 0;
+        if (sessionId <= 0) return;
+        setLiveStats((current) => {
+          const base =
+            current.sessionId === sessionId
+              ? current
+              : createTitleBarLiveStats(sessionId, roomId);
+          return {
+            ...base,
+            roomId,
+            observedLikeCount: base.observedLikeCount + 1,
+          };
+        });
+      }),
+      listenToLiveStatus((status) => {
+        if (!active) return;
+        setLiveStats((current) => {
+          if (
+            status.state === "disconnected" &&
+            (current.sessionId === 0 || current.sessionId === status.sessionId)
+          ) {
+            return createTitleBarLiveStats();
+          }
+          if (
+            (status.state === "connecting" || status.state === "connected") &&
+            current.sessionId !== status.sessionId
+          ) {
+            return createTitleBarLiveStats(status.sessionId, status.roomId);
+          }
+          return current;
+        });
+      }),
+    ];
+
+    void Promise.allSettled(subscriptions).then((results) => {
+      for (const result of results) {
+        if (result.status === "rejected") {
+          console.warn("bilimaku title bar live stats subscription failed", result.reason);
+          continue;
+        }
+        if (active) unlisteners.push(result.value);
+        else result.value();
+      }
+    });
+
+    return () => {
+      active = false;
+      unlisteners.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [compact, desktopRuntime]);
+
+  const minimize = () => {
+    if (desktopRuntime) void getCurrentWindow().minimize();
+  };
+  const toggleMaximize = () => {
+    if (!desktopRuntime) return;
+    const appWindow = getCurrentWindow();
+    void appWindow.toggleMaximize().then(() => appWindow.isMaximized()).then(setMaximized);
+  };
+  const close = () => {
+    if (desktopRuntime) void getCurrentWindow().close();
+  };
+  const drag = (event: ReactMouseEvent<HTMLElement>) => {
+    if (!desktopRuntime || event.button !== 0) return;
+    if ((event.target as HTMLElement).closest("button, [data-no-drag='true']")) return;
+    const appWindow = getCurrentWindow();
+    if (event.detail === 2) {
+      if (!compact) void appWindow.toggleMaximize();
+      return;
+    }
+    void appWindow.startDragging();
+  };
+
+  const progress = profile ? levelProgress(profile) : 0;
+  const displayedLikeCount =
+    liveStats.likeCount ??
+    (liveStats.observedLikeCount > 0 ? liveStats.observedLikeCount : null);
+  const watchedTooltip =
+    liveStats.watchedCount === null
+      ? "等待平台 WATCHED_CHANGE 推送本场累计看过人数"
+      : "平台长链推送的本场累计看过人数";
+  const likesTooltip =
+    liveStats.likeCount !== null
+      ? "平台长链推送的本场累计点赞次数"
+      : liveStats.observedLikeCount > 0
+        ? "累计点赞推送尚未到达，暂显示本机观察到的点赞互动"
+        : "等待平台 LIKE_INFO_V3_UPDATE 推送本场累计点赞";
+
+  return (
+    <Bar data-compact={compact} data-tauri-drag-region onMouseDown={drag}>
+      <DragRegion data-tauri-drag-region>
+        {!compact && profile ? (
+          <AvatarExperience
+            data-tauri-drag-region
+            data-tooltip={levelDescription(profile)}
+            aria-label={levelDescription(profile)}
+          >
+            <ExperienceSvg
+              viewBox={`0 0 ${theme.titleBar.avatarFrameSizePx} ${theme.titleBar.avatarFrameSizePx}`}
+              aria-hidden="true"
+            >
+              <ExperienceTrack
+                cx={LEVEL_RING_CENTER}
+                cy={LEVEL_RING_CENTER}
+                r={LEVEL_RING_RADIUS}
+              />
+              <ExperienceProgress
+                cx={LEVEL_RING_CENTER}
+                cy={LEVEL_RING_CENTER}
+                r={LEVEL_RING_RADIUS}
+                strokeDasharray={LEVEL_RING_CIRCUMFERENCE}
+                strokeDashoffset={LEVEL_RING_CIRCUMFERENCE * (1 - progress)}
+              />
+            </ExperienceSvg>
+            {profile.avatar ? (
+              <AvatarImage
+                src={profile.avatar}
+                alt={`${profile.username} 的头像`}
+                referrerPolicy="no-referrer"
+                draggable={false}
+              />
+            ) : (
+              <AvatarFallback aria-hidden="true">
+                {profile.username.trim().slice(0, 1) || "B"}
+              </AvatarFallback>
+            )}
+            <LevelBadge>LV{profile.level}</LevelBadge>
+          </AvatarExperience>
+        ) : null}
+        {!compact && profile ? (
+          <SummaryRail aria-label="账号与本场直播数据摘要">
+            <AvatarDivider aria-hidden="true" />
+            <SummaryMetric data-kind="coins" data-tooltip="主站账号硬币余额">
+              <MetricLabel>
+                <Icon name="coin" size={theme.titleBar.metricIconSizePx} />
+                硬币
+              </MetricLabel>
+              <MetricValue>{coinNumber.format(profile.coins)}</MetricValue>
+            </SummaryMetric>
+            <SummaryMetric
+              data-live-metric="true"
+              data-kind="watched"
+              data-tooltip={watchedTooltip}
+            >
+              <MetricLabel>
+                <Icon name="users" size={theme.titleBar.metricIconSizePx} />
+                本场看过
+              </MetricLabel>
+              <MetricValue>{formatLiveCount(liveStats.watchedCount)}</MetricValue>
+            </SummaryMetric>
+            <SummaryMetric
+              data-live-metric="true"
+              data-kind="likes"
+              data-tooltip={likesTooltip}
+            >
+              <MetricLabel>
+                <Icon name="like" size={theme.titleBar.metricIconSizePx} />
+                本场点赞
+              </MetricLabel>
+              <MetricValue>{formatLiveCount(displayedLikeCount)}</MetricValue>
+            </SummaryMetric>
+          </SummaryRail>
+        ) : null}
+      </DragRegion>
+
+      <Controls data-no-drag="true">
+        <ControlButton type="button" aria-label="最小化" data-tooltip="最小化" onClick={minimize}>
+          <Icon
+            name="minimize"
+            size={theme.layout.titleBarControlIconSizePx}
+          />
+        </ControlButton>
+        {compact ? null : (
+          <ControlButton
+            type="button"
+            aria-label={maximized ? "还原窗口" : "最大化"}
+            data-tooltip={maximized ? "还原窗口" : "最大化"}
+            onClick={toggleMaximize}
+          >
+            <Icon
+              name={maximized ? "restore" : "maximize"}
+              size={theme.layout.titleBarControlIconSizePx}
+            />
+          </ControlButton>
+        )}
+        <ControlButton type="button" data-kind="close" aria-label="关闭" data-tooltip="关闭" onClick={close}>
+          <Icon
+            name="close"
+            size={theme.layout.titleBarControlIconSizePx}
+          />
+        </ControlButton>
+      </Controls>
+    </Bar>
+  );
+}

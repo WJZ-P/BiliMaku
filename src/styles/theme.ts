@@ -1,5 +1,5 @@
 /**
- * BiliCast design tokens.
+ * bilimaku design tokens.
  *
  * Components only consume semantic CSS variables from `theme`. The concrete
  * light palette lives in `lightTheme`, so adding another scheme never requires
@@ -96,6 +96,135 @@ export const theme = {
     xl: "28px",
     pill: "999px",
   },
+  layout: {
+    /** 工作台自绘标题栏高度；可容纳账号头像经验环和数据摘要。 */
+    titleBarHeight: "70px",
+    /** 登录页保留的紧凑窗口控制区高度。 */
+    compactTitleBarHeight: "32px",
+    /** 右上角三个窗口控制按钮的单个宽度。 */
+    titleBarControlWidth: "36px",
+    /** 统一图标系统中窗口控制按钮的图标尺寸。 */
+    titleBarControlIconSizePx: 14,
+  },
+  titleBar: {
+    /** 账号头像图片的实际宽高。 */
+    avatarSizePx: 48,
+    /** 头像经验环的外框宽高。 */
+    avatarFrameSizePx: 56,
+    /** 顶部实时统计格高度。 */
+    metricHeightPx: 42,
+    /** 顶部实时统计格最小宽度。 */
+    metricMinWidthPx: 104,
+    /** 顶部统计标签字号。 */
+    metricLabelFontSize: "10px",
+    /** 顶部统计数值字号。 */
+    metricValueFontSize: "14px",
+    /** 顶部统计标签图标尺寸。 */
+    metricIconSizePx: 13,
+  },
+  tooltip: {
+    /** Tooltip 正文字号；感觉偏小或偏大时优先调整这里。 */
+    fontSize: "12px",
+    /** Tooltip 文字粗细。 */
+    fontWeight: 600,
+    /** 背景高斯模糊半径。 */
+    blur: "2px",
+    /** 毛玻璃对背景颜色的饱和度增强。 */
+    backdropSaturation: 1.72,
+    /** 毛玻璃背景的亮度与对比度。 */
+    backdropBrightness: 1.08,
+    backdropContrast: 1.06,
+    /** 玻璃主体圆角。 */
+    radius: "6px",
+    /** 白色表层在玻璃背景中的混合比例，数值越低越透明。 */
+    surfaceMix: "13%",
+    /** 浅蓝表层在玻璃背景中的混合比例。 */
+    accentMix: "50%",
+    /** Tooltip 渐入与位移弹簧从出现到静止的总时长。 */
+    entranceDurationMs: 520,
+    /** 位移弹簧阻尼；数值越大越快停止振荡。 */
+    entranceSpringDamping: 5.7,
+    /** 位移弹簧频率；数值越大回弹次数越多。 */
+    entranceSpringFrequency: 11.4,
+    /** Tooltip 渐入时从下方开始的位移距离。 */
+    entranceOffsetPx: 7,
+    /** Tooltip 消失时的淡出时长。 */
+    exitDurationMs: 180,
+    /** Tooltip 淡出时向下回落的距离。 */
+    exitOffsetPx: 3,
+    /** 渐入占整个弹簧时长的比例，剩余时间只保留回弹。 */
+    entranceFadePortion: 0.48,
+    /** 液态玻璃边缘折射光强度。 */
+    liquidRefraction: 0.46,
+    /** 红蓝色散强度。 */
+    liquidDispersion: 0.3,
+    /** 鼠标悬停后显示 Tooltip 的默认等待时间。 */
+    showDelayMs: 260,
+  },
+  sidebarEffects: {
+    /** 导航项悬停时整体向右移动的距离。 */
+    hoverOffset: "4px",
+    /** 图标在组件整体位移之外额外舒展的距离。 */
+    iconHoverOffset: "2px",
+    /** 文案在组件整体位移之外额外舒展的距离。 */
+    textHoverOffset: "4px",
+    /** 为右移动画预留的空间，避免导航项被侧边栏裁切。 */
+    motionGutter: "7px",
+    /** Hover 底色从右向左滑入的状态机过渡。 */
+    hoverColorEnterTransition: "340ms cubic-bezier(0.2, 0.86, 0.24, 1)",
+    /** Hover 底色向右退出的状态机过渡。 */
+    hoverColorExitTransition: "260ms cubic-bezier(0.4, 0, 0.68, 0.28)",
+    /** 选中态左侧指示条宽度；绝对定位，不参与内容布局。 */
+    selectionRailWidthPx: 2,
+    /** 导航项默认最小高度。 */
+    navigationItemMinHeightPx: 50,
+    /** 导航图标布局槽宽度；只负责对齐，不绘制方形底座。 */
+    navigationIconSlotSizePx: 31,
+    /** 导航图标自身尺寸。 */
+    navigationIconSizePx: 18,
+    /** 导航主标题字号。 */
+    navigationLabelFontSize: "13px",
+    /** 导航描述文字字号。 */
+    navigationDescriptionFontSize: "10px",
+    /** 收缩按钮图标尺寸。 */
+    collapseIconSizePx: 16,
+    /** 收缩按钮文字字号。 */
+    collapseLabelFontSize: "11px",
+    /** 每次进入 Hover 时从右侧创建的粒子数量。 */
+    particleBurstCount: 12,
+    /** 保持 Hover 时连续补充粒子的基础间隔。 */
+    particleEmissionIntervalMs: 82,
+    /** 连续发射间隔的随机浮动范围，避免粒子节奏过于机械。 */
+    particleEmissionJitterMs: 24,
+    /** 单个侧边栏组件允许同时存在的粒子上限。 */
+    particleMaxCount: 42,
+    /** 新粒子出生时采用鼠标方向的概率；只在出生瞬间采样一次。 */
+    particlePointerTrackingProbability: 0.82,
+    /** 鼠标方向对初始速度向量的随机影响范围。 */
+    particlePointerInfluenceMin: 0.76,
+    particlePointerInfluenceMax: 0.94,
+    /** 鼠标目标点的随机偏移半径，让粒子聚拢但不会排成直线。 */
+    particlePointerTargetJitterPx: 14,
+    /** 未追踪鼠标的粒子围绕向左方向自由散射的最大弧度。 */
+    particleFreeDirectionSpreadRadians: 0.36,
+    /** 单颗粒子出生速度范围，单位为像素每秒。 */
+    particleSpeedMinPxPerSecond: 78,
+    particleSpeedMaxPxPerSecond: 158,
+    /** 离开 Hover 后单颗粒子随机淡出时长的范围。 */
+    particleExitFadeMinMs: 180,
+    particleExitFadeMaxMs: 720,
+    /** 极端帧调度情况下结束 exiting 状态的兜底时间。 */
+    particleExitFadeSafetyBufferMs: 120,
+    /** 粒子核心半径的随机范围。 */
+    particleCoreSizeMinPx: 0.7,
+    particleCoreSizeMaxPx: 1.65,
+    /** 粒子周围光晕半径的随机范围。 */
+    particleHaloRadiusMinPx: 3,
+    particleHaloRadiusMaxPx: 7.5,
+    /** 粒子光晕透明度的随机范围。 */
+    particleHaloOpacityMin: 0.12,
+    particleHaloOpacityMax: 0.3,
+  },
   shadows: {
     card: "0 12px 34px var(--bc-color-shadow)",
     floating: "0 18px 48px var(--bc-color-shadow-strong)",
@@ -104,7 +233,11 @@ export const theme = {
   motion: {
     fast: "150ms ease",
     normal: "220ms ease",
+    /** 通用图标与轻交互弹簧。 */
+    spring: "420ms cubic-bezier(0.2, 1.65, 0.3, 1)",
+    /** 侧边栏宽度与收缩箭头专用弹簧。 */
+    sidebarSpring: "400ms cubic-bezier(0.2, 1.20, 0.3, 1)",
   },
 } as const;
 
-export type BiliCastTheme = typeof theme;
+export type BilimakuTheme = typeof theme;

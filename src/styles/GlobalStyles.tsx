@@ -1,6 +1,7 @@
 import { css } from "@linaria/core";
 import { styled } from "@linaria/react";
 import type { PropsWithChildren } from "react";
+import { FrostedTooltipLayer } from "../components/FrostedTooltip";
 import { lightTheme, theme } from "./theme";
 
 const globalStyles = css`
@@ -15,6 +16,7 @@ const globalStyles = css`
     body,
     #root {
       width: 100%;
+      height: 100%;
       min-width: 320px;
       min-height: 100%;
       margin: 0;
@@ -23,7 +25,7 @@ const globalStyles = css`
     body {
       min-height: 100vh;
       overflow: hidden;
-      background: ${lightTheme.colors.canvas};
+      background: transparent;
       color: ${lightTheme.colors.textPrimary};
       font-family: ${theme.typography.family};
       font-size: 14px;
@@ -106,12 +108,37 @@ const ThemeCanvas = styled.div`
   --bc-color-highlight: ${lightTheme.colors.highlight};
 
   width: 100%;
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
+  position: relative;
   background-color: ${theme.colors.canvas};
   background-image: ${theme.gradients.canvas};
   color: ${theme.colors.textPrimary};
+
+  &[data-window-mode="login"] {
+    border: 0;
+    border-radius: 0;
+    background:
+      radial-gradient(circle at 14% 20%, color-mix(in srgb, ${theme.colors.brandSoft} 68%, transparent), transparent 43%),
+      radial-gradient(circle at 84% 76%, color-mix(in srgb, ${theme.colors.cyanSoft} 76%, transparent), transparent 45%),
+      linear-gradient(135deg, color-mix(in srgb, ${theme.colors.surface} 82%, transparent), color-mix(in srgb, ${theme.colors.brandSubtle} 72%, transparent));
+    background-position: 18% 18%, 82% 82%, 50% 50%;
+    background-size: 140% 140%, 150% 150%, 100% 100%;
+    box-shadow: none;
+    backdrop-filter: blur(34px) saturate(1.28);
+    -webkit-backdrop-filter: blur(34px) saturate(1.28);
+  }
 `;
 
-export function GlobalStyles({ children }: PropsWithChildren) {
-  return <ThemeCanvas className={globalStyles}>{children}</ThemeCanvas>;
+export function GlobalStyles({
+  children,
+  windowMode = "workspace",
+}: PropsWithChildren<{ windowMode?: "login" | "workspace" }>) {
+  return (
+    <ThemeCanvas className={globalStyles} data-window-mode={windowMode}>
+      {children}
+      <FrostedTooltipLayer />
+    </ThemeCanvas>
+  );
 }
