@@ -7,6 +7,24 @@ pub const INTERACT_WORD: &str = "INTERACT_WORD";
 /// 平台 Web 长链 V2 Protobuf 互动事件的原始命令字。
 pub const INTERACT_WORD_V2: &str = "INTERACT_WORD_V2";
 
+/// 平台互动事件的具体动作，由 INTERACT_WORD / INTERACT_WORD_V2 的 msg_type 映射。
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum LiveInteractionKind {
+    /// 用户进入直播间，msg_type = 1。
+    Enter,
+    /// 用户关注主播，msg_type = 2。
+    Follow,
+    /// 用户分享直播间，msg_type = 3。
+    Share,
+    /// 用户特别关注主播，msg_type = 4。
+    SpecialFollow,
+    /// 用户与主播互相关注，msg_type = 5。
+    MutualFollow,
+    /// 用户为主播点赞，msg_type = 6。
+    Like,
+}
+
 /// 直播间连接建立后的基础信息。
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -62,6 +80,9 @@ pub struct LiveEvent {
     /// 归一化事件种类，例如 message、interaction、gift 或 guard。
     #[serde(rename = "type")]
     pub event_type: String,
+    /// 互动事件的具体动作；非互动事件为空。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_kind: Option<LiveInteractionKind>,
     /// 事件主体的用户 UID；上游未提供时为空。
     pub user_id: Option<String>,
     /// 事件主体的昵称。

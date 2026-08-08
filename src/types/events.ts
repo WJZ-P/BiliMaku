@@ -7,6 +7,15 @@ export type LiveEventType =
   | "guard"
   | "system";
 
+/** 平台互动事件的具体动作；编号由 INTERACT_WORD / INTERACT_WORD_V2 协议映射而来。 */
+export type LiveInteractionKind =
+  | "enter"
+  | "follow"
+  | "share"
+  | "special-follow"
+  | "mutual-follow"
+  | "like";
+
 /** Rust 协议层完成归一化后发送给 React 的直播事件。 */
 export interface LiveEvent {
   /** 事件在本机的唯一编号。 */
@@ -17,6 +26,8 @@ export interface LiveEvent {
   roomId?: number;
   /** 归一化后的事件种类。 */
   type: LiveEventType;
+  /** 互动事件的具体动作；非互动事件或旧数据中为空。 */
+  interactionKind?: LiveInteractionKind;
   /** 事件主体 UID；上游未提供时为空。 */
   userId?: string;
   /** 事件主体昵称。 */

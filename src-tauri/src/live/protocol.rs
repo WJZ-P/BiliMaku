@@ -6,7 +6,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::LiveEvent;
-use crate::types::live::{DecodedPacket, LiveRoomStatsUpdate, INTERACT_WORD, INTERACT_WORD_V2};
+use crate::types::live::{
+    DecodedPacket, LiveInteractionKind, LiveRoomStatsUpdate, INTERACT_WORD, INTERACT_WORD_V2,
+};
 
 const HEADER_LENGTH: usize = 16;
 const OP_HEARTBEAT_REPLY: u32 = 3;
@@ -203,17 +205,21 @@ fn interaction_event(
     interaction: InteractionData,
     raw_command: &str,
 ) -> Option<LiveEvent> {
-    let (content, meta) = match interaction.message_type {
-        1 => ("进入了直播间", "进场"),
-        2 => ("关注了主播", "关注"),
-        3 => ("分享了直播间", "分享"),
-        4 => ("特别关注了主播", "特别关注"),
-        5 => ("与主播互相关注", "互粉"),
-        6 => ("为主播点了赞", "点赞"),
+    let (kind, content, meta) = match interaction.message_type {
+        1 => (LiveInteractionKind::Enter, "进入了直播间", "进场"),
+        2 => (LiveInteractionKind::Follow, "关注了主播", "关注"),
+        3 => (LiveInteractionKind::Share, "分享了直播间", "分享"),
+        4 => (
+            LiveInteractionKind::SpecialFollow,
+            "特别关注了主播",
+            "特别关注",
+        ),
+        5 => (LiveInteractionKind::MutualFollow, "与主播互相关注", "互粉"),
+        6 => (LiveInteractionKind::Like, "为主播点了赞", "点赞"),
         _ => return None,
     };
 
-    Some(new_event(
+    let mut event = new_event(
         session_id,
         room_id,
         "interaction",
@@ -227,7 +233,9 @@ fn interaction_event(
         content.to_string(),
         Some(meta.to_string()),
         raw_command.to_string(),
-    ))
+    );
+    event.interaction_kind = Some(kind);
+    Some(event)
 }
 
 fn parse_interaction_v2(encoded: &str) -> Option<InteractionData> {
@@ -465,6 +473,7 @@ fn new_event(
         session_id,
         room_id,
         event_type: event_type.to_string(),
+        interaction_kind: None,
         user_id,
         user,
         avatar,
@@ -561,6 +570,7 @@ mod tests {
 
         let event = normalize_command(7, 100, command).expect("interaction event");
         assert_eq!(event.event_type, "interaction");
+        assert_eq!(event.interaction_kind, Some(LiveInteractionKind::Enter));
         assert_eq!(event.user, "新观众");
         assert_eq!(event.user_id.as_deref(), Some("123"));
         assert_eq!(event.content, "进入了直播间");
@@ -579,6 +589,7 @@ mod tests {
 
         let event = normalize_command(7, 100, command).expect("interaction v2 event");
         assert_eq!(event.event_type, "interaction");
+        assert_eq!(event.interaction_kind, Some(LiveInteractionKind::Enter));
         assert_eq!(event.content, "进入了直播间");
         assert_eq!(event.meta.as_deref(), Some("进场"));
         assert_eq!(
@@ -603,6 +614,39 @@ mod tests {
         assert_eq!(event.user_id.as_deref(), Some("123456789"));
         assert_eq!(event.content, "为主播点了赞");
         assert_eq!(event.meta.as_deref(), Some("点赞"));
+        assert_eq!(event.interaction_kind, Some(LiveInteractionKind::Like));
+        assert_eq!(
+            serde_json::to_value(&event).expect("serialize interaction event")["interactionKind"],
+            "like"
+        );
+    }
+
+    #[test]
+    fn maps_every_supported_interaction_message_type() {
+        let cases = [
+            (1, LiveInteractionKind::Enter),
+            (2, LiveInteractionKind::Follow),
+            (3, LiveInteractionKind::Share),
+            (4, LiveInteractionKind::SpecialFollow),
+            (5, LiveInteractionKind::MutualFollow),
+            (6, LiveInteractionKind::Like),
+        ];
+
+        for (message_type, expected_kind) in cases {
+            let event = interaction_event(
+                1,
+                2,
+                InteractionData {
+                    user_id: Some("3".to_string()),
+                    user: "测试用户".to_string(),
+                    avatar: String::new(),
+                    message_type,
+                },
+                INTERACT_WORD,
+            )
+            .expect("supported interaction event");
+            assert_eq!(event.interaction_kind, Some(expected_kind));
+        }
     }
 
     #[test]

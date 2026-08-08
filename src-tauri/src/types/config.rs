@@ -100,7 +100,7 @@ pub struct TtsUserSettings {
     pub volume: f64,
     /// 收到符合规则的事件后是否自动播报。
     pub auto_speak: bool,
-    /// 允许进入语音队列的直播事件种类。
+    /// 允许进入语音队列的事件筛选键；互动动作使用 interaction-* 独立键。
     #[serde(default = "default_tts_event_types")]
     pub enabled_event_types: Vec<String>,
 }

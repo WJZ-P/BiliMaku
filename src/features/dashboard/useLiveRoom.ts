@@ -42,9 +42,13 @@ function makeSpeechText(event: LiveEvent) {
   return `${event.user}${event.content}`;
 }
 
-/** 系统事件只进入 UI，不允许进入 TTS 队列。 */
-function isTtsSpeechEvent(type: LiveEvent["type"]): type is TtsSpeechEventType {
-  return type !== "system";
+/** 把统一直播事件映射为更细粒度的 TTS 筛选键。 */
+function getTtsSpeechEventType(event: LiveEvent): TtsSpeechEventType | null {
+  if (event.type === "system") return null;
+  if (event.type === "interaction") {
+    return event.interactionKind ? `interaction-${event.interactionKind}` : null;
+  }
+  return event.type;
 }
 
 export function useLiveRoomController() {
@@ -177,10 +181,11 @@ export function useLiveRoomController() {
 
     // 无论当前类型是否启用，都先标记为已观测，避免修改设置时突然补播旧消息。
     lastSpokenId.current = latest.id;
+    const speechEventType = getTtsSpeechEventType(latest);
     if (
       !ttsSettings.autoSpeak
-      || !isTtsSpeechEvent(latest.type)
-      || !ttsSettings.enabledEventTypes.includes(latest.type)
+      || !speechEventType
+      || !ttsSettings.enabledEventTypes.includes(speechEventType)
     ) {
       return;
     }

@@ -554,7 +554,12 @@ function checkStateLabel(state: TtsEnvironmentState) {
 
 const speechEventOptions = [
   { value: "message", label: "弹幕", description: "用户发送的普通弹幕" },
-  { value: "interaction", label: "互动", description: "进场、关注、分享和点赞" },
+  { value: "interaction-enter", label: "进场", description: "用户进入直播间" },
+  { value: "interaction-follow", label: "关注", description: "用户关注主播" },
+  { value: "interaction-share", label: "分享", description: "用户分享直播间" },
+  { value: "interaction-special-follow", label: "特别关注", description: "用户特别关注主播" },
+  { value: "interaction-mutual-follow", label: "互粉", description: "用户与主播互相关注" },
+  { value: "interaction-like", label: "点赞", description: "用户为主播点赞" },
   { value: "gift", label: "礼物", description: "普通礼物事件" },
   { value: "superchat", label: "醒目留言", description: "Super Chat 消息" },
   { value: "guard", label: "大航海", description: "舰长、提督和总督" },
@@ -1049,7 +1054,7 @@ export function VoiceStudioPage() {
             <SpeechEventSection>
               <SpeechEventLegend>自动播报项目</SpeechEventLegend>
               <SpeechEventHint>
-                默认只播报弹幕；不勾选互动即不会播报用户进场、关注或点赞。
+                默认只播报弹幕；进场与关注彼此独立，可只开启关注而保持进场静音。
               </SpeechEventHint>
               <SpeechEventGrid>
                 {speechEventOptions.map((option) => {

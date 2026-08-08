@@ -17,10 +17,15 @@ const LEGACY_SETTINGS_KEY = "bilicast.tts.settings.v1";
 export const TTS_SETTINGS_EVENT = "bilimaku:tts-settings";
 const TTS_PRELOAD_EVENT = "tts://preload-status";
 
-/** 系统事件不进入语音队列；互动事件包含进场、关注、分享与点赞。 */
+/** 系统事件不进入语音队列；平台互动动作各自使用独立筛选键。 */
 export const TTS_SPEECH_EVENT_TYPES: readonly TtsSpeechEventType[] = [
   "message",
-  "interaction",
+  "interaction-enter",
+  "interaction-follow",
+  "interaction-share",
+  "interaction-special-follow",
+  "interaction-mutual-follow",
+  "interaction-like",
   "gift",
   "superchat",
   "guard",

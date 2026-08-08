@@ -1,4 +1,4 @@
-import type { LiveEventType } from "./events";
+import type { LiveEventType, LiveInteractionKind } from "./events";
 
 /** 模型包提供的一种可选音色。 */
 export interface TtsVoice {
@@ -179,8 +179,14 @@ export interface TtsPreloadStatus {
   updatedAt: number;
 }
 
-/** 可进入 TTS 自动播报队列的直播事件种类，系统事件永不播报。 */
-export type TtsSpeechEventType = Exclude<LiveEventType, "system">;
+/**
+ * 可进入 TTS 自动播报队列的事件筛选键。
+ *
+ * 互动事件按平台动作完全拆分，确保进场、关注、分享、特别关注、互粉与点赞可分别开关。
+ */
+export type TtsSpeechEventType =
+  | Exclude<LiveEventType, "interaction" | "system">
+  | `interaction-${LiveInteractionKind}`;
 
 /** 用户当前的语音播报偏好。 */
 export interface TtsSettings {

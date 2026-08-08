@@ -33,8 +33,18 @@ impl Default for AppConfigStore {
     }
 }
 
-const TTS_SPEAKABLE_EVENT_TYPES: [&str; 5] =
-    ["message", "interaction", "gift", "superchat", "guard"];
+const TTS_SPEAKABLE_EVENT_TYPES: [&str; 10] = [
+    "message",
+    "interaction-enter",
+    "interaction-follow",
+    "interaction-share",
+    "interaction-special-follow",
+    "interaction-mutual-follow",
+    "interaction-like",
+    "gift",
+    "superchat",
+    "guard",
+];
 
 fn normalize_tts_settings(mut settings: TtsUserSettings) -> TtsUserSettings {
     let mut enabled_event_types = Vec::new();
@@ -535,10 +545,11 @@ mod tests {
         settings.auto_speak = false;
         settings.enabled_event_types = vec![
             "message".to_string(),
-            "gift".to_string(),
-            "message".to_string(),
+            "interaction-follow".to_string(),
+            "interaction-follow".to_string(),
+            "interaction".to_string(),
+            "interaction-entered".to_string(),
             "system".to_string(),
-            "unknown".to_string(),
         ];
         assert!(store
             .set_tts_settings(settings)
@@ -546,7 +557,10 @@ mod tests {
 
         let current = store.tts_settings().expect("read speech preferences");
         assert!(!current.auto_speak);
-        assert_eq!(current.enabled_event_types, vec!["message", "gift"]);
+        assert_eq!(
+            current.enabled_event_types,
+            vec!["message", "interaction-follow"]
+        );
 
         let reloaded = AppConfigStore::default();
         reloaded
@@ -554,7 +568,10 @@ mod tests {
             .expect("reload store");
         let persisted = reloaded.tts_settings().expect("read persisted preferences");
         assert!(!persisted.auto_speak);
-        assert_eq!(persisted.enabled_event_types, vec!["message", "gift"]);
+        assert_eq!(
+            persisted.enabled_event_types,
+            vec!["message", "interaction-follow"]
+        );
         let _ = fs::remove_dir_all(directory);
     }
 
