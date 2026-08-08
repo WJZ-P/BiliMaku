@@ -8,6 +8,7 @@ import type {
   TtsPreloadStatus,
   TtsPreparationResult,
   TtsSettings,
+  TtsSpeechEventType,
   TtsSynthesisResult,
 } from "../types/tts";
 
@@ -15,6 +16,17 @@ const SETTINGS_KEY = "bilimaku.tts.settings.v1";
 const LEGACY_SETTINGS_KEY = "bilicast.tts.settings.v1";
 export const TTS_SETTINGS_EVENT = "bilimaku:tts-settings";
 const TTS_PRELOAD_EVENT = "tts://preload-status";
+
+/** 系统事件不进入语音队列；互动事件包含进场、关注、分享与点赞。 */
+export const TTS_SPEECH_EVENT_TYPES: readonly TtsSpeechEventType[] = [
+  "message",
+  "interaction",
+  "gift",
+  "superchat",
+  "guard",
+];
+
+const ttsSpeechEventTypeSet = new Set<string>(TTS_SPEECH_EVENT_TYPES);
 
 export const defaultTtsSettings: TtsSettings = {
   provider: "system",
@@ -25,17 +37,30 @@ export const defaultTtsSettings: TtsSettings = {
   pitch: 1,
   volume: 1,
   autoSpeak: true,
+  enabledEventTypes: ["message"],
 };
+
+function normalizeTtsSettings(value: Partial<TtsSettings>): TtsSettings {
+  const enabledEventTypes = Array.isArray(value.enabledEventTypes)
+    ? [...new Set(value.enabledEventTypes.filter(
+        (type): type is TtsSpeechEventType => ttsSpeechEventTypeSet.has(type),
+      ))]
+    : [...defaultTtsSettings.enabledEventTypes];
+  return {
+    ...defaultTtsSettings,
+    ...value,
+    enabledEventTypes,
+  };
+}
 
 export function loadTtsSettings(): TtsSettings {
   try {
     const value = localStorage.getItem(SETTINGS_KEY)
       ?? localStorage.getItem(LEGACY_SETTINGS_KEY);
     if (!value) return defaultTtsSettings;
-    const settings = {
-      ...defaultTtsSettings,
-      ...(JSON.parse(value) as Partial<TtsSettings>),
-    };
+    const settings = normalizeTtsSettings(
+      JSON.parse(value) as Partial<TtsSettings>,
+    );
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     return settings;
   } catch {
@@ -44,10 +69,11 @@ export function loadTtsSettings(): TtsSettings {
 }
 
 export function saveTtsSettings(settings: TtsSettings) {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  window.dispatchEvent(new CustomEvent(TTS_SETTINGS_EVENT, { detail: settings }));
+  const normalized = normalizeTtsSettings(settings);
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(normalized));
+  window.dispatchEvent(new CustomEvent(TTS_SETTINGS_EVENT, { detail: normalized }));
   if (isDesktopRuntime()) {
-    void invoke("update_tts_settings", { settings }).catch((error) => {
+    void invoke("update_tts_settings", { settings: normalized }).catch((error) => {
       console.warn("bilimaku TTS settings persistence failed", error);
     });
   }
@@ -60,7 +86,7 @@ export function saveTtsSettings(settings: TtsSettings) {
 export async function hydrateTtsSettings(): Promise<TtsSettings> {
   if (!isDesktopRuntime()) return loadTtsSettings();
   const settings = await invoke<TtsSettings>("get_tts_settings");
-  const normalized = { ...defaultTtsSettings, ...settings };
+  const normalized = normalizeTtsSettings(settings);
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(normalized));
   window.dispatchEvent(new CustomEvent(TTS_SETTINGS_EVENT, { detail: normalized }));
   return normalized;

@@ -76,6 +76,10 @@ pub struct LiveStorageConfig {
     pub appearance: LiveAppearanceSettings,
 }
 
+fn default_tts_event_types() -> Vec<String> {
+    vec!["message".to_string()]
+}
+
 /// TTS 播报偏好，字段与 React 前端设置保持一致。
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -96,6 +100,9 @@ pub struct TtsUserSettings {
     pub volume: f64,
     /// 收到符合规则的事件后是否自动播报。
     pub auto_speak: bool,
+    /// 允许进入语音队列的直播事件种类。
+    #[serde(default = "default_tts_event_types")]
+    pub enabled_event_types: Vec<String>,
 }
 
 impl Default for TtsUserSettings {
@@ -109,6 +116,7 @@ impl Default for TtsUserSettings {
             pitch: 1.0,
             volume: 1.0,
             auto_speak: true,
+            enabled_event_types: default_tts_event_types(),
         }
     }
 }

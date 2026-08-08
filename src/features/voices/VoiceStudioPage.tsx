@@ -32,6 +32,7 @@ import type {
   TtsPreloadStatus,
   TtsPreparationResult,
   TtsSettings,
+  TtsSpeechEventType,
 } from "../../types/tts";
 
 const Page = styled.div`
@@ -289,6 +290,76 @@ const ToggleRow = styled.label`
   }
 `;
 
+const SpeechEventSection = styled.fieldset`
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid ${theme.colors.border};
+  border-radius: ${theme.radius.sm};
+  background: color-mix(in srgb, ${theme.colors.brandSubtle} 54%, ${theme.colors.surface});
+`;
+
+const SpeechEventLegend = styled.legend`
+  padding: 0 5px;
+  color: ${theme.colors.textPrimary};
+  font-size: 9px;
+  font-weight: 800;
+`;
+
+const SpeechEventHint = styled.div`
+  color: ${theme.colors.textMuted};
+  font-size: 8px;
+  line-height: 1.55;
+`;
+
+const SpeechEventGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+`;
+
+const SpeechEventOption = styled.label`
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 7px;
+  padding: 8px 9px;
+  border: 1px solid ${theme.colors.border};
+  border-radius: 8px;
+  background: ${theme.colors.surface};
+  color: ${theme.colors.textSecondary};
+  font-size: 8px;
+  line-height: 1.45;
+  transition:
+    border-color ${theme.motion.normal},
+    background ${theme.motion.normal},
+    transform ${theme.motion.spring};
+
+  &[data-active="true"] {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 44%, ${theme.colors.border});
+    background: ${theme.colors.brandSubtle};
+    color: ${theme.colors.textPrimary};
+  }
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+
+  input {
+    margin: 1px 0 0;
+    accent-color: ${theme.colors.brand};
+  }
+
+  strong {
+    display: block;
+    margin-bottom: 1px;
+    font-size: 9px;
+  }
+`;
+
 const PreviewPanel = styled(Panel)`
   grid-column: 1 / -1;
 `;
@@ -481,6 +552,18 @@ function checkStateLabel(state: TtsEnvironmentState) {
   return "提示";
 }
 
+const speechEventOptions = [
+  { value: "message", label: "弹幕", description: "用户发送的普通弹幕" },
+  { value: "interaction", label: "互动", description: "进场、关注、分享和点赞" },
+  { value: "gift", label: "礼物", description: "普通礼物事件" },
+  { value: "superchat", label: "醒目留言", description: "Super Chat 消息" },
+  { value: "guard", label: "大航海", description: "舰长、提督和总督" },
+] satisfies ReadonlyArray<{
+  value: TtsSpeechEventType;
+  label: string;
+  description: string;
+}>;
+
 export function VoiceStudioPage() {
   const [models, setModels] = useState<InstalledTtsModel[]>([]);
   const [settings, setSettings] = useState<TtsSettings>(() => loadTtsSettings());
@@ -615,6 +698,13 @@ export function VoiceStudioPage() {
     const next = { ...settings, ...patch };
     setSettings(next);
     saveTtsSettings(next);
+  };
+
+  const toggleSpeechEventType = (type: TtsSpeechEventType) => {
+    const enabledEventTypes = settings.enabledEventTypes.includes(type)
+      ? settings.enabledEventTypes.filter((item) => item !== type)
+      : [...settings.enabledEventTypes, type];
+    updateSettings({ enabledEventTypes });
   };
 
   const importModel = async () => {
@@ -956,6 +1046,30 @@ export function VoiceStudioPage() {
                 onChange={(event) => updateSettings({ autoSpeak: event.target.checked })}
               />
             </ToggleRow>
+            <SpeechEventSection>
+              <SpeechEventLegend>自动播报项目</SpeechEventLegend>
+              <SpeechEventHint>
+                默认只播报弹幕；不勾选互动即不会播报用户进场、关注或点赞。
+              </SpeechEventHint>
+              <SpeechEventGrid>
+                {speechEventOptions.map((option) => {
+                  const active = settings.enabledEventTypes.includes(option.value);
+                  return (
+                    <SpeechEventOption key={option.value} data-active={active}>
+                      <input
+                        type="checkbox"
+                        checked={active}
+                        onChange={() => toggleSpeechEventType(option.value)}
+                      />
+                      <span>
+                        <strong>{option.label}</strong>
+                        {option.description}
+                      </span>
+                    </SpeechEventOption>
+                  );
+                })}
+              </SpeechEventGrid>
+            </SpeechEventSection>
           </SettingsBody>
         </Panel>
 

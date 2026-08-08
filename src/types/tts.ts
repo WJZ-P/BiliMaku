@@ -1,3 +1,5 @@
+import type { LiveEventType } from "./events";
+
 /** 模型包提供的一种可选音色。 */
 export interface TtsVoice {
   /** 音色在模型内的稳定编号。 */
@@ -177,6 +179,9 @@ export interface TtsPreloadStatus {
   updatedAt: number;
 }
 
+/** 可进入 TTS 自动播报队列的直播事件种类，系统事件永不播报。 */
+export type TtsSpeechEventType = Exclude<LiveEventType, "system">;
+
 /** 用户当前的语音播报偏好。 */
 export interface TtsSettings {
   /** 使用系统语音或自定义模型。 */
@@ -195,4 +200,6 @@ export interface TtsSettings {
   volume: number;
   /** 是否自动播报符合规则的事件。 */
   autoSpeak: boolean;
+  /** 允许进入自动播报队列的事件种类。 */
+  enabledEventTypes: TtsSpeechEventType[];
 }

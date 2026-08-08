@@ -854,13 +854,13 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           <RailTitle>功能</RailTitle>
           <RailButton
             type="button"
-            data-active={!live.queuePaused}
-            data-tooltip={live.queuePaused ? "继续自动播报" : "暂停自动播报"}
+            data-active={live.autoSpeak}
+            data-tooltip={live.autoSpeak ? "关闭自动播报（会持久化）" : "开启自动播报（会持久化）"}
             data-tooltip-placement="left"
-            onClick={live.togglePlayback}
+            onClick={live.toggleAutoSpeak}
           >
-            <Icon name={live.queuePaused ? "play" : "pause"} size={17} />
-            {live.queuePaused ? "继续" : "暂停"}
+            <Icon name={live.autoSpeak ? "pause" : "play"} size={17} />
+            {live.autoSpeak ? "关闭" : "开启"}
           </RailButton>
 
           <RailButton

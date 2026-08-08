@@ -33,6 +33,22 @@ impl Default for AppConfigStore {
     }
 }
 
+const TTS_SPEAKABLE_EVENT_TYPES: [&str; 5] =
+    ["message", "interaction", "gift", "superchat", "guard"];
+
+fn normalize_tts_settings(mut settings: TtsUserSettings) -> TtsUserSettings {
+    let mut enabled_event_types = Vec::new();
+    for event_type in settings.enabled_event_types {
+        if TTS_SPEAKABLE_EVENT_TYPES.contains(&event_type.as_str())
+            && !enabled_event_types.contains(&event_type)
+        {
+            enabled_event_types.push(event_type);
+        }
+    }
+    settings.enabled_event_types = enabled_event_types;
+    settings
+}
+
 fn normalize_hex_color(value: &str) -> Result<String, String> {
     let color = value.trim();
     if color.len() != 7
@@ -276,11 +292,12 @@ impl AppConfigStore {
 
     /// 读取 TTS 用户偏好。
     pub fn tts_settings(&self) -> Result<TtsUserSettings, String> {
-        Ok(self.snapshot()?.tts.settings)
+        Ok(normalize_tts_settings(self.snapshot()?.tts.settings))
     }
 
     /// 保存 TTS 用户偏好。
     pub fn set_tts_settings(&self, settings: TtsUserSettings) -> Result<bool, String> {
+        let settings = normalize_tts_settings(settings);
         self.update(|config| config.tts.settings = settings)
     }
 
@@ -502,6 +519,42 @@ mod tests {
                 .message_bubble_color,
             "#FF72AD"
         );
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn persists_tts_auto_speak_and_event_filters() {
+        let directory = test_directory("tts-speech-filter");
+        let path = directory.join(CONFIG_FILE_NAME);
+        let store = AppConfigStore::default();
+        store
+            .initialize_from_path(path.clone())
+            .expect("initialize store");
+
+        let mut settings = TtsUserSettings::default();
+        settings.auto_speak = false;
+        settings.enabled_event_types = vec![
+            "message".to_string(),
+            "gift".to_string(),
+            "message".to_string(),
+            "system".to_string(),
+            "unknown".to_string(),
+        ];
+        assert!(store
+            .set_tts_settings(settings)
+            .expect("save speech preferences"));
+
+        let current = store.tts_settings().expect("read speech preferences");
+        assert!(!current.auto_speak);
+        assert_eq!(current.enabled_event_types, vec!["message", "gift"]);
+
+        let reloaded = AppConfigStore::default();
+        reloaded
+            .initialize_from_path(path.clone())
+            .expect("reload store");
+        let persisted = reloaded.tts_settings().expect("read persisted preferences");
+        assert!(!persisted.auto_speak);
+        assert_eq!(persisted.enabled_event_types, vec!["message", "gift"]);
         let _ = fs::remove_dir_all(directory);
     }
 

@@ -11,10 +11,13 @@ import {
   listenToPopularity,
 } from "../../services/desktop";
 import {
+  loadTtsSettings,
+  saveTtsSettings,
+  TTS_SETTINGS_EVENT,
+} from "../../services/tts";
+import {
   cancelSpeech,
   enqueueSpeech,
-  pauseSpeech,
-  resumeSpeech,
 } from "../../services/ttsPlayback";
 import type {
   LiveEvent,
@@ -22,6 +25,7 @@ import type {
   RoomConnectionInfo,
 } from "../../types/events";
 import type { LiveOnlineRankSnapshot } from "../../types/liveRank";
+import type { TtsSettings, TtsSpeechEventType } from "../../types/tts";
 
 const initialStatus: LiveStatusPayload = {
   sessionId: 0,
@@ -38,6 +42,11 @@ function makeSpeechText(event: LiveEvent) {
   return `${event.user}${event.content}`;
 }
 
+/** 系统事件只进入 UI，不允许进入 TTS 队列。 */
+function isTtsSpeechEvent(type: LiveEvent["type"]): type is TtsSpeechEventType {
+  return type !== "system";
+}
+
 export function useLiveRoomController() {
   const [status, setStatus] = useState<LiveStatusPayload>(initialStatus);
   const [room, setRoom] = useState<RoomConnectionInfo | null>(null);
@@ -45,7 +54,7 @@ export function useLiveRoomController() {
   const [popularity, setPopularity] = useState(0);
   const [onlineRank, setOnlineRank] = useState<LiveOnlineRankSnapshot | null>(null);
   const [onlineRankError, setOnlineRankError] = useState("");
-  const [queuePaused, setQueuePaused] = useState(false);
+  const [ttsSettings, setTtsSettings] = useState<TtsSettings>(() => loadTtsSettings());
   const lastSpokenId = useRef<string | null>(null);
   const desktopRuntime = useMemo(() => isDesktopRuntime(), []);
 
@@ -142,6 +151,16 @@ export function useLiveRoomController() {
     };
   }, [desktopRuntime, status.roomId, status.sessionId, status.state]);
 
+  useEffect(() => {
+    const syncTtsSettings = (event: Event) => {
+      const next = (event as CustomEvent<TtsSettings>).detail;
+      setTtsSettings(next);
+      if (!next.autoSpeak) cancelSpeech();
+    };
+    window.addEventListener(TTS_SETTINGS_EVENT, syncTtsSettings);
+    return () => window.removeEventListener(TTS_SETTINGS_EVENT, syncTtsSettings);
+  }, []);
+
   /**
    * 自动播报属于直播会话，不应跟随某个页面的挂载与卸载。
    * 因此切到设置、音色或悬浮窗页时，新弹幕仍会继续进入同一队列。
@@ -151,18 +170,25 @@ export function useLiveRoomController() {
     if (
       status.state !== "connected"
       || !latest
-      || latest.type === "system"
       || lastSpokenId.current === latest.id
-      || queuePaused
     ) {
       return;
     }
 
+    // 无论当前类型是否启用，都先标记为已观测，避免修改设置时突然补播旧消息。
     lastSpokenId.current = latest.id;
-    void enqueueSpeech(makeSpeechText(latest)).catch((error) => {
+    if (
+      !ttsSettings.autoSpeak
+      || !isTtsSpeechEvent(latest.type)
+      || !ttsSettings.enabledEventTypes.includes(latest.type)
+    ) {
+      return;
+    }
+
+    void enqueueSpeech(makeSpeechText(latest), ttsSettings).catch((error) => {
       console.error("bilimaku TTS playback failed", error);
     });
-  }, [events, queuePaused, status.state]);
+  }, [events, status.state, ttsSettings]);
 
   useEffect(() => {
     if (status.state === "disconnected") {
@@ -228,14 +254,12 @@ export function useLiveRoomController() {
     setOnlineRankError("");
   }, []);
 
-  const togglePlayback = useCallback(() => {
-    setQueuePaused((paused) => {
-      const nextPaused = !paused;
-      if (nextPaused) pauseSpeech();
-      else resumeSpeech();
-      return nextPaused;
-    });
-  }, []);
+  const toggleAutoSpeak = useCallback(() => {
+    const next = { ...ttsSettings, autoSpeak: !ttsSettings.autoSpeak };
+    setTtsSettings(next);
+    saveTtsSettings(next);
+    if (!next.autoSpeak) cancelSpeech();
+  }, [ttsSettings]);
 
   const clearEvents = useCallback(() => setEvents([]), []);
 
@@ -247,8 +271,8 @@ export function useLiveRoomController() {
     popularity,
     onlineRank,
     onlineRankError,
-    queuePaused,
-    togglePlayback,
+    autoSpeak: ttsSettings.autoSpeak,
+    toggleAutoSpeak,
     connect,
     disconnect,
     clearEvents,
