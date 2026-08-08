@@ -23,6 +23,11 @@ const DashboardPage = lazy(() => {
     return { default: module.DashboardPage };
   });
 });
+const LiveRoomProvider = lazy(() =>
+  import("./features/dashboard/LiveRoomContext").then((module) => ({
+    default: module.LiveRoomProvider,
+  })),
+);
 const DebugPage = lazy(() =>
   import("./features/debug/DebugPage").then((module) => ({
     default: module.DebugPage,
@@ -215,31 +220,36 @@ function Workspace({ accountStatus, onAccountStatusChange }: WorkspaceProps) {
   };
 
   return (
-    <AppFrame>
-      <Sidebar
-        activeView={activeView}
-        onNavigate={navigate}
-        onPreload={(view) => void preloadView(view)}
-      />
-      <Main data-view={activeView}>
-        <Suspense fallback={<ViewLoading>正在加载功能模块…</ViewLoading>}>
-          {activeView === "dashboard" && <DashboardPage onNavigate={navigate} />}
-          {activeView === "debug" && <DebugPage />}
-          {activeView === "rules" && <FeaturePage view="rules" />}
-          {activeView === "voices" && <VoiceStudioPage />}
-          {activeView === "overlays" && <OverlaySettingsPage />}
-          {activeView === "connection" && (
-            <ConnectionPage onNavigateDashboard={() => navigate("dashboard")} />
-          )}
-          {activeView === "settings" && (
-            <SettingsPage
-              accountStatus={accountStatus}
-              onAccountStatusChange={onAccountStatusChange}
-            />
-          )}
-        </Suspense>
-      </Main>
-    </AppFrame>
+    <Suspense fallback={<ViewLoading>正在初始化直播会话…</ViewLoading>}>
+      <LiveRoomProvider>
+        {/* 视图仍可按需卸载，但直播长链与事件缓冲由上层 Provider 持续持有。 */}
+        <AppFrame>
+          <Sidebar
+            activeView={activeView}
+            onNavigate={navigate}
+            onPreload={(view) => void preloadView(view)}
+          />
+          <Main data-view={activeView}>
+            <Suspense fallback={<ViewLoading>正在加载功能模块…</ViewLoading>}>
+              {activeView === "dashboard" && <DashboardPage onNavigate={navigate} />}
+              {activeView === "debug" && <DebugPage />}
+              {activeView === "rules" && <FeaturePage view="rules" />}
+              {activeView === "voices" && <VoiceStudioPage />}
+              {activeView === "overlays" && <OverlaySettingsPage />}
+              {activeView === "connection" && (
+                <ConnectionPage onNavigateDashboard={() => navigate("dashboard")} />
+              )}
+              {activeView === "settings" && (
+                <SettingsPage
+                  accountStatus={accountStatus}
+                  onAccountStatusChange={onAccountStatusChange}
+                />
+              )}
+            </Suspense>
+          </Main>
+        </AppFrame>
+      </LiveRoomProvider>
+    </Suspense>
   );
 }
 

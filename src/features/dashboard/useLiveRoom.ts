@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import {
   connectLiveRoom,
@@ -10,6 +10,12 @@ import {
   listenToLiveStatus,
   listenToPopularity,
 } from "../../services/desktop";
+import {
+  cancelSpeech,
+  enqueueSpeech,
+  pauseSpeech,
+  resumeSpeech,
+} from "../../services/ttsPlayback";
 import type {
   LiveEvent,
   LiveStatusPayload,
@@ -25,13 +31,22 @@ const initialStatus: LiveStatusPayload = {
   attempt: 0,
 };
 
-export function useLiveRoom() {
+/** 把实时事件转换为自动播报文本。 */
+function makeSpeechText(event: LiveEvent) {
+  if (event.type === "message") return `${event.user}说，${event.content}`;
+  if (event.type === "superchat") return `${event.user}的醒目留言，${event.content}`;
+  return `${event.user}${event.content}`;
+}
+
+export function useLiveRoomController() {
   const [status, setStatus] = useState<LiveStatusPayload>(initialStatus);
   const [room, setRoom] = useState<RoomConnectionInfo | null>(null);
   const [events, setEvents] = useState<LiveEvent[]>([]);
   const [popularity, setPopularity] = useState(0);
   const [onlineRank, setOnlineRank] = useState<LiveOnlineRankSnapshot | null>(null);
   const [onlineRankError, setOnlineRankError] = useState("");
+  const [queuePaused, setQueuePaused] = useState(false);
+  const lastSpokenId = useRef<string | null>(null);
   const desktopRuntime = useMemo(() => isDesktopRuntime(), []);
 
   useEffect(() => {
@@ -127,6 +142,42 @@ export function useLiveRoom() {
     };
   }, [desktopRuntime, status.roomId, status.sessionId, status.state]);
 
+  /**
+   * 自动播报属于直播会话，不应跟随某个页面的挂载与卸载。
+   * 因此切到设置、音色或悬浮窗页时，新弹幕仍会继续进入同一队列。
+   */
+  useEffect(() => {
+    const latest = events[0];
+    if (
+      status.state !== "connected"
+      || !latest
+      || latest.type === "system"
+      || lastSpokenId.current === latest.id
+      || queuePaused
+    ) {
+      return;
+    }
+
+    lastSpokenId.current = latest.id;
+    void enqueueSpeech(makeSpeechText(latest)).catch((error) => {
+      console.error("bilimaku TTS playback failed", error);
+    });
+  }, [events, queuePaused, status.state]);
+
+  useEffect(() => {
+    if (status.state === "disconnected") {
+      cancelSpeech();
+      lastSpokenId.current = null;
+    }
+  }, [status.state]);
+
+  useEffect(
+    () => () => {
+      cancelSpeech();
+    },
+    [],
+  );
+
   const connect = useCallback(
     async (roomId: string) => {
       const numericRoomId = Number(roomId);
@@ -177,6 +228,15 @@ export function useLiveRoom() {
     setOnlineRankError("");
   }, []);
 
+  const togglePlayback = useCallback(() => {
+    setQueuePaused((paused) => {
+      const nextPaused = !paused;
+      if (nextPaused) pauseSpeech();
+      else resumeSpeech();
+      return nextPaused;
+    });
+  }, []);
+
   const clearEvents = useCallback(() => setEvents([]), []);
 
   return {
@@ -187,8 +247,12 @@ export function useLiveRoom() {
     popularity,
     onlineRank,
     onlineRankError,
+    queuePaused,
+    togglePlayback,
     connect,
     disconnect,
     clearEvents,
   };
 }
+
+export type LiveRoomController = ReturnType<typeof useLiveRoomController>;

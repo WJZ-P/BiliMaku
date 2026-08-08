@@ -11,12 +11,6 @@ import {
   flushStartupMetrics,
   markStartup,
 } from "../../services/startupPerformance";
-import {
-  cancelSpeech,
-  enqueueSpeech,
-  pauseSpeech,
-  resumeSpeech,
-} from "../../services/ttsPlayback";
 import type { LiveConnectionPhase, LiveEvent, LiveEventType } from "../../types/events";
 import type { LiveOnlineRankEntry } from "../../types/liveRank";
 import { LIVE_DANMAKU_MAX_LENGTH } from "../../types/liveChat";
@@ -80,7 +74,7 @@ import {
   RoomTitle,
   StatChip,
 } from "./CompactDashboardStyles";
-import { useLiveRoom } from "./useLiveRoom";
+import { useLiveRoom } from "./LiveRoomContext";
 
 markStartup("dashboard-module-evaluated");
 
@@ -211,12 +205,6 @@ function rankTooltip(
     .map((entry) => `榜${entry.rank} ${entry.name}`)
     .join(" · ");
   return `在线贡献榜 ${onlineCountText} 人${podium ? ` · ${podium}` : ""}`;
-}
-
-function makeSpeechText(event: LiveEvent) {
-  if (event.type === "message") return `${event.user}说，${event.content}`;
-  if (event.type === "superchat") return `${event.user}的醒目留言，${event.content}`;
-  return `${event.user}${event.content}`;
 }
 
 function normalizeBilibiliImageUrl(value: string) {
@@ -390,7 +378,6 @@ let dashboardFirstFrameReported = false;
 export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const live = useLiveRoom();
   const [roomId, setRoomId] = useState("");
-  const [queuePaused, setQueuePaused] = useState(false);
   const [filter, setFilter] = useState<"all" | LiveEventType>("all");
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [overlaysOpen, setOverlaysOpen] = useState(false);
@@ -400,7 +387,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const [sendPhase, setSendPhase] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [sendNotice, setSendNotice] = useState("");
   const [clockNow, setClockNow] = useState(() => Date.now());
-  const lastSpokenId = useRef<string | null>(null);
   const messageViewportRef = useRef<HTMLDivElement>(null);
   const messageFeedReadyRef = useRef(false);
   const renderedFeedRef = useRef<{
@@ -561,38 +547,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     };
   }, [filter, latestEventId]);
 
-  useEffect(() => {
-    const latest = live.events[0];
-    if (
-      !connected
-      || !latest
-      || latest.type === "system"
-      || lastSpokenId.current === latest.id
-      || queuePaused
-    ) {
-      return;
-    }
-
-    lastSpokenId.current = latest.id;
-    void enqueueSpeech(makeSpeechText(latest)).catch((error) => {
-      console.error("bilimaku TTS playback failed", error);
-    });
-  }, [connected, live.events, queuePaused]);
-
-  useEffect(() => {
-    if (live.status.state === "disconnected") {
-      cancelSpeech();
-      lastSpokenId.current = null;
-    }
-  }, [live.status.state]);
-
-  useEffect(
-    () => () => {
-      cancelSpeech();
-    },
-    [],
-  );
-
   const handleConnection = async () => {
     if (connected || reconnecting) {
       await live.disconnect();
@@ -603,15 +557,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     } catch {
       // 具体错误已经由 useLiveRoom 写入状态栏。
     }
-  };
-
-  const togglePlayback = () => {
-    setQueuePaused((paused) => {
-      const nextPaused = !paused;
-      if (nextPaused) pauseSpeech();
-      else resumeSpeech();
-      return nextPaused;
-    });
   };
 
   const handleSendDanmaku = async () => {
@@ -877,13 +822,13 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           <RailTitle>功能</RailTitle>
           <RailButton
             type="button"
-            data-active={!queuePaused}
-            data-tooltip={queuePaused ? "继续自动播报" : "暂停自动播报"}
+            data-active={!live.queuePaused}
+            data-tooltip={live.queuePaused ? "继续自动播报" : "暂停自动播报"}
             data-tooltip-placement="left"
-            onClick={togglePlayback}
+            onClick={live.togglePlayback}
           >
-            <Icon name={queuePaused ? "play" : "pause"} size={17} />
-            {queuePaused ? "继续" : "暂停"}
+            <Icon name={live.queuePaused ? "play" : "pause"} size={17} />
+            {live.queuePaused ? "继续" : "暂停"}
           </RailButton>
 
           <RailButton
