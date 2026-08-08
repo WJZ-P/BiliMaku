@@ -49,7 +49,6 @@ export const defaultOverlaySettings: OverlaySettings = {
   sidebar: {
     clickThrough: true,
     editMode: false,
-    side: "right",
     entryDirection: "bottom",
     width: 390,
     height: 720,
@@ -151,7 +150,6 @@ function windowOptions(kind: OverlayKind, settings: OverlaySettings) {
     editMode: kind === "sidebar" && settings.sidebar.editMode,
     width: settings.sidebar.width,
     height: settings.sidebar.height,
-    side: settings.sidebar.side,
   };
 }
 

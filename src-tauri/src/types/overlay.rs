@@ -17,9 +17,6 @@ pub struct OverlayWindowOptions {
     /// 侧边栏窗口高度，单位为逻辑像素。
     #[serde(default = "default_sidebar_height")]
     pub height: f64,
-    /// 没有已保存位置时的初始停靠方向，可选 left 或 right。
-    #[serde(default = "default_side")]
-    pub side: String,
 }
 
 /// 侧边悬浮窗相对于某一显示器工作区的持久化位置。
@@ -48,7 +45,7 @@ impl Default for SidebarOverlayPlacement {
             monitor_origin_x: 0,
             monitor_origin_y: 0,
             x_ratio: 1.0,
-            y_ratio: 0.5,
+            y_ratio: 1.0,
         }
     }
 }
@@ -63,8 +60,4 @@ fn default_sidebar_width() -> f64 {
 
 fn default_sidebar_height() -> f64 {
     720.0
-}
-
-fn default_side() -> String {
-    "right".to_string()
 }

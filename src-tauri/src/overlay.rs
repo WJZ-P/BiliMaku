@@ -33,7 +33,7 @@ impl ScreenRect {
 
 #[derive(Clone, Copy)]
 enum SidebarGeometryMode {
-    /// 新建窗口时恢复已保存位置；不存在时按首次停靠方向定位。
+    /// 新建窗口时恢复已保存位置；不存在时固定停靠主显示器工作区右下角。
     Restore,
     /// 设置热更新时保留窗口当前所在的显示器与左上角位置。
     Preserve,
@@ -155,20 +155,13 @@ fn sidebar_physical_size(options: &OverlayWindowOptions, monitor: &Monitor) -> P
     )
 }
 
-fn default_position(
-    options: &OverlayWindowOptions,
-    screen: ScreenRect,
-    size: PhysicalSize<u32>,
-) -> PhysicalPosition<i32> {
+fn default_position(screen: ScreenRect, size: PhysicalSize<u32>) -> PhysicalPosition<i32> {
     let horizontal_space = screen.width.saturating_sub(size.width);
     let vertical_space = screen.height.saturating_sub(size.height);
-    let x = if options.side == "left" {
-        screen.x
-    } else {
-        (i64::from(screen.x) + i64::from(horizontal_space)) as i32
-    };
-    let y = (i64::from(screen.y) + i64::from(vertical_space / 2)) as i32;
-    PhysicalPosition::new(x, y)
+    PhysicalPosition::new(
+        (i64::from(screen.x) + i64::from(horizontal_space)) as i32,
+        (i64::from(screen.y) + i64::from(vertical_space)) as i32,
+    )
 }
 
 fn position_from_placement(
@@ -179,7 +172,7 @@ fn position_from_placement(
     let available_x = f64::from(screen.width.saturating_sub(size.width));
     let available_y = f64::from(screen.height.saturating_sub(size.height));
     let x_ratio = finite_or(placement.x_ratio, 1.0);
-    let y_ratio = finite_or(placement.y_ratio, 0.5);
+    let y_ratio = finite_or(placement.y_ratio, 1.0);
     let x = f64::from(screen.x) + available_x * x_ratio;
     let y = f64::from(screen.y) + available_y * y_ratio;
     PhysicalPosition::new(
@@ -303,7 +296,7 @@ fn apply_sidebar_geometry(
         SidebarGeometryMode::Restore => saved_placement
             .as_ref()
             .map(|placement| position_from_placement(placement, screen, size))
-            .unwrap_or_else(|| default_position(options, screen, size)),
+            .unwrap_or_else(|| default_position(screen, size)),
         SidebarGeometryMode::Preserve => current_position,
     };
     position = clamp_position(position, size, screen);
@@ -498,6 +491,20 @@ mod tests {
         assert_eq!(overlay_label("danmaku").expect("danmaku"), DANMAKU_LABEL);
         assert_eq!(overlay_label("sidebar").expect("sidebar"), SIDEBAR_LABEL);
         assert!(overlay_label("unknown").is_err());
+    }
+
+    #[test]
+    fn defaults_sidebar_to_bottom_right_of_work_area() {
+        let screen = ScreenRect {
+            x: -1920,
+            y: 40,
+            width: 1920,
+            height: 1040,
+        };
+        assert_eq!(
+            default_position(screen, PhysicalSize::new(390, 720)),
+            PhysicalPosition::new(-390, 360),
+        );
     }
 
     #[test]

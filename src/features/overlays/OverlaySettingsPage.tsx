@@ -24,7 +24,6 @@ import type {
   DanmakuOverlaySettings,
   EventColorMap,
   OverlaySettings,
-  OverlaySide,
   SidebarEntryDirection,
   SidebarOverlaySettings,
 } from "../../types/overlay";
@@ -697,16 +696,6 @@ export function OverlaySettingsPage() {
                 <Toggle>鼠标穿透<input type="checkbox" checked={settings.sidebar.clickThrough} onChange={(event) => updateSidebar({ clickThrough: event.target.checked })} /></Toggle>
               </ToggleGrid>
               <Fields>
-                <OverlaySelectField<OverlaySide>
-                  label="首次打开位置"
-                  hint="仅无保存位置时"
-                  value={settings.sidebar.side}
-                  options={[
-                    { value: "right", label: "屏幕右侧" },
-                    { value: "left", label: "屏幕左侧" },
-                  ]}
-                  onChange={(side) => updateSidebar({ side })}
-                />
                 <OverlaySelectField<SidebarEntryDirection>
                   label="新消息进入方向"
                   hint="默认从下方"

@@ -1,7 +1,6 @@
 import type { LiveEventType } from "./events";
 
 export type OverlayKind = "danmaku" | "sidebar";
-export type OverlaySide = "left" | "right";
 /** 侧边事件栏中新消息从窗口顶部或底部进入。 */
 export type SidebarEntryDirection = "top" | "bottom";
 
@@ -78,8 +77,6 @@ export interface SidebarOverlaySettings {
   /** 是否显示窗口编辑边界并允许拖动定位。 */
   editMode: boolean;
 
-  /** 没有已保存位置时，侧边事件栏首次打开所在的屏幕边缘。 */
-  side: OverlaySide;
   /** 新消息相对侧边事件栏从顶部或底部进入。 */
   entryDirection: SidebarEntryDirection;
   /** 窗口宽度。 */
