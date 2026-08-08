@@ -411,6 +411,12 @@ export const MessageViewport = styled.div`
   --message-uid-font-size: 10px;
   --message-tag-font-size: 9px;
   --message-time-font-size: 9px;
+  /* 气泡磨砂调参区：模糊负责磨砂，饱和度与表层混合比例负责玻璃质感。 */
+  --message-glass-blur: 16px;
+  --message-glass-saturation: 1.45;
+  --message-glass-brightness: 1.06;
+  --message-glass-surface-mix: 52%;
+  --message-glass-accent-mix: 18%;
 
   min-height: 0;
   overflow-x: hidden;
@@ -637,43 +643,126 @@ export const EventTime = styled.time`
   white-space: nowrap;
 `;
 
-export const MessageBubble = styled.p`
+export const MessageBubble = styled.div`
+  position: relative;
+  z-index: 0;
   display: inline-block;
   max-width: min(620px, 92%);
+  isolation: isolate;
+  overflow: hidden;
   margin: 0;
   padding: 8px 10px;
   border: 1px solid color-mix(
     in srgb,
-    var(--message-bubble-color, ${theme.colors.messageBubble}) 42%,
-    ${theme.colors.border}
+    var(--message-bubble-color, ${theme.colors.messageBubble}) 38%,
+    color-mix(in srgb, ${theme.colors.highlight} 42%, ${theme.colors.border})
   );
   border-radius: 3px 10px 10px 10px;
-  background: color-mix(
-    in srgb,
-    var(--message-bubble-color, ${theme.colors.messageBubble}) 14%,
-    ${theme.colors.surface}
-  );
+  background:
+    radial-gradient(
+      circle at 14% -24%,
+      color-mix(in srgb, ${theme.colors.highlight} 48%, transparent),
+      transparent 56%
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, ${theme.colors.surface} var(--message-glass-surface-mix), transparent),
+      color-mix(
+        in srgb,
+        var(--message-bubble-color, ${theme.colors.messageBubble}) var(--message-glass-accent-mix),
+        transparent
+      )
+    );
+  -webkit-backdrop-filter: blur(var(--message-glass-blur))
+    saturate(var(--message-glass-saturation))
+    brightness(var(--message-glass-brightness));
+  backdrop-filter: blur(var(--message-glass-blur))
+    saturate(var(--message-glass-saturation))
+    brightness(var(--message-glass-brightness));
   color: ${theme.colors.textSecondary};
   font-size: 10px;
   line-height: 1.52;
   overflow-wrap: anywhere;
+  vertical-align: top;
   box-shadow:
-    0 4px 12px color-mix(
+    0 6px 18px color-mix(
       in srgb,
       var(--message-bubble-color, ${theme.colors.messageBubble}) 12%,
       transparent
     ),
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 72%, transparent);
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 72%, transparent),
+    inset 0 -1px 0 color-mix(
+      in srgb,
+      var(--message-bubble-color, ${theme.colors.messageBubble}) 10%,
+      transparent
+    );
+
+  &::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background:
+      linear-gradient(
+        112deg,
+        transparent 8%,
+        color-mix(in srgb, ${theme.colors.highlight} 22%, transparent) 32%,
+        transparent 58%
+      ),
+      radial-gradient(
+        circle at 92% 112%,
+        color-mix(
+          in srgb,
+          var(--message-bubble-color, ${theme.colors.messageBubble}) 16%,
+          transparent
+        ),
+        transparent 48%
+      );
+    content: "";
+    opacity: 0.72;
+    pointer-events: none;
+  }
+
+  &::after {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background-image:
+      radial-gradient(circle, color-mix(in srgb, ${theme.colors.highlight} 34%, transparent) 0 0.55px, transparent 0.85px),
+      radial-gradient(circle, color-mix(in srgb, ${theme.colors.brandDeep} 9%, transparent) 0 0.45px, transparent 0.8px);
+    background-position: 0 0, 3px 2px;
+    background-size: 6px 6px, 8px 8px;
+    content: "";
+    opacity: 0.14;
+    pointer-events: none;
+  }
 
   [data-type="system"] & {
     max-width: 78%;
     padding: 5px 10px;
     border-radius: ${theme.radius.pill};
-    background: color-mix(in srgb, ${theme.colors.surfaceMuted} 82%, transparent);
+    background: color-mix(in srgb, ${theme.colors.surfaceMuted} 58%, transparent);
     color: ${theme.colors.textMuted};
     font-size: 8px;
     text-align: center;
   }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background: linear-gradient(
+      145deg,
+      color-mix(in srgb, ${theme.colors.surface} 88%, transparent),
+      color-mix(
+        in srgb,
+        var(--message-bubble-color, ${theme.colors.messageBubble}) 24%,
+        ${theme.colors.surface}
+      )
+    );
+  }
+`;
+
+export const MessageBubbleText = styled.span`
+  position: relative;
+  z-index: 2;
+  display: block;
 `;
 
 export const EmptyFeed = styled.div`

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Icon, type IconName } from "../../components/Icon";
+import { LiquidGlassSurface } from "../../components/LiquidGlassSurface";
 import { getLiveAppearanceSettings, saveLiveRoomId } from "../../services/desktop";
 import { sendLiveDanmaku } from "../../services/liveChat";
 import {
@@ -50,6 +51,7 @@ import {
   FunctionRail,
   MessageBody,
   MessageBubble,
+  MessageBubbleText,
   MessageEntry,
   MessageEntryContent,
   MessageFeed,
@@ -296,6 +298,8 @@ interface AnimatedMessageRowProps {
   ownerUid: number | null;
   /** 仅新收到的消息在首次挂载时播放入场动画。 */
   enterOnMount: boolean;
+  /** 当前是否为消息流最末尾的一条；据此保证 WebGL 上下文最多只有一个。 */
+  isLatest: boolean;
 }
 
 /**
@@ -308,6 +312,7 @@ function AnimatedMessageRow({
   event,
   ownerUid,
   enterOnMount,
+  isLatest,
 }: AnimatedMessageRowProps) {
   const anchorDanmaku = isAnchorDanmaku(event, ownerUid);
   const eventTag = anchorDanmaku
@@ -342,7 +347,16 @@ function AnimatedMessageRow({
               </EventType>
               <EventTime>{formatEventTime(event)}</EventTime>
             </MessageMeta>
-            <MessageBubble data-type={event.type}>{event.content}</MessageBubble>
+            <MessageBubble data-type={event.type} data-liquid-glass="true">
+              {entering && isLatest ? (
+                <LiquidGlassSurface
+                  active
+                  animationKey={event.emittedAt ?? 0}
+                  radiusPx={event.type === "system" ? 999 : 10}
+                />
+              ) : null}
+              <MessageBubbleText>{event.content}</MessageBubbleText>
+            </MessageBubble>
           </MessageBody>
         </MessageRow>
       </MessageEntryContent>
@@ -768,6 +782,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                     event={event}
                     ownerUid={live.room?.ownerUid ?? null}
                     enterOnMount={animateLatestEvent && event.id === latestEventId}
+                    isLatest={event.id === latestEventId}
                   />
                 ))}
               </MessageFeed>

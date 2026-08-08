@@ -201,7 +201,7 @@ function createRenderer(canvas: HTMLCanvasElement): LiquidGlassRenderer | null {
   const buffer = gl.createBuffer();
   if (!buffer) {
     gl.deleteProgram(program);
-    throw new Error("创建 Tooltip WebGL 顶点缓冲失败");
+    throw new Error("创建液态玻璃 WebGL 顶点缓冲失败");
   }
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.bufferData(
@@ -255,7 +255,8 @@ function createRenderer(canvas: HTMLCanvasElement): LiquidGlassRenderer | null {
 
   const updateThemeColors = () => {
     const styles = getComputedStyle(canvas);
-    const accent = styles.getPropertyValue("--liquid-glass-accent").trim();
+    const accent = styles.getPropertyValue("--liquid-glass-accent").trim()
+      || styles.getPropertyValue("--message-bubble-color").trim();
     const radius = Number.parseFloat(styles.getPropertyValue("--liquid-glass-radius"));
     configuredRadius = Number.isFinite(radius) ? Math.max(0, radius) : Number.parseFloat(theme.tooltip.radius);
     const brand = parseCssColor(accent || styles.getPropertyValue("--bc-color-brand"), [0.263, 0.561, 0.945]);
