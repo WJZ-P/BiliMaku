@@ -1,29 +1,27 @@
-use crate::session_crypto::{self, EncryptedPayload};
+use crate::store::AppConfigStore;
+use crate::types::account::{AccountEvent, AccountProfile, LoginStatus, QrLoginTicket};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use qrcode::{render::svg, QrCode};
 use reqwest::cookie::{CookieStore, Jar};
 use reqwest::{Client, Url};
-use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::PathBuf;
+use serde::Deserialize;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 use tokio::sync::Mutex as AsyncMutex;
 
 const BILIBILI_HOME_URL: &str = "https://www.bilibili.com/";
-const NAV_URL: &str = "https://api.bilibili.com/x/web-interface/nav";
-const QR_GENERATE_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate";
-const QR_POLL_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll";
+const NAV_URL: &str = "https://api.bilibili.com/x/web-interface/nav"; //  一些个人的基本信息，json格式返回
+const QR_GENERATE_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate"; //  拿登录链接，自己生成二维码
+const QR_POLL_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll"; //  轮询查看是否登录，入参有上面接口返回的
 const USER_AGENT_VALUE: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 const QR_CODE_EXPIRED: i64 = 86_038;
 const QR_CODE_SCANNED: i64 = 86_090;
 const QR_CODE_WAITING: i64 = 86_101;
 const ACCOUNT_NOT_LOGGED_IN: i64 = -101;
-const SESSION_FILE_NAME: &str = "bilibili-session.v1.enc.json";
-const SESSION_SCHEMA_VERSION: u8 = 1;
+const STARTUP_SESSION_VALIDATION_TIMEOUT: Duration = Duration::from_secs(3);
 
 pub const ACCOUNT_EVENT_NAME: &str = "account://event";
 
@@ -117,6 +115,14 @@ impl BiliAccountState {
             .map_err(|_| "账号资料状态锁定失败".to_string())
     }
 
+    /// 返回当前登录账号 UID；主播数据缓存以此隔离不同账号。
+    pub(crate) fn profile_uid(&self) -> Result<Option<String>, String> {
+        self.profile
+            .lock()
+            .map(|profile| profile.as_ref().map(|profile| profile.uid.clone()))
+            .map_err(|_| "账号资料状态锁定失败".to_string())
+    }
+
     fn mark_initialized(&self) {
         self.initialized.store(true, Ordering::Release);
     }
@@ -161,24 +167,6 @@ impl BiliAccountState {
             .map_err(|_| "二维码状态锁定失败".to_string())? = key;
         Ok(())
     }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AccountProfile {
-    pub uid: String,
-    pub username: String,
-    pub avatar: String,
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LoginStatus {
-    pub phase: &'static str,
-    pub message: String,
-    pub profile: Option<AccountProfile>,
-    pub persisted: bool,
-    pub validated_at: Option<u64>,
 }
 
 impl LoginStatus {
@@ -248,30 +236,6 @@ impl LoginStatus {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AccountEvent {
-    pub kind: &'static str,
-    pub status: LoginStatus,
-    pub occurred_at: u64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct PersistedAccountSession {
-    schema_version: u8,
-    cookie_header: String,
-    profile: AccountProfile,
-    saved_at: u64,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct QrLoginTicket {
-    pub image_data_url: String,
-    pub expires_in_seconds: u16,
-}
-
 #[derive(Debug, Deserialize)]
 struct ApiResponse<T> {
     code: i64,
@@ -294,12 +258,43 @@ struct QrPollData {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum NavNextExp {
+    Number(u64),
+    Text(String),
+}
+
+impl NavNextExp {
+    fn into_number(self) -> Option<u64> {
+        match self {
+            Self::Number(value) => Some(value),
+            Self::Text(value) => value.parse().ok(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct NavLevelInfo {
+    #[serde(default)]
+    current_level: u8,
+    #[serde(default)]
+    current_min: u64,
+    #[serde(default)]
+    current_exp: u64,
+    next_exp: Option<NavNextExp>,
+}
+
+#[derive(Debug, Deserialize)]
 struct NavData {
     #[serde(rename = "isLogin", default)]
     is_login: bool,
     mid: Option<u64>,
     uname: Option<String>,
     face: Option<String>,
+    #[serde(default)]
+    level_info: NavLevelInfo,
+    #[serde(default)]
+    money: f64,
 }
 
 fn build_http_session() -> Result<HttpSession, String> {
@@ -321,45 +316,8 @@ fn unix_timestamp() -> u64 {
         .unwrap_or_default()
 }
 
-fn account_session_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("定位账号会话目录失败：{error}"))?;
-    fs::create_dir_all(&dir).map_err(|error| format!("创建账号会话目录失败：{error}"))?;
-    Ok(dir.join(SESSION_FILE_NAME))
-}
-
-fn read_persisted_session(app: &AppHandle) -> Result<Option<PersistedAccountSession>, String> {
-    let path = account_session_path(app)?;
-    let backup = path.with_extension("bak");
-    if !path.exists() && backup.exists() {
-        fs::rename(&backup, &path).map_err(|error| format!("恢复账号会话备份失败：{error}"))?;
-    }
-    if !path.exists() {
-        return Ok(None);
-    }
-    let envelope_bytes =
-        fs::read(&path).map_err(|error| format!("读取本地账号会话失败：{error}"))?;
-    let envelope: EncryptedPayload = serde_json::from_slice(&envelope_bytes)
-        .map_err(|error| format!("解析本地账号会话外层格式失败：{error}"))?;
-    let plaintext = session_crypto::decrypt(&envelope)?;
-    let session: PersistedAccountSession = serde_json::from_slice(&plaintext)
-        .map_err(|error| format!("解析本地账号会话内容失败：{error}"))?;
-    if session.schema_version != SESSION_SCHEMA_VERSION {
-        return Err(format!(
-            "本地账号会话版本 {} 尚未适配",
-            session.schema_version
-        ));
-    }
-    if session.cookie_header.trim().is_empty() {
-        return Err("本地账号会话中没有 Cookie".to_string());
-    }
-    Ok(Some(session))
-}
-
 fn write_persisted_session(
-    app: &AppHandle,
+    store: &AppConfigStore,
     state: &BiliAccountState,
     profile: &AccountProfile,
 ) -> Result<(), String> {
@@ -368,52 +326,8 @@ fn write_persisted_session(
     if cookie_header.is_empty() || !cookie_header.contains("SESSDATA=") {
         return Err("登录 Cookie 中缺少 SESSDATA，暂不写入本地会话".to_string());
     }
-    let persisted = PersistedAccountSession {
-        schema_version: SESSION_SCHEMA_VERSION,
-        cookie_header,
-        profile: profile.clone(),
-        saved_at: unix_timestamp(),
-    };
-    let plaintext =
-        serde_json::to_vec(&persisted).map_err(|error| format!("序列化账号会话失败：{error}"))?;
-    let envelope = session_crypto::encrypt(&plaintext)?;
-    let encrypted = serde_json::to_vec_pretty(&envelope)
-        .map_err(|error| format!("序列化加密账号会话失败：{error}"))?;
-    let path = account_session_path(app)?;
-    let temporary = path.with_extension("tmp");
-    let backup = path.with_extension("bak");
-    fs::write(&temporary, encrypted)
-        .map_err(|error| format!("写入账号会话临时文件失败：{error}"))?;
-    if backup.exists() {
-        fs::remove_file(&backup).map_err(|error| format!("清理账号会话备份失败：{error}"))?;
-    }
-    if path.exists() {
-        fs::rename(&path, &backup).map_err(|error| format!("备份旧账号会话失败：{error}"))?;
-    }
-    if let Err(error) = fs::rename(&temporary, &path) {
-        if backup.exists() {
-            let _ = fs::rename(&backup, &path);
-        }
-        return Err(format!("保存加密账号会话失败：{error}"));
-    }
-    if backup.exists() {
-        fs::remove_file(backup).map_err(|error| format!("清理账号会话备份失败：{error}"))?;
-    }
+    store.set_account_session(cookie_header, profile.clone())?;
     state.persisted.store(true, Ordering::Release);
-    Ok(())
-}
-
-fn remove_persisted_session(app: &AppHandle) -> Result<(), String> {
-    let path = account_session_path(app)?;
-    for candidate in [
-        path.clone(),
-        path.with_extension("tmp"),
-        path.with_extension("bak"),
-    ] {
-        if candidate.exists() {
-            fs::remove_file(candidate).map_err(|error| format!("清理本地账号会话失败：{error}"))?;
-        }
-    }
     Ok(())
 }
 
@@ -494,18 +408,30 @@ fn set_anonymous_state(
 fn expire_persisted_session(
     app: &AppHandle,
     state: &BiliAccountState,
+    store: &AppConfigStore,
     message: impl Into<String>,
 ) -> Result<LoginStatus, String> {
     state.reset_http_session()?;
-    remove_persisted_session(app)?;
+    store.clear_account_session()?;
     let status = set_anonymous_state(state, message)?;
     emit_account_event(app, "cookie-expired", status.clone())?;
     Ok(status)
 }
 
+/// 供其他需要登录态的 Rust 模块统一触发 Cookie 过期与前端账号事件。
+pub(crate) fn expire_current_session(
+    app: &AppHandle,
+    state: &BiliAccountState,
+    store: &AppConfigStore,
+    message: impl Into<String>,
+) -> Result<(), String> {
+    expire_persisted_session(app, state, store, message).map(|_| ())
+}
+
 pub(crate) async fn ensure_bilibili_session_initialized(
     app: &AppHandle,
     state: &BiliAccountState,
+    store: &AppConfigStore,
 ) -> Result<LoginStatus, String> {
     if state.initialized.load(Ordering::Acquire) {
         return state.status();
@@ -515,13 +441,13 @@ pub(crate) async fn ensure_bilibili_session_initialized(
         return state.status();
     }
 
-    let persisted = match read_persisted_session(app) {
+    let persisted = match store.account_session() {
         Ok(Some(session)) => session,
         Ok(None) => {
             return set_anonymous_state(state, "当前为匿名 Web 会话");
         }
         Err(error) => {
-            let _ = remove_persisted_session(app);
+            let _ = store.clear_account_session();
             state.reset_http_session()?;
             let status = set_anonymous_state(
                 state,
@@ -531,11 +457,15 @@ pub(crate) async fn ensure_bilibili_session_initialized(
             return Ok(status);
         }
     };
+    let cached_profile = persisted
+        .profile
+        .clone()
+        .ok_or_else(|| "统一配置中的账号资料为空".to_string())?;
 
     let restored_http = match build_http_session_with_cookies(&persisted.cookie_header) {
         Ok(session) => session,
         Err(error) => {
-            let _ = remove_persisted_session(app);
+            let _ = store.clear_account_session();
             state.reset_http_session()?;
             let status = set_anonymous_state(
                 state,
@@ -547,24 +477,37 @@ pub(crate) async fn ensure_bilibili_session_initialized(
     };
     state.install_http_session(restored_http.clone())?;
 
-    match fetch_profile(&restored_http.client).await {
+    let validation = match tokio::time::timeout(
+        STARTUP_SESSION_VALIDATION_TIMEOUT,
+        fetch_profile(&restored_http.client),
+    )
+    .await
+    {
+        Ok(result) => result,
+        Err(_) => Err(format!(
+            "在线校验超过 {} 秒",
+            STARTUP_SESSION_VALIDATION_TIMEOUT.as_secs()
+        )),
+    };
+
+    match validation {
         Ok(Some(profile)) => {
             let validated_at = unix_timestamp();
             let message = format!("已恢复并验证 {} 的本地登录态", profile.username);
             let status =
                 set_authenticated_state(state, profile.clone(), message, true, Some(validated_at))?;
-            if let Err(error) = write_persisted_session(app, state, &profile) {
+            if let Err(error) = write_persisted_session(store, state, &profile) {
                 let _ = emit_account_event(app, "session-error", status.clone());
-                eprintln!("BiliCast refresh persisted account session failed: {error}");
+                eprintln!("bilimaku refresh persisted account session failed: {error}");
             }
             emit_account_event(app, "restored", status.clone())?;
             Ok(status)
         }
-        Ok(None) => expire_persisted_session(app, state, "登录 Cookie 已过期，请重新扫码"),
+        Ok(None) => expire_persisted_session(app, state, store, "登录 Cookie 已过期，请重新扫码"),
         Err(error) => {
             let message =
                 format!("已恢复本地登录态；在线校验暂未完成，将在连接直播间时重试：{error}");
-            let status = set_authenticated_state(state, persisted.profile, message, true, None)?;
+            let status = set_authenticated_state(state, cached_profile, message, true, None)?;
             emit_account_event(app, "validation-error", status.clone())?;
             Ok(status)
         }
@@ -574,6 +517,7 @@ pub(crate) async fn ensure_bilibili_session_initialized(
 pub(crate) fn apply_remote_account_validation(
     app: &AppHandle,
     state: &BiliAccountState,
+    store: &AppConfigStore,
     profile: Option<AccountProfile>,
 ) -> Result<(), String> {
     match profile {
@@ -583,7 +527,7 @@ pub(crate) fn apply_remote_account_validation(
             let message = format!("登录态有效，当前账号为 {}", profile.username);
             let status =
                 set_authenticated_state(state, profile.clone(), message, true, Some(validated_at))?;
-            if let Err(error) = write_persisted_session(app, state, &profile) {
+            if let Err(error) = write_persisted_session(store, state, &profile) {
                 state.set_message(format!("登录态有效，本地会话更新失败：{error}"))?;
                 emit_account_event(app, "session-error", state.status()?)?;
             } else if was_pending {
@@ -591,7 +535,12 @@ pub(crate) fn apply_remote_account_validation(
             }
         }
         None if state.is_authenticated()? => {
-            expire_persisted_session(app, state, "登录 Cookie 已过期，当前连接已切换匿名模式")?;
+            expire_persisted_session(
+                app,
+                state,
+                store,
+                "登录 Cookie 已过期，当前连接已切换匿名模式",
+            )?;
         }
         None => {}
     }
@@ -623,14 +572,29 @@ async fn fetch_profile(client: &Client) -> Result<Option<AccountProfile>, String
     let Some(data) = response.data else {
         return Ok(None);
     };
+    Ok(account_profile_from_nav(data))
+}
+
+fn account_profile_from_nav(data: NavData) -> Option<AccountProfile> {
     if !data.is_login {
-        return Ok(None);
+        return None;
     }
-    Ok(data.mid.filter(|uid| *uid > 0).map(|uid| AccountProfile {
+    let NavLevelInfo {
+        current_level,
+        current_min,
+        current_exp,
+        next_exp,
+    } = data.level_info;
+    data.mid.filter(|uid| *uid > 0).map(|uid| AccountProfile {
         uid: uid.to_string(),
         username: data.uname.unwrap_or_else(|| "B 站用户".to_string()),
         avatar: data.face.unwrap_or_default(),
-    }))
+        level: current_level,
+        current_exp,
+        current_min_exp: current_min,
+        next_exp: next_exp.and_then(NavNextExp::into_number),
+        coins: data.money,
+    })
 }
 
 fn render_qr_data_url(content: &str) -> Result<String, String> {
@@ -638,7 +602,7 @@ fn render_qr_data_url(content: &str) -> Result<String, String> {
         QrCode::new(content.as_bytes()).map_err(|error| format!("生成登录二维码失败：{error}"))?;
     let image = code
         .render::<svg::Color>()
-        .dark_color(svg::Color("#2563eb"))
+        .dark_color(svg::Color("#438ff1"))
         .light_color(svg::Color("#ffffff"))
         .build();
     Ok(format!(
@@ -651,18 +615,19 @@ fn render_qr_data_url(content: &str) -> Result<String, String> {
 pub async fn get_bilibili_login_status(
     app: AppHandle,
     state: State<'_, BiliAccountState>,
+    store: State<'_, AppConfigStore>,
 ) -> Result<LoginStatus, String> {
-    ensure_bilibili_session_initialized(&app, &state).await
+    ensure_bilibili_session_initialized(&app, &state, &store).await
 }
 
 #[tauri::command]
 pub async fn create_bilibili_login_qr(
     app: AppHandle,
     state: State<'_, BiliAccountState>,
+    store: State<'_, AppConfigStore>,
 ) -> Result<QrLoginTicket, String> {
-    ensure_bilibili_session_initialized(&app, &state).await?;
+    ensure_bilibili_session_initialized(&app, &state, &store).await?;
     let session = state.reset_http_session()?;
-    remove_persisted_session(&app)?;
     let response: ApiResponse<QrGenerateData> = session
         .client
         .get(QR_GENERATE_URL)
@@ -704,8 +669,9 @@ pub async fn create_bilibili_login_qr(
 pub async fn poll_bilibili_login(
     app: AppHandle,
     state: State<'_, BiliAccountState>,
+    store: State<'_, AppConfigStore>,
 ) -> Result<LoginStatus, String> {
-    ensure_bilibili_session_initialized(&app, &state).await?;
+    ensure_bilibili_session_initialized(&app, &state, &store).await?;
     let key = state.pending_key()?;
     let session = state.http_session()?;
     let response: ApiResponse<QrPollData> = session
@@ -738,7 +704,7 @@ pub async fn poll_bilibili_login(
                 .await?
                 .ok_or_else(|| "扫码已确认，账号会话仍未生效，请刷新二维码重试".to_string())?;
             let validated_at = unix_timestamp();
-            let message = format!("已登录为 {}，Cookie 已加密保存", profile.username);
+            let message = format!("已登录为 {}，Cookie 已写入统一配置", profile.username);
             let status = set_authenticated_state(
                 &state,
                 profile.clone(),
@@ -747,7 +713,7 @@ pub async fn poll_bilibili_login(
                 Some(validated_at),
             )?;
             state.set_pending_key(None)?;
-            match write_persisted_session(&app, &state, &profile) {
+            match write_persisted_session(&store, &state, &profile) {
                 Ok(()) => {
                     let status = state.status().unwrap_or(status);
                     emit_account_event(&app, "login", status.clone())?;
@@ -777,10 +743,11 @@ pub async fn poll_bilibili_login(
 pub async fn logout_bilibili_account(
     app: AppHandle,
     state: State<'_, BiliAccountState>,
+    store: State<'_, AppConfigStore>,
 ) -> Result<LoginStatus, String> {
-    ensure_bilibili_session_initialized(&app, &state).await?;
+    ensure_bilibili_session_initialized(&app, &state, &store).await?;
     state.reset_http_session()?;
-    remove_persisted_session(&app)?;
+    store.clear_account_session()?;
     let status = set_anonymous_state(&state, "已退出账号并清理本地登录态")?;
     emit_account_event(&app, "logout", status.clone())?;
     Ok(status)
@@ -795,9 +762,63 @@ pub(crate) fn cookie_header(jar: &Jar) -> String {
         .unwrap_or_default()
 }
 
+/// 从当前哔哩哔哩 Cookie Jar 中读取单个 Cookie，避免业务模块接触完整会话文本。
+pub(crate) fn cookie_value(jar: &Jar, name: &str) -> Option<String> {
+    cookie_header(jar)
+        .split(';')
+        .filter_map(|cookie| cookie.trim().split_once('='))
+        .find_map(|(key, value)| (key == name).then(|| value.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn maps_account_level_experience_and_coins_from_nav() {
+        let data: NavData = serde_json::from_str(
+            r#"{
+                "isLogin": true,
+                "mid": 42,
+                "uname": "测试用户",
+                "face": "https://example.com/avatar.jpg",
+                "money": 3095.7,
+                "level_info": {
+                    "current_level": 5,
+                    "current_min": 10800,
+                    "current_exp": 18800,
+                    "next_exp": 28800
+                }
+            }"#,
+        )
+        .expect("deserialize nav profile");
+        let profile = account_profile_from_nav(data).expect("account profile");
+        assert_eq!(profile.level, 5);
+        assert_eq!(profile.current_min_exp, 10_800);
+        assert_eq!(profile.current_exp, 18_800);
+        assert_eq!(profile.next_exp, Some(28_800));
+        assert!((profile.coins - 3095.7).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn treats_max_level_text_next_exp_as_no_next_level() {
+        let data: NavData = serde_json::from_str(
+            r#"{
+                "isLogin": true,
+                "mid": 42,
+                "level_info": {
+                    "current_level": 6,
+                    "current_min": 28800,
+                    "current_exp": 47383,
+                    "next_exp": "--"
+                }
+            }"#,
+        )
+        .expect("deserialize max-level nav profile");
+        let profile = account_profile_from_nav(data).expect("account profile");
+        assert_eq!(profile.level, 6);
+        assert_eq!(profile.next_exp, None);
+    }
 
     #[test]
     fn renders_scannable_svg_data_url() {
@@ -805,6 +826,12 @@ mod tests {
             .expect("render QR code");
         assert!(data_url.starts_with("data:image/svg+xml;base64,"));
         assert!(data_url.len() > 200);
+        let encoded = data_url
+            .strip_prefix("data:image/svg+xml;base64,")
+            .expect("SVG data URL prefix");
+        let svg =
+            String::from_utf8(STANDARD.decode(encoded).expect("decode SVG")).expect("UTF-8 SVG");
+        assert!(svg.contains("#438ff1"));
     }
 
     #[test]
@@ -825,5 +852,9 @@ mod tests {
         assert!(header.contains("SESSDATA=session-value"));
         assert!(header.contains("bili_jct=csrf-value"));
         assert!(header.contains("DedeUserID=123"));
+        assert_eq!(
+            cookie_value(&session.jar, "bili_jct").as_deref(),
+            Some("csrf-value")
+        );
     }
 }

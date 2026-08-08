@@ -1,0 +1,460 @@
+use crate::types::account::AccountProfile;
+use crate::types::config::{
+    AccountStorageConfig, AppConfig, TtsUserSettings, CONFIG_SCHEMA_VERSION,
+};
+use crate::types::overlay::SidebarOverlayPlacement;
+use crate::types::tts::TtsEnvironmentCache;
+use serde_json::Value;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::{OnceLock, RwLock};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::{AppHandle, Manager, State};
+
+/// bilimaku 当前统一配置文件名。
+pub const CONFIG_FILE_NAME: &str = "config.json";
+
+/// 进程内统一配置 Store。
+///
+/// 启动时只从磁盘读取一次。之后所有读取都来自内存，写入先比较新旧值，
+/// 只有发生实际变更时才通过临时文件与备份文件原子落盘。
+pub struct AppConfigStore {
+    config: RwLock<AppConfig>,
+    path: OnceLock<PathBuf>,
+}
+
+impl Default for AppConfigStore {
+    fn default() -> Self {
+        Self {
+            config: RwLock::new(AppConfig::default()),
+            path: OnceLock::new(),
+        }
+    }
+}
+
+fn unix_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_secs())
+        .unwrap_or_default()
+}
+
+impl AppConfigStore {
+    /// 根据 Tauri 应用数据目录初始化统一配置。
+    pub fn initialize(&self, app: &AppHandle) -> Result<PathBuf, String> {
+        if let Some(path) = self.path.get() {
+            return Ok(path.clone());
+        }
+        let app_data_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|error| format!("定位 bilimaku 配置目录失败：{error}"))?;
+        let config_path = app_data_dir.join(CONFIG_FILE_NAME);
+        self.initialize_from_path(config_path)
+    }
+
+    fn initialize_from_path(&self, config_path: PathBuf) -> Result<PathBuf, String> {
+        if let Some(path) = self.path.get() {
+            return Ok(path.clone());
+        }
+        let parent = config_path
+            .parent()
+            .ok_or_else(|| "统一配置文件缺少父目录".to_string())?;
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("创建 bilimaku 配置目录失败：{error}"))?;
+
+        let backup_path = config_path.with_extension("bak");
+        let has_saved_config = config_path.is_file() || backup_path.is_file();
+        let (mut config, recovered_from_backup) = if has_saved_config {
+            read_config_with_backup(&config_path)?
+        } else {
+            (AppConfig::default(), false)
+        };
+        let mut should_persist = !config_path.is_file() || recovered_from_backup;
+        if config.schema_version > CONFIG_SCHEMA_VERSION {
+            return Err(format!(
+                "配置文件版本 {} 高于当前支持的 {}",
+                config.schema_version, CONFIG_SCHEMA_VERSION
+            ));
+        }
+        if config.schema_version < CONFIG_SCHEMA_VERSION {
+            config.schema_version = CONFIG_SCHEMA_VERSION;
+            should_persist = true;
+        }
+        if should_persist {
+            config.updated_at = unix_timestamp();
+            persist_config(&config_path, &config)?;
+        }
+        *self
+            .config
+            .write()
+            .map_err(|_| "统一配置内存状态锁定失败".to_string())? = config;
+        self.path
+            .set(config_path.clone())
+            .map_err(|_| "统一配置 Store 已被其他初始化流程占用".to_string())?;
+        Ok(config_path)
+    }
+
+    /// 返回统一配置的内存快照，不重新读取磁盘。
+    pub fn snapshot(&self) -> Result<AppConfig, String> {
+        self.config
+            .read()
+            .map(|config| config.clone())
+            .map_err(|_| "统一配置内存状态锁定失败".to_string())
+    }
+
+    /// 返回当前统一配置文件路径。
+    pub fn config_path(&self) -> Result<PathBuf, String> {
+        self.path
+            .get()
+            .cloned()
+            .ok_or_else(|| "统一配置 Store 尚未初始化".to_string())
+    }
+
+    /// 更新内存配置；只有字段实际变化时才写入磁盘。
+    pub fn update<F>(&self, updater: F) -> Result<bool, String>
+    where
+        F: FnOnce(&mut AppConfig),
+    {
+        let path = self.config_path()?;
+        let mut current = self
+            .config
+            .write()
+            .map_err(|_| "统一配置内存状态锁定失败".to_string())?;
+        let mut next = current.clone();
+        updater(&mut next);
+        if next == *current {
+            return Ok(false);
+        }
+        next.schema_version = CONFIG_SCHEMA_VERSION;
+        next.updated_at = unix_timestamp();
+        persist_config(&path, &next)?;
+        *current = next;
+        Ok(true)
+    }
+
+    /// 读取内存中的账号会话。
+    pub fn account_session(&self) -> Result<Option<AccountStorageConfig>, String> {
+        let account = self.snapshot()?.account;
+        Ok(
+            (!account.cookie_header.trim().is_empty() && account.profile.is_some())
+                .then_some(account),
+        )
+    }
+
+    /// 保存账号 Cookie 与账号资料。
+    pub fn set_account_session(
+        &self,
+        cookie_header: String,
+        profile: AccountProfile,
+    ) -> Result<bool, String> {
+        self.update(|config| {
+            if config.account.cookie_header == cookie_header
+                && config.account.profile.as_ref() == Some(&profile)
+            {
+                return;
+            }
+            config.account = AccountStorageConfig {
+                cookie_header,
+                profile: Some(profile),
+                saved_at: unix_timestamp(),
+            };
+        })
+    }
+
+    /// 清除账号登录态，不影响其他配置。
+    pub fn clear_account_session(&self) -> Result<bool, String> {
+        self.update(|config| config.account = AccountStorageConfig::default())
+    }
+
+    /// 读取最近一次保存的房间号。
+    pub fn room_id(&self) -> Result<String, String> {
+        Ok(self.snapshot()?.live.room_id)
+    }
+
+    /// 保存经过格式校验的房间号。
+    pub fn set_room_id(&self, room_id: String) -> Result<bool, String> {
+        self.update(|config| config.live.room_id = room_id)
+    }
+
+    /// 读取 TTS 模型注册表的 JSON 值。
+    pub fn tts_models(&self) -> Result<Vec<Value>, String> {
+        Ok(self.snapshot()?.tts.models)
+    }
+
+    /// 保存 TTS 模型注册表。
+    pub fn set_tts_models(&self, models: Vec<Value>) -> Result<bool, String> {
+        self.update(|config| {
+            if config.tts.models == models {
+                return;
+            }
+            config.tts.models = models;
+            config.tts.environment_cache.clear();
+        })
+    }
+
+    /// 读取全机共享的 Chinese BERT 路径。
+    pub fn chinese_bert_dir(&self) -> Result<String, String> {
+        Ok(self.snapshot()?.tts.chinese_bert_dir)
+    }
+
+    /// 保存全机共享的 Chinese BERT 路径。
+    pub fn set_chinese_bert_dir(&self, path: String) -> Result<bool, String> {
+        self.update(|config| {
+            if config.tts.chinese_bert_dir == path {
+                return;
+            }
+            config.tts.chinese_bert_dir = path;
+            config.tts.environment_cache.clear();
+        })
+    }
+
+    /// 读取指定模型的 TTS 环境检测缓存。
+    pub fn tts_environment_cache(
+        &self,
+        model_id: &str,
+    ) -> Result<Option<TtsEnvironmentCache>, String> {
+        Ok(self
+            .snapshot()?
+            .tts
+            .environment_cache
+            .into_iter()
+            .find(|cache| cache.report.model_id == model_id))
+    }
+
+    /// 写入指定模型的 TTS 环境检测缓存。
+    pub fn set_tts_environment_cache(&self, cache: TtsEnvironmentCache) -> Result<bool, String> {
+        self.update(|config| {
+            config
+                .tts
+                .environment_cache
+                .retain(|current| current.report.model_id != cache.report.model_id);
+            config.tts.environment_cache.push(cache);
+        })
+    }
+
+    /// 清除指定模型的 TTS 环境检测缓存。
+    pub fn clear_tts_environment_cache(&self, model_id: &str) -> Result<bool, String> {
+        self.update(|config| {
+            config
+                .tts
+                .environment_cache
+                .retain(|cache| cache.report.model_id != model_id);
+        })
+    }
+
+    /// 读取 TTS 用户偏好。
+    pub fn tts_settings(&self) -> Result<TtsUserSettings, String> {
+        Ok(self.snapshot()?.tts.settings)
+    }
+
+    /// 保存 TTS 用户偏好。
+    pub fn set_tts_settings(&self, settings: TtsUserSettings) -> Result<bool, String> {
+        self.update(|config| config.tts.settings = settings)
+    }
+
+    /// 读取悬浮窗设置。
+    pub fn overlay_settings(&self) -> Result<Option<Value>, String> {
+        Ok(self.snapshot()?.overlay.settings)
+    }
+
+    /// 保存悬浮窗设置。
+    pub fn set_overlay_settings(&self, settings: Value) -> Result<bool, String> {
+        self.update(|config| config.overlay.settings = Some(settings))
+    }
+
+    /// 读取侧边事件栏相对于显示器工作区的归一化位置。
+    pub fn sidebar_overlay_placement(&self) -> Result<Option<SidebarOverlayPlacement>, String> {
+        Ok(self.snapshot()?.overlay.sidebar_placement)
+    }
+
+    /// 保存侧边事件栏位置；数值未变化时不会重复写盘。
+    pub fn set_sidebar_overlay_placement(
+        &self,
+        placement: SidebarOverlayPlacement,
+    ) -> Result<bool, String> {
+        self.update(|config| config.overlay.sidebar_placement = Some(placement))
+    }
+}
+
+fn read_config_with_backup(path: &Path) -> Result<(AppConfig, bool), String> {
+    match read_config(path) {
+        Ok(config) => Ok((config, false)),
+        Err(primary_error) => {
+            let backup = path.with_extension("bak");
+            if backup.is_file() {
+                read_config(&backup)
+                    .map(|config| (config, true))
+                    .map_err(|backup_error| {
+                        format!(
+                            "读取统一配置失败：{primary_error}；备份文件也不可用：{backup_error}"
+                        )
+                    })
+            } else {
+                Err(primary_error)
+            }
+        }
+    }
+}
+
+fn read_config(path: &Path) -> Result<AppConfig, String> {
+    let bytes =
+        fs::read(path).map_err(|error| format!("读取统一配置 {} 失败：{error}", path.display()))?;
+    serde_json::from_slice(&bytes)
+        .map_err(|error| format!("解析统一配置 {} 失败：{error}", path.display()))
+}
+
+fn persist_config(path: &Path, config: &AppConfig) -> Result<(), String> {
+    let mut bytes = serde_json::to_vec_pretty(config)
+        .map_err(|error| format!("序列化统一配置失败：{error}"))?;
+    bytes.push(b'\n');
+    let temporary = path.with_extension("tmp");
+    let backup = path.with_extension("bak");
+    fs::write(&temporary, bytes).map_err(|error| format!("写入统一配置临时文件失败：{error}"))?;
+    if backup.exists() {
+        fs::remove_file(&backup).map_err(|error| format!("清理统一配置备份失败：{error}"))?;
+    }
+    if path.exists() {
+        fs::rename(path, &backup).map_err(|error| format!("备份旧统一配置失败：{error}"))?;
+    }
+    if let Err(error) = fs::rename(&temporary, path) {
+        if backup.exists() {
+            let _ = fs::rename(&backup, path);
+        }
+        return Err(format!("替换统一配置失败：{error}"));
+    }
+    if backup.exists() {
+        fs::remove_file(&backup).map_err(|error| format!("清理统一配置备份失败：{error}"))?;
+    }
+    Ok(())
+}
+
+/// 返回统一配置文件的绝对路径，供设置页展示给用户。
+#[tauri::command]
+pub fn get_config_file_path(store: State<'_, AppConfigStore>) -> Result<String, String> {
+    Ok(store.config_path()?.to_string_lossy().to_string())
+}
+
+/// 读取内存中的 TTS 播报偏好。
+#[tauri::command]
+pub fn get_tts_settings(store: State<'_, AppConfigStore>) -> Result<TtsUserSettings, String> {
+    store.tts_settings()
+}
+
+/// 更新 TTS 播报偏好，并在有实际变化时写入统一配置。
+#[tauri::command]
+pub fn update_tts_settings(
+    store: State<'_, AppConfigStore>,
+    settings: TtsUserSettings,
+) -> Result<bool, String> {
+    store.set_tts_settings(settings)
+}
+
+/// 保存用户在播报台输入的直播间号。
+#[tauri::command]
+pub fn update_saved_room_id(
+    store: State<'_, AppConfigStore>,
+    room_id: String,
+) -> Result<bool, String> {
+    let room_id = room_id.trim();
+    let parsed = room_id
+        .parse::<u64>()
+        .map_err(|_| "直播间 ID 需要是正整数".to_string())?;
+    if parsed == 0 {
+        return Err("直播间 ID 需要大于 0".to_string());
+    }
+    store.set_room_id(parsed.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_directory(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "bilimaku-store-{name}-{}-{}",
+            std::process::id(),
+            unix_timestamp()
+        ))
+    }
+
+    #[test]
+    fn loads_once_and_skips_unchanged_writes() {
+        let directory = test_directory("memory");
+        let path = directory.join(CONFIG_FILE_NAME);
+        let store = AppConfigStore::default();
+        store
+            .initialize_from_path(path.clone())
+            .expect("initialize store");
+        assert!(path.is_file());
+        assert!(store.set_room_id("4457340".to_string()).expect("set room"));
+        assert!(!store
+            .set_room_id("4457340".to_string())
+            .expect("skip same room"));
+
+        let mut disk = read_config(&path).expect("read config from disk");
+        disk.live.room_id = "999".to_string();
+        persist_config(&path, &disk).expect("simulate manual edit while running");
+        assert_eq!(store.room_id().expect("read memory"), "4457340");
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn persists_and_invalidates_tts_environment_cache() {
+        let directory = test_directory("tts-environment-cache");
+        let path = directory.join(CONFIG_FILE_NAME);
+        let store = AppConfigStore::default();
+        store
+            .initialize_from_path(path.clone())
+            .expect("initialize store");
+        let cache = TtsEnvironmentCache {
+            fingerprint: "fingerprint-v1".to_string(),
+            report: crate::types::tts::TtsEnvironmentReport {
+                model_id: "model-a".to_string(),
+                adapter: "bert-vits2".to_string(),
+                ready: true,
+                summary: "环境就绪".to_string(),
+                python_program: "python".to_string(),
+                python_version: "3.12.0".to_string(),
+                acceleration: "cuda".to_string(),
+                resource_directory: "W:\\data\\chinese-roberta-wwm-ext-large".to_string(),
+                checks: Vec::new(),
+                setup_commands: Vec::new(),
+                cached: false,
+                checked_at: 1,
+            },
+        };
+
+        assert!(store
+            .set_tts_environment_cache(cache.clone())
+            .expect("save environment cache"));
+        assert!(!store
+            .set_tts_environment_cache(cache.clone())
+            .expect("skip identical environment cache"));
+
+        let reloaded = AppConfigStore::default();
+        reloaded
+            .initialize_from_path(path.clone())
+            .expect("reload store");
+        assert_eq!(
+            reloaded
+                .tts_environment_cache("model-a")
+                .expect("read reloaded cache"),
+            Some(cache)
+        );
+
+        assert!(reloaded
+            .set_chinese_bert_dir("W:\\data\\bert-new".to_string())
+            .expect("change BERT resource"));
+        assert!(reloaded
+            .tts_environment_cache("model-a")
+            .expect("read invalidated cache")
+            .is_none());
+        assert!(read_config(&path)
+            .expect("read invalidated config")
+            .tts
+            .environment_cache
+            .is_empty());
+        let _ = fs::remove_dir_all(directory);
+    }
+}
