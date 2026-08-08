@@ -4,9 +4,12 @@ import type { LiveEvent } from "../types/events";
 import type { OverlayKind, OverlaySettings, SidebarOverlaySettings } from "../types/overlay";
 import { isDesktopRuntime } from "./desktop";
 
-const SETTINGS_KEY = "bilicast.overlay.settings.v1";
+const SETTINGS_KEY = "bilimaku.overlay.settings.v1";
+const LEGACY_SETTINGS_KEY = "bilicast.overlay.settings.v1";
 const SETTINGS_EVENT = "overlay://settings";
 const PREVIEW_EVENT = "overlay://preview";
+
+const DEFAULT_USERNAME_COLOR = "#66CCFF";
 
 const defaultColors = {
   message: "#ffffff",
@@ -22,6 +25,7 @@ export const defaultOverlaySettings: OverlaySettings = {
     clickThrough: true,
     enabledEventTypes: ["message"],
     showUsername: true,
+    usernameColor: DEFAULT_USERNAME_COLOR,
     showAvatar: false,
     fontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif',
     fontSize: 36,
@@ -44,18 +48,20 @@ export const defaultOverlaySettings: OverlaySettings = {
   },
   sidebar: {
     clickThrough: true,
+    editMode: false,
     side: "right",
+    entryDirection: "bottom",
     width: 390,
     height: 720,
     enabledEventTypes: ["message", "interaction", "gift", "superchat", "guard"],
     maxEvents: 12,
     lifetimeSeconds: 18,
     showAvatar: true,
-    showUserId: false,
     fontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif',
     fontSize: 14,
     fontWeight: 600,
     textColor: "#f7fbff",
+    usernameColor: DEFAULT_USERNAME_COLOR,
     colors: defaultColors,
     backgroundColor: "#0d1d2f",
     cardOpacity: 0.9,
@@ -69,6 +75,7 @@ export const defaultOverlaySettings: OverlaySettings = {
 
 type LegacySidebarSettings = Partial<SidebarOverlaySettings> & {
   backgroundOpacity?: number;
+  showUserId?: boolean;
 };
 
 function mergeSidebarSettings(stored?: LegacySidebarSettings): SidebarOverlaySettings {
@@ -81,8 +88,11 @@ function mergeSidebarSettings(stored?: LegacySidebarSettings): SidebarOverlaySet
     && stored.slideDistance === 42
     && stored.enterDurationMs === 260
     && stored.exitDurationMs === 360;
-  const current = { ...stored };
-  delete current.backgroundOpacity;
+  const current = Object.fromEntries(
+    Object.entries(stored).filter(([key]) => (
+      Object.prototype.hasOwnProperty.call(defaultOverlaySettings.sidebar, key)
+    )),
+  ) as Partial<SidebarOverlaySettings>;
   const merged = {
     ...defaultOverlaySettings.sidebar,
     ...current,
@@ -105,22 +115,30 @@ function mergeSidebarSettings(stored?: LegacySidebarSettings): SidebarOverlaySet
     : merged;
 }
 
+function normalizeOverlaySettings(parsed: Partial<OverlaySettings>): OverlaySettings {
+  return {
+    danmaku: {
+      ...defaultOverlaySettings.danmaku,
+      ...parsed.danmaku,
+      colors: {
+        ...defaultOverlaySettings.danmaku.colors,
+        ...parsed.danmaku?.colors,
+      },
+    },
+    sidebar: mergeSidebarSettings(parsed.sidebar as LegacySidebarSettings | undefined),
+  };
+}
+
 export function loadOverlaySettings(): OverlaySettings {
   try {
-    const stored = localStorage.getItem(SETTINGS_KEY);
+    const stored = localStorage.getItem(SETTINGS_KEY)
+      ?? localStorage.getItem(LEGACY_SETTINGS_KEY);
     if (!stored) return defaultOverlaySettings;
-    const parsed = JSON.parse(stored) as Partial<OverlaySettings>;
-    return {
-      danmaku: {
-        ...defaultOverlaySettings.danmaku,
-        ...parsed.danmaku,
-        colors: {
-          ...defaultOverlaySettings.danmaku.colors,
-          ...parsed.danmaku?.colors,
-        },
-      },
-      sidebar: mergeSidebarSettings(parsed.sidebar as LegacySidebarSettings | undefined),
-    };
+    const settings = normalizeOverlaySettings(
+      JSON.parse(stored) as Partial<OverlaySettings>,
+    );
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    return settings;
   } catch {
     return defaultOverlaySettings;
   }
@@ -130,6 +148,7 @@ function windowOptions(kind: OverlayKind, settings: OverlaySettings) {
   const target = kind === "danmaku" ? settings.danmaku : settings.sidebar;
   return {
     clickThrough: target.clickThrough,
+    editMode: kind === "sidebar" && settings.sidebar.editMode,
     width: settings.sidebar.width,
     height: settings.sidebar.height,
     side: settings.sidebar.side,
@@ -152,9 +171,21 @@ export async function saveOverlaySettings(settings: OverlaySettings) {
   ]);
 }
 
+/** 启动时让 Rust 统一 Store 与前端缓存互相补齐，并以 Store 中已有值为准。 */
+export async function hydrateOverlaySettings(): Promise<OverlaySettings> {
+  const local = loadOverlaySettings();
+  if (!isDesktopRuntime()) return local;
+  const stored = await getRuntimeOverlaySettings();
+  const settings = stored ?? local;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  // 统一补齐新字段并交给 Rust Store 去重；旧配置只会实际落盘一次。
+  await invoke("update_overlay_settings", { settings });
+  return settings;
+}
+
 export async function openOverlay(kind: OverlayKind, settings = loadOverlaySettings()) {
   if (!isDesktopRuntime()) {
-    throw new Error("透明悬浮窗需要从 BiliCast 桌面窗口启动");
+    throw new Error("透明悬浮窗需要从 bilimaku 桌面窗口启动");
   }
   await invoke("open_overlay", {
     kind,
@@ -168,9 +199,22 @@ export async function closeOverlay(kind: OverlayKind) {
   await invoke("close_overlay", { kind });
 }
 
+/** 拖动结束后由 Rust 选择目标显示器、固定执行防溢出并持久化归一化位置。 */
+export async function finalizeSidebarOverlayPosition() {
+  if (!isDesktopRuntime()) return;
+  await invoke("finalize_sidebar_overlay_position");
+}
+
+/** 查询指定悬浮组件的桌面窗口当前是否存在。 */
+export async function isOverlayOpen(kind: OverlayKind): Promise<boolean> {
+  if (!isDesktopRuntime()) return false;
+  return invoke<boolean>("is_overlay_open", { kind });
+}
+
 export async function getRuntimeOverlaySettings(): Promise<OverlaySettings | null> {
   if (!isDesktopRuntime()) return null;
-  return invoke<OverlaySettings | null>("get_overlay_settings");
+  const stored = await invoke<Partial<OverlaySettings> | null>("get_overlay_settings");
+  return stored ? normalizeOverlaySettings(stored) : null;
 }
 
 export async function previewOverlayEvent(event: LiveEvent) {

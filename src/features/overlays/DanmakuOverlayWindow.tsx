@@ -3,6 +3,10 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { LiveEvent } from "../../types/events";
 import type { DanmakuOverlaySettings } from "../../types/overlay";
+import {
+  createDanmakuLaneLayout,
+  selectTopPriorityLane,
+} from "./danmakuLaneManager";
 import { useOverlayEvents, useOverlaySettings } from "./useOverlayRuntime";
 
 const Layer = styled.div`
@@ -40,22 +44,27 @@ const Text = styled.span`
   text-overflow: ellipsis;
 `;
 
+const Username = styled.strong`
+  font-weight: inherit;
+`;
+
 interface BulletItem {
   id: string;
   event: LiveEvent;
   lane: number;
+  /** 入口在该时间后允许同速弹幕复用。 */
+  laneReusableAt: number;
 }
 
 interface ScrollingBulletProps {
   item: BulletItem;
   settings: DanmakuOverlaySettings;
+  onLaneReusable: (id: string, reusableAt: number) => void;
   onDone: (id: string) => void;
 }
 
-function eventText(event: LiveEvent, showUsername: boolean) {
-  if (!showUsername) return event.content;
-  if (event.type === "message") return `${event.user}：${event.content}`;
-  return `${event.user} ${event.content}`;
+function eventSeparator(type: LiveEvent["type"]) {
+  return type === "message" || type === "superchat" ? "：" : " ";
 }
 
 function avatarUrl(value: string) {
@@ -64,13 +73,15 @@ function avatarUrl(value: string) {
   return value.startsWith("https://") ? value : "";
 }
 
-function ScrollingBullet({ item, settings, onDone }: ScrollingBulletProps) {
+function ScrollingBullet({
+  item,
+  settings,
+  onLaneReusable,
+  onDone,
+}: ScrollingBulletProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const laneHeight = settings.fontSize * 1.35 + settings.laneGap;
-  const availableHeight = window.innerHeight
-    * Math.max(0.05, (settings.verticalEndPercent - settings.verticalStartPercent) / 100);
-  const top = (window.innerHeight * settings.verticalStartPercent) / 100
-    + (item.lane * laneHeight) % Math.max(laneHeight, availableHeight);
+  const laneLayout = createDanmakuLaneLayout(settings, window.innerHeight);
+  const top = laneLayout.topForLane(item.lane);
   const color = settings.colors[item.event.type];
   const avatar = avatarUrl(item.event.avatar);
 
@@ -84,6 +95,11 @@ function ScrollingBullet({ item, settings, onDone }: ScrollingBulletProps) {
     const duration = settings.motionMode === "speed"
       ? Math.max(1_200, (travel / Math.max(1, settings.speedPixelsPerSecond)) * 1_000)
       : settings.durationSeconds * 1_000;
+    const actualPixelsPerSecond = travel / Math.max(0.001, duration / 1_000);
+    const reusableAt = settings.motionMode === "speed"
+      ? performance.now() + ((width + 64) / actualPixelsPerSecond) * 1_000
+      : Number.POSITIVE_INFINITY;
+    onLaneReusable(item.id, reusableAt);
     const enterOffset = Math.min(0.45, settings.enterDurationMs / duration);
     const exitOffset = Math.max(enterOffset + 0.05, 1 - settings.exitDurationMs / duration);
     const positionAt = (offset: number) => start - travel * offset;
@@ -106,7 +122,7 @@ function ScrollingBullet({ item, settings, onDone }: ScrollingBulletProps) {
     );
     animation.onfinish = () => onDone(item.id);
     return () => animation.cancel();
-  }, [item.id, onDone, settings]);
+  }, [item.id, onDone, onLaneReusable, settings]);
 
   const style: CSSProperties = {
     top,
@@ -124,7 +140,15 @@ function ScrollingBullet({ item, settings, onDone }: ScrollingBulletProps) {
       {settings.showAvatar && avatar ? (
         <Avatar src={avatar} alt="" referrerPolicy="no-referrer" />
       ) : null}
-      <Text>{eventText(item.event, settings.showUsername)}</Text>
+      <Text>
+        {settings.showUsername ? (
+          <>
+            <Username style={{ color: settings.usernameColor }}>{item.event.user}</Username>
+            {eventSeparator(item.event.type)}
+          </>
+        ) : null}
+        {item.event.content}
+      </Text>
     </Bullet>
   );
 }
@@ -132,25 +156,38 @@ function ScrollingBullet({ item, settings, onDone }: ScrollingBulletProps) {
 export function DanmakuOverlayWindow() {
   const { danmaku: settings } = useOverlaySettings();
   const [items, setItems] = useState<BulletItem[]>([]);
-  const laneCursor = useRef(0);
 
   const receive = useCallback((event: LiveEvent) => {
     if (!settings.enabledEventTypes.includes(event.type)) return;
-    const laneHeight = settings.fontSize * 1.35 + settings.laneGap;
-    const available = window.innerHeight
-      * Math.max(0.05, (settings.verticalEndPercent - settings.verticalStartPercent) / 100);
-    const laneCount = Math.max(1, Math.floor(available / laneHeight));
-    const lane = laneCursor.current % laneCount;
-    laneCursor.current += 1;
-    const item: BulletItem = {
-      id: `${event.id}-${performance.now()}`,
-      event,
-      lane,
-    };
-    setItems((current) => [...current, item].slice(-settings.maxVisible));
+    const { laneCount } = createDanmakuLaneLayout(settings, window.innerHeight);
+    const capacity = Math.max(1, Math.floor(settings.maxVisible));
+
+    setItems((current) => {
+      const retainedLimit = capacity - 1;
+      const retained = retainedLimit > 0 ? current.slice(-retainedLimit) : [];
+      const now = performance.now();
+      const lane = selectTopPriorityLane(retained, laneCount, now);
+      const item: BulletItem = {
+        id: `${event.id}-${now}`,
+        event,
+        lane,
+        laneReusableAt: settings.motionMode === "speed"
+          ? now + Math.max(1_200, settings.enterDurationMs)
+          : Number.POSITIVE_INFINITY,
+      };
+      return [...retained, item];
+    });
   }, [settings]);
 
   useOverlayEvents(receive);
+
+  const updateLaneReusableAt = useCallback((id: string, laneReusableAt: number) => {
+    setItems((current) => current.map((item) => (
+      item.id === id && item.laneReusableAt !== laneReusableAt
+        ? { ...item, laneReusableAt }
+        : item
+    )));
+  }, []);
 
   const remove = useCallback((id: string) => {
     setItems((current) => current.filter((item) => item.id !== id));
@@ -159,7 +196,13 @@ export function DanmakuOverlayWindow() {
   return (
     <Layer>
       {items.map((item) => (
-        <ScrollingBullet key={item.id} item={item} settings={settings} onDone={remove} />
+        <ScrollingBullet
+          key={item.id}
+          item={item}
+          settings={settings}
+          onLaneReusable={updateLaneReusableAt}
+          onDone={remove}
+        />
       ))}
     </Layer>
   );

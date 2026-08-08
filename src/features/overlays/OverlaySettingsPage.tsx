@@ -24,6 +24,8 @@ import type {
   DanmakuOverlaySettings,
   EventColorMap,
   OverlaySettings,
+  OverlaySide,
+  SidebarEntryDirection,
   SidebarOverlaySettings,
 } from "../../types/overlay";
 
@@ -217,6 +219,91 @@ const Toggle = styled.label`
   }
 `;
 
+const WindowSwitchGrid = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+`;
+
+const WindowSwitch = styled.label`
+  display: grid;
+  min-height: 56px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 11px;
+  border: 1px solid ${theme.colors.border};
+  border-radius: ${theme.radius.sm};
+  background: ${theme.colors.surfaceMuted};
+  cursor: pointer;
+
+  input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  input:checked + span {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 58%, transparent);
+    background: linear-gradient(135deg, ${theme.colors.brand}, ${theme.colors.brandDeep});
+    box-shadow: 0 4px 12px color-mix(in srgb, ${theme.colors.brand} 28%, transparent);
+  }
+
+  input:checked + span::after {
+    transform: translateX(17px);
+  }
+
+  &:focus-within {
+    outline: 2px solid color-mix(in srgb, ${theme.colors.brand} 25%, transparent);
+    outline-offset: 1px;
+  }
+`;
+
+const WindowSwitchCopy = styled.span`
+  display: grid;
+  gap: 3px;
+`;
+
+const WindowSwitchTitle = styled.strong`
+  color: ${theme.colors.textPrimary};
+  font-size: 9px;
+  font-weight: 800;
+`;
+
+const WindowSwitchHint = styled.span`
+  color: ${theme.colors.textMuted};
+  font-size: 7px;
+  font-weight: 600;
+  line-height: 1.45;
+`;
+
+const WindowSwitchTrack = styled.span`
+  position: relative;
+  width: 35px;
+  height: 19px;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, ${theme.colors.textMuted} 28%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, ${theme.colors.textMuted} 13%, white);
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+
+  &::after {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 2px 5px rgba(13, 50, 88, 0.22);
+    content: "";
+    transition: transform 220ms cubic-bezier(.2, .85, .25, 1.25);
+  }
+`;
+
 const TypeGrid = styled.div`
   display: flex;
   flex-wrap: wrap;
@@ -356,6 +443,49 @@ function ColorControls({ value, onChange }: { value: EventColorMap; onChange: (v
   );
 }
 
+interface OverlaySelectOption<T extends string> {
+  /** 写入悬浮窗配置的稳定值。 */
+  value: T;
+  /** 下拉菜单中展示的中文文案。 */
+  label: string;
+}
+
+interface OverlaySelectFieldProps<T extends string> {
+  /** 字段主标题。 */
+  label: string;
+  /** 可选的简短生效范围说明。 */
+  hint?: string;
+  /** 当前选中的配置值。 */
+  value: T;
+  /** 所有可选项。 */
+  options: readonly OverlaySelectOption<T>[];
+  /** 选项变化时回传已经收窄的字符串联合类型。 */
+  onChange: (value: T) => void;
+}
+
+/** 悬浮组件设置页统一使用的带标题下拉栏。 */
+function OverlaySelectField<T extends string>({
+  label,
+  hint,
+  value,
+  options,
+  onChange,
+}: OverlaySelectFieldProps<T>) {
+  return (
+    <Field>
+      <FieldTop>
+        {label}
+        {hint ? <Value>{hint}</Value> : null}
+      </FieldTop>
+      <Select value={value} onChange={(event) => onChange(event.target.value as T)}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </Select>
+    </Field>
+  );
+}
+
 function sampleEvent(type: LiveEventType, index: number): LiveEvent {
   const samples: Record<LiveEventType, Pick<LiveEvent, "user" | "content" | "meta">> = {
     message: { user: "蓝莓汽水", content: "这个弹幕悬浮窗好可爱喵！" },
@@ -363,7 +493,7 @@ function sampleEvent(type: LiveEventType, index: number): LiveEvent {
     gift: { user: "薄荷星球", content: "赠送了 牛哇牛哇 × 3", meta: "礼物" },
     superchat: { user: "橘子海", content: "欢迎测试侧边事件栏", meta: "SC ¥30" },
     guard: { user: "海盐泡芙", content: "开通了 舰长 × 1", meta: "舰长" },
-    system: { user: "BiliCast", content: "悬浮窗预览事件", meta: "系统" },
+    system: { user: "bilimaku", content: "悬浮窗预览事件", meta: "系统" },
   };
   return {
     id: `overlay-preview-${Date.now()}-${index}`,
@@ -509,6 +639,7 @@ export function OverlaySettingsPage() {
               </Fields>
               <ColorControls value={settings.danmaku.colors} onChange={(colors) => updateDanmaku({ colors })} />
               <Fields>
+                <ColorField><input type="color" value={settings.danmaku.usernameColor} onChange={(event) => updateDanmaku({ usernameColor: event.target.value })} />昵称色</ColorField>
                 <ColorField><input type="color" value={settings.danmaku.outlineColor} onChange={(event) => updateDanmaku({ outlineColor: event.target.value })} />描边色</ColorField>
                 <ColorField><input type="color" value={settings.danmaku.shadowColor} onChange={(event) => updateDanmaku({ shadowColor: event.target.value })} />阴影色</ColorField>
               </Fields>
@@ -550,19 +681,42 @@ export function OverlaySettingsPage() {
                 value={settings.sidebar.enabledEventTypes}
                 onChange={(enabledEventTypes) => updateSidebar({ enabledEventTypes })}
               />
+              <WindowSwitchGrid>
+                <WindowSwitch>
+                  <WindowSwitchCopy>
+                    <WindowSwitchTitle>编辑定位模式</WindowSwitchTitle>
+                    <WindowSwitchHint>显示窗口边界，拖到任意显示器；松手后自动防溢出</WindowSwitchHint>
+                  </WindowSwitchCopy>
+                  <input type="checkbox" checked={settings.sidebar.editMode} onChange={(event) => updateSidebar({ editMode: event.target.checked })} />
+                  <WindowSwitchTrack aria-hidden="true" />
+                </WindowSwitch>
+
+              </WindowSwitchGrid>
               <ToggleGrid>
                 <Toggle>显示头像<input type="checkbox" checked={settings.sidebar.showAvatar} onChange={(event) => updateSidebar({ showAvatar: event.target.checked })} /></Toggle>
-                <Toggle>显示 UID<input type="checkbox" checked={settings.sidebar.showUserId} onChange={(event) => updateSidebar({ showUserId: event.target.checked })} /></Toggle>
                 <Toggle>鼠标穿透<input type="checkbox" checked={settings.sidebar.clickThrough} onChange={(event) => updateSidebar({ clickThrough: event.target.checked })} /></Toggle>
               </ToggleGrid>
               <Fields>
-                <Field>
-                  <FieldTop>停靠方向</FieldTop>
-                  <Select value={settings.sidebar.side} onChange={(event) => updateSidebar({ side: event.target.value as "left" | "right" })}>
-                    <option value="right">屏幕右侧</option>
-                    <option value="left">屏幕左侧</option>
-                  </Select>
-                </Field>
+                <OverlaySelectField<OverlaySide>
+                  label="首次打开位置"
+                  hint="仅无保存位置时"
+                  value={settings.sidebar.side}
+                  options={[
+                    { value: "right", label: "屏幕右侧" },
+                    { value: "left", label: "屏幕左侧" },
+                  ]}
+                  onChange={(side) => updateSidebar({ side })}
+                />
+                <OverlaySelectField<SidebarEntryDirection>
+                  label="新消息进入方向"
+                  hint="默认从下方"
+                  value={settings.sidebar.entryDirection}
+                  options={[
+                    { value: "bottom", label: "从下方进入" },
+                    { value: "top", label: "从上方进入" },
+                  ]}
+                  onChange={(entryDirection) => updateSidebar({ entryDirection })}
+                />
                 <Field>
                   <FieldTop>字体族</FieldTop>
                   <Select value={settings.sidebar.fontFamily} onChange={(event) => updateSidebar({ fontFamily: event.target.value })}>
@@ -584,6 +738,7 @@ export function OverlaySettingsPage() {
               <SectionTitle>外观</SectionTitle>
               <ColorControls value={settings.sidebar.colors} onChange={(colors) => updateSidebar({ colors })} />
               <Fields>
+                <ColorField><input type="color" value={settings.sidebar.usernameColor} onChange={(event) => updateSidebar({ usernameColor: event.target.value })} />昵称色</ColorField>
                 <ColorField><input type="color" value={settings.sidebar.backgroundColor} onChange={(event) => updateSidebar({ backgroundColor: event.target.value })} />气泡底色</ColorField>
                 <ColorField><input type="color" value={settings.sidebar.textColor} onChange={(event) => updateSidebar({ textColor: event.target.value })} />文字色</ColorField>
                 <NumberField label="气泡透明度" value={settings.sidebar.cardOpacity} min={0} max={1} step={0.05} onChange={(cardOpacity) => updateSidebar({ cardOpacity })} />

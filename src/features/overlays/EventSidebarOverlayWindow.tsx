@@ -1,16 +1,28 @@
 import { styled } from "@linaria/react";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
-import { hexToRgba } from "../../services/overlays";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import {
+  finalizeSidebarOverlayPosition,
+  hexToRgba,
+} from "../../services/overlays";
 import type { LiveEvent } from "../../types/events";
 import type { SidebarOverlaySettings } from "../../types/overlay";
 import { useOverlayEvents, useOverlaySettings } from "./useOverlayRuntime";
+
+/** 原生窗口停止上报移动后，判定一次拖拽已经结束的静默时间。 */
+const OVERLAY_DRAG_SETTLE_MS = 120;
 
 const Canvas = styled.div`
   position: fixed;
   inset: 0;
   overflow: hidden;
   background: transparent;
+  user-select: none;
+
+  &[data-editing="true"] {
+    cursor: move;
+  }
 `;
 
 const Feed = styled.div`
@@ -19,86 +31,75 @@ const Feed = styled.div`
   display: flex;
   min-height: 0;
   flex-direction: column;
-  gap: 9px;
+  gap: 7px;
   overflow: hidden;
-  padding: 12px;
+  padding: 10px;
   pointer-events: none;
 
-  &[data-interactive="true"] {
+  &[data-entry-direction="top"] {
+    justify-content: flex-start;
+  }
+
+  &[data-entry-direction="bottom"] {
+    justify-content: flex-end;
+  }
+
+  &[data-editing="true"] {
     pointer-events: auto;
   }
 `;
 
-const EventCard = styled.article`
+/**
+ * 事件行不再绘制边框、类型 Tag、UID 和时间，仅保留头像与一句事件文本。
+ * 低透明度横向渐隐底色只负责保证复杂直播画面上的可读性，不形成卡片边框感。
+ */
+const EventRow = styled.article`
   --event-accent: #78f0c0;
-  --bubble-background: rgba(13, 29, 47, 0.9);
-  --bubble-blur: 12px;
-  --bubble-radius: 8px;
+  --row-background: rgba(13, 29, 47, 0.32);
+  --row-blur: 12px;
+  --row-radius: 5px;
 
   position: relative;
-  isolation: isolate;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 11px;
+  min-height: 42px;
+  align-items: center;
+  gap: 9px;
   overflow: hidden;
-  padding: 10px 12px 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: var(--bubble-radius);
-  background: var(--bubble-background);
-  box-shadow:
-    0 9px 26px rgba(1, 10, 22, 0.24),
-    inset 0 1px rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(var(--bubble-blur)) saturate(1.12);
+  padding: 6px 10px 6px 7px;
+  border: 0;
+  border-radius: var(--row-radius);
+  background: linear-gradient(
+    90deg,
+    var(--row-background) 0%,
+    color-mix(in srgb, var(--row-background) 76%, transparent) 72%,
+    transparent 100%
+  );
+  box-shadow: 0 5px 18px rgba(1, 10, 22, 0.1);
+  backdrop-filter: blur(var(--row-blur)) saturate(1.08);
+  pointer-events: none;
   will-change: transform, opacity, filter;
-
-  &::before {
-    position: absolute;
-    top: 8px;
-    bottom: 8px;
-    left: 0;
-    width: 3px;
-    border-radius: 0 2px 2px 0;
-    background: var(--event-accent);
-    box-shadow: 0 0 14px color-mix(in srgb, var(--event-accent) 68%, transparent);
-    content: "";
-  }
-
-  &::after {
-    position: absolute;
-    z-index: -1;
-    top: 0;
-    right: 0;
-    left: 0;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--event-accent) 55%, transparent),
-      rgba(255, 255, 255, 0.2),
-      transparent 78%
-    );
-    content: "";
-  }
 
   &[data-avatar="false"] {
     grid-template-columns: minmax(0, 1fr);
+    min-height: 34px;
+    padding-left: 9px;
   }
 `;
 
 const Avatar = styled.div`
   display: grid;
-  width: 35px;
-  height: 35px;
+  width: 32px;
+  height: 32px;
   overflow: hidden;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--event-accent) 44%, rgba(255, 255, 255, 0.16));
-  border-radius: 7px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.16), transparent),
-    color-mix(in srgb, var(--event-accent) 22%, rgba(7, 20, 35, 0.88));
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--event-accent) 32%, rgba(7, 20, 35, 0.82));
   color: white;
   font-size: 11px;
   font-weight: 850;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
 
   img {
     width: 100%;
@@ -107,64 +108,58 @@ const Avatar = styled.div`
   }
 `;
 
-const EventBody = styled.div`
+const Sentence = styled.div`
+  display: -webkit-box;
+  overflow: hidden;
   min-width: 0;
-`;
-
-const EventTop = styled.div`
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 7px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
 `;
 
 const User = styled.strong`
-  overflow: hidden;
-  min-width: 0;
-  color: inherit;
-  font-size: 0.92em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`;
-
-const EventType = styled.span`
-  flex: 0 0 auto;
-  padding: 2px 5px;
-  border: 1px solid color-mix(in srgb, var(--event-accent) 36%, transparent);
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--event-accent) 16%, transparent);
-  color: color-mix(in srgb, var(--event-accent) 80%, white);
-  font-size: 0.62em;
+  color: var(--username-color, #66ccff);
+  font-size: 0.96em;
   font-weight: 850;
+`;
+
+const EventText = styled.span`
+  color: color-mix(in srgb, currentColor 88%, transparent);
+  font-size: 0.9em;
+  font-weight: 550;
+`;
+
+const EditFrame = styled.div`
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  border: 2px solid rgba(78, 161, 255, 0.92);
+  background:
+    linear-gradient(90deg, rgba(78, 161, 255, 0.16), transparent 34%) top left / 100% 1px no-repeat,
+    linear-gradient(0deg, rgba(78, 161, 255, 0.1), transparent 40%) bottom left / 1px 100% no-repeat;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.46),
+    inset 0 0 28px rgba(78, 161, 255, 0.08);
+  pointer-events: none;
+`;
+
+const EditCaption = styled.div`
+  position: absolute;
+  z-index: 21;
+  top: 8px;
+  left: 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  background: rgba(10, 27, 48, 0.78);
+  color: rgba(239, 248, 255, 0.96);
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  font-size: 10px;
+  font-weight: 750;
   letter-spacing: 0.02em;
-`;
-
-const UserId = styled.span`
-  flex: 0 0 auto;
-  color: color-mix(in srgb, currentColor 48%, transparent);
-  font-family: Consolas, monospace;
-  font-size: 0.6em;
-`;
-
-const Time = styled.time`
-  flex: 0 0 auto;
-  margin-left: auto;
-  color: color-mix(in srgb, currentColor 42%, transparent);
-  font-family: Consolas, monospace;
-  font-size: 0.58em;
-  font-weight: 500;
-`;
-
-const Content = styled.div`
-  display: -webkit-box;
-  overflow: hidden;
-  margin-top: 4px;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  color: color-mix(in srgb, currentColor 84%, transparent);
-  font-size: 0.84em;
-  font-weight: 500;
-  line-height: 1.5;
+  box-shadow: 0 5px 16px rgba(3, 15, 31, 0.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  pointer-events: none;
 `;
 
 function normalizeAvatar(value: string) {
@@ -173,43 +168,25 @@ function normalizeAvatar(value: string) {
   return value.startsWith("https://") ? value : "";
 }
 
-function typeLabel(event: LiveEvent) {
-  if (event.meta) return event.meta;
-  return {
-    message: "弹幕",
-    interaction: "互动",
-    gift: "礼物",
-    superchat: "SC",
-    guard: "大航海",
-    system: "系统",
-  }[event.type];
+function eventSeparator(type: LiveEvent["type"]) {
+  return type === "message" || type === "superchat" ? "：" : " ";
 }
 
-function eventTime(timestamp: number) {
-  return new Intl.DateTimeFormat("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(timestamp));
-}
-
-interface SidebarCardProps {
+interface SidebarRowProps {
   event: LiveEvent;
   settings: SidebarOverlaySettings;
   onDone: (id: string) => void;
 }
 
-function SidebarCard({ event, settings, onDone }: SidebarCardProps) {
+function SidebarRow({ event, settings, onDone }: SidebarRowProps) {
   const ref = useRef<HTMLElement>(null);
-  const timestampRef = useRef(event.emittedAt ?? Date.now());
   const avatar = normalizeAvatar(event.avatar);
-  const timestamp = timestampRef.current;
 
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const direction = settings.side === "right"
+    const entryOffsetY = settings.entryDirection === "bottom"
       ? settings.slideDistance
       : -settings.slideDistance;
     const enterDuration = reduceMotion ? 0 : settings.enterDurationMs;
@@ -218,14 +195,14 @@ function SidebarCard({ event, settings, onDone }: SidebarCardProps) {
       [
         {
           opacity: 0,
-          filter: "blur(7px)",
-          transform: `translate3d(${direction}px, 7px, 0) scale(.965)`,
+          filter: "blur(6px)",
+          transform: `translate3d(0, ${entryOffsetY}px, 0) scale(.975)`,
         },
         {
           opacity: 1,
           filter: "blur(0)",
-          offset: 0.72,
-          transform: `translate3d(${-Math.sign(direction) * 3}px, 0, 0) scale(1.008)`,
+          offset: 0.74,
+          transform: `translate3d(0, ${-Math.sign(entryOffsetY) * 3}px, 0) scale(1.006)`,
         },
         { opacity: 1, filter: "blur(0)", transform: "translate3d(0, 0, 0) scale(1)" },
       ],
@@ -246,8 +223,8 @@ function SidebarCard({ event, settings, onDone }: SidebarCardProps) {
           { opacity: 1, filter: "blur(0)", transform: "translate3d(0, 0, 0) scale(1)" },
           {
             opacity: 0,
-            filter: "blur(5px)",
-            transform: `translate3d(${direction * 0.72}px, -8px, 0) scale(.98)`,
+            filter: "blur(4px)",
+            transform: `translate3d(0, ${-Math.sign(entryOffsetY) * 8}px, 0) scale(.985)`,
           },
         ],
         {
@@ -269,39 +246,46 @@ function SidebarCard({ event, settings, onDone }: SidebarCardProps) {
   const style = {
     color: settings.textColor,
     "--event-accent": accent,
-    "--bubble-background": hexToRgba(settings.backgroundColor, settings.cardOpacity),
-    "--bubble-blur": `${settings.blur}px`,
-    "--bubble-radius": `${settings.radius}px`,
+    "--username-color": settings.usernameColor,
+    "--row-background": hexToRgba(
+      settings.backgroundColor,
+      Math.min(0.46, settings.cardOpacity * 0.46),
+    ),
+    "--row-blur": `${settings.blur}px`,
+    "--row-radius": `${Math.min(settings.radius, 6)}px`,
   } as CSSProperties;
 
   return (
-    <EventCard ref={ref} style={style} data-avatar={settings.showAvatar}>
+    <EventRow ref={ref} style={style} data-avatar={settings.showAvatar}>
       {settings.showAvatar ? (
         <Avatar>
           {avatar ? <img src={avatar} alt="" referrerPolicy="no-referrer" /> : event.user.slice(0, 1)}
         </Avatar>
       ) : null}
-      <EventBody>
-        <EventTop>
-          <User>{event.user}</User>
-          <EventType>{typeLabel(event)}</EventType>
-          {settings.showUserId && event.userId ? <UserId>UID {event.userId}</UserId> : null}
-          <Time dateTime={new Date(timestamp).toISOString()}>{eventTime(timestamp)}</Time>
-        </EventTop>
-        <Content>{event.content}</Content>
-      </EventBody>
-    </EventCard>
+      <Sentence>
+        <User>{event.user}</User>
+        <EventText>{eventSeparator(event.type)}{event.content}</EventText>
+      </Sentence>
+    </EventRow>
   );
 }
 
 export function EventSidebarOverlayWindow() {
   const { sidebar: settings } = useOverlaySettings();
   const [events, setEvents] = useState<LiveEvent[]>([]);
+  const dragging = useRef(false);
+  const finalizingPosition = useRef(false);
+  const dragSettleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const receive = useCallback((event: LiveEvent) => {
     if (!settings.enabledEventTypes.includes(event.type)) return;
-    setEvents((current) => [event, ...current.filter((item) => item.id !== event.id)]
-      .slice(0, settings.maxEvents));
+    setEvents((current) => {
+      const filtered = current.filter((item) => item.id !== event.id);
+      const maximum = Math.max(1, Math.floor(settings.maxEvents));
+      return settings.entryDirection === "bottom"
+        ? [...filtered, event].slice(-maximum)
+        : [event, ...filtered].slice(0, maximum);
+    });
   }, [settings]);
 
   useOverlayEvents(receive);
@@ -309,6 +293,91 @@ export function EventSidebarOverlayWindow() {
   const remove = useCallback((id: string) => {
     setEvents((current) => current.filter((event) => event.id !== id));
   }, []);
+
+  const clearDragSettleTimer = useCallback(() => {
+    if (dragSettleTimer.current === null) return;
+    clearTimeout(dragSettleTimer.current);
+    dragSettleTimer.current = null;
+  }, []);
+
+  const finishDragging = useCallback(async () => {
+    if (!dragging.current || finalizingPosition.current) return;
+    dragging.current = false;
+    clearDragSettleTimer();
+    finalizingPosition.current = true;
+    try {
+      await finalizeSidebarOverlayPosition();
+    } catch (error) {
+      console.error("收回超出显示器的侧边悬浮窗失败", error);
+    } finally {
+      finalizingPosition.current = false;
+    }
+  }, [clearDragSettleTimer]);
+
+  const scheduleDragFinish = useCallback(() => {
+    clearDragSettleTimer();
+    // Tauri 的原生拖动调用只表示操作已排入窗口线程，并不代表鼠标已经松开。
+    // 原生 moved 事件停止一小段时间后再收边，可兼容 WebView 收不到 pointerup 的情况。
+    dragSettleTimer.current = setTimeout(() => {
+      void finishDragging();
+    }, OVERLAY_DRAG_SETTLE_MS);
+  }, [clearDragSettleTimer, finishDragging]);
+
+  useEffect(() => {
+    if (!settings.editMode) {
+      void finishDragging();
+      return;
+    }
+
+    let disposed = false;
+    let unlistenMoved: (() => void) | undefined;
+    const appWindow = getCurrentWindow();
+    const completeOnPointerRelease = () => {
+      void finishDragging();
+    };
+
+    window.addEventListener("pointerup", completeOnPointerRelease, true);
+    window.addEventListener("pointercancel", completeOnPointerRelease, true);
+    void appWindow.onMoved(() => {
+      if (!disposed && dragging.current && !finalizingPosition.current) {
+        scheduleDragFinish();
+      }
+    }).then((unlisten) => {
+      if (disposed) {
+        unlisten();
+      } else {
+        unlistenMoved = unlisten;
+      }
+    }).catch((error) => {
+      console.error("监听侧边悬浮窗移动失败", error);
+    });
+
+    return () => {
+      disposed = true;
+      unlistenMoved?.();
+      window.removeEventListener("pointerup", completeOnPointerRelease, true);
+      window.removeEventListener("pointercancel", completeOnPointerRelease, true);
+      clearDragSettleTimer();
+    };
+  }, [clearDragSettleTimer, finishDragging, scheduleDragFinish, settings.editMode]);
+
+  const beginDragging = useCallback(async (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!settings.editMode || event.button !== 0 || dragging.current) return;
+    event.preventDefault();
+    dragging.current = true;
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // 原生窗口拖动仍由 moved 事件兜底，不依赖 WebView 指针捕获一定成功。
+    }
+    try {
+      await getCurrentWindow().startDragging();
+    } catch (error) {
+      dragging.current = false;
+      clearDragSettleTimer();
+      console.error("拖动侧边悬浮窗失败", error);
+    }
+  }, [clearDragSettleTimer, settings.editMode]);
 
   const feedStyle: CSSProperties = {
     fontFamily: settings.fontFamily,
@@ -318,17 +387,33 @@ export function EventSidebarOverlayWindow() {
   };
 
   return (
-    <Canvas>
+    <Canvas
+      data-editing={settings.editMode}
+      onPointerDown={beginDragging}
+      onPointerUp={() => void finishDragging()}
+      onPointerCancel={() => void finishDragging()}
+    >
       <Feed
         style={feedStyle}
-        data-interactive={!settings.clickThrough}
-        data-tauri-drag-region={!settings.clickThrough || undefined}
+        data-editing={settings.editMode}
+        data-entry-direction={settings.entryDirection}
         aria-live="polite"
       >
         {events.map((event) => (
-          <SidebarCard key={event.id} event={event} settings={settings} onDone={remove} />
+          <SidebarRow
+            key={event.id}
+            event={event}
+            settings={settings}
+            onDone={remove}
+          />
         ))}
       </Feed>
+      {settings.editMode ? (
+        <>
+          <EditFrame />
+          <EditCaption>拖动定位 · {settings.width} × {settings.height}</EditCaption>
+        </>
+      ) : null}
     </Canvas>
   );
 }
