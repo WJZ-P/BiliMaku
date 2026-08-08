@@ -31,7 +31,7 @@ const Feed = styled.div`
   display: flex;
   min-height: 0;
   flex-direction: column;
-  gap: 7px;
+  gap: 0;
   overflow: hidden;
   padding: 10px;
   pointer-events: none;
@@ -47,6 +47,38 @@ const Feed = styled.div`
   &[data-editing="true"] {
     pointer-events: auto;
   }
+`;
+
+/**
+ * 通过 0fr -> 1fr 的轨道展开让相邻消息自然滚动，而不是在 DOM 插入时瞬移。
+ * 动画时长来自侧边事件栏设置，退出时会以相反方向折叠。
+ */
+const RowLayout = styled.div`
+  display: grid;
+  min-width: 0;
+  grid-template-rows: minmax(0, 1fr);
+  animation: bilimaku-sidebar-row-layout-in var(--row-scroll-duration, 720ms)
+    cubic-bezier(0.2, 0.82, 0.22, 1) both;
+
+  @keyframes bilimaku-sidebar-row-layout-in {
+    from {
+      grid-template-rows: minmax(0, 0fr);
+    }
+    to {
+      grid-template-rows: minmax(0, 1fr);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`;
+
+const RowClip = styled.div`
+  min-width: 0;
+  min-height: 0;
+  overflow: clip;
+  padding-top: 7px;
 `;
 
 /**
@@ -180,17 +212,20 @@ interface SidebarRowProps {
 
 function SidebarRow({ event, settings, onDone }: SidebarRowProps) {
   const ref = useRef<HTMLElement>(null);
+  const layoutRef = useRef<HTMLDivElement>(null);
   const avatar = normalizeAvatar(event.avatar);
 
   useLayoutEffect(() => {
     const element = ref.current;
-    if (!element) return;
+    const layout = layoutRef.current;
+    if (!element || !layout) return;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const entryOffsetY = settings.entryDirection === "bottom"
       ? settings.slideDistance
       : -settings.slideDistance;
     const enterDuration = reduceMotion ? 0 : settings.enterDurationMs;
     const exitDuration = reduceMotion ? 0 : settings.exitDurationMs;
+    const scrollDuration = reduceMotion ? 0 : settings.scrollDurationMs;
     const enter = element.animate(
       [
         {
@@ -214,9 +249,12 @@ function SidebarRow({ event, settings, onDone }: SidebarRowProps) {
     );
     const visibleMs = Math.max(
       500,
-      settings.lifetimeSeconds * 1_000 - enterDuration - exitDuration,
+      settings.lifetimeSeconds * 1_000
+        - enterDuration
+        - Math.max(exitDuration, scrollDuration),
     );
     let exit: Animation | undefined;
+    let collapse: Animation | undefined;
     const timer = window.setTimeout(() => {
       exit = element.animate(
         [
@@ -233,14 +271,37 @@ function SidebarRow({ event, settings, onDone }: SidebarRowProps) {
           fill: "forwards",
         },
       );
-      void exit.finished.then(() => onDone(event.id)).catch(() => undefined);
+      collapse = layout.animate(
+        [
+          { gridTemplateRows: "minmax(0, 1fr)" },
+          { gridTemplateRows: "minmax(0, 0fr)" },
+        ],
+        {
+          duration: scrollDuration,
+          easing: "cubic-bezier(.4,0,.68,.28)",
+          fill: "forwards",
+        },
+      );
+      void Promise.all([exit.finished, collapse.finished])
+        .then(() => onDone(event.id))
+        .catch(() => undefined);
     }, enterDuration + visibleMs);
     return () => {
       enter.cancel();
       exit?.cancel();
+      collapse?.cancel();
       window.clearTimeout(timer);
     };
-  }, [event.id, onDone, settings]);
+  }, [
+    event.id,
+    onDone,
+    settings.enterDurationMs,
+    settings.entryDirection,
+    settings.exitDurationMs,
+    settings.lifetimeSeconds,
+    settings.scrollDurationMs,
+    settings.slideDistance,
+  ]);
 
   const accent = settings.colors[event.type];
   const style = {
@@ -254,19 +315,26 @@ function SidebarRow({ event, settings, onDone }: SidebarRowProps) {
     "--row-blur": `${settings.blur}px`,
     "--row-radius": `${Math.min(settings.radius, 6)}px`,
   } as CSSProperties;
+  const layoutStyle = {
+    "--row-scroll-duration": `${Math.max(0, settings.scrollDurationMs)}ms`,
+  } as CSSProperties;
 
   return (
-    <EventRow ref={ref} style={style} data-avatar={settings.showAvatar}>
-      {settings.showAvatar ? (
-        <Avatar>
-          {avatar ? <img src={avatar} alt="" referrerPolicy="no-referrer" /> : event.user.slice(0, 1)}
-        </Avatar>
-      ) : null}
-      <Sentence>
-        <User>{event.user}</User>
-        <EventText>{eventSeparator(event.type)}{event.content}</EventText>
-      </Sentence>
-    </EventRow>
+    <RowLayout ref={layoutRef} style={layoutStyle}>
+      <RowClip>
+        <EventRow ref={ref} style={style} data-avatar={settings.showAvatar}>
+          {settings.showAvatar ? (
+            <Avatar>
+              {avatar ? <img src={avatar} alt="" referrerPolicy="no-referrer" /> : event.user.slice(0, 1)}
+            </Avatar>
+          ) : null}
+          <Sentence>
+            <User>{event.user}</User>
+            <EventText>{eventSeparator(event.type)}{event.content}</EventText>
+          </Sentence>
+        </EventRow>
+      </RowClip>
+    </RowLayout>
   );
 }
 

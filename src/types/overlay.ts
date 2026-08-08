@@ -134,6 +134,8 @@ export interface SidebarOverlaySettings {
   radius: number;
   /** 进出场横向滑动距离。 */
   slideDistance: number;
+  /** 新消息加入或旧消息移除时，事件列表滚动重排的时长。 */
+  scrollDurationMs: number;
   /** 入场动画时长。 */
   enterDurationMs: number;
   /** 离场动画时长。 */

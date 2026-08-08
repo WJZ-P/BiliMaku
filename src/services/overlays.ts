@@ -75,6 +75,7 @@ export const defaultOverlaySettings: OverlaySettings = {
     blur: 12,
     radius: 8,
     slideDistance: 52,
+    scrollDurationMs: 720,
     enterDurationMs: 320,
     exitDurationMs: 280,
   },

@@ -748,8 +748,9 @@ export function OverlaySettingsPage() {
             </Section>
 
             <Section>
-              <SectionTitle>滑入与滑出</SectionTitle>
+              <SectionTitle>滚动与进出场</SectionTitle>
               <Fields>
+                <NumberField label="列表滚动时间" value={settings.sidebar.scrollDurationMs} min={0} max={2400} step={20} suffix="ms" onChange={(scrollDurationMs) => updateSidebar({ scrollDurationMs })} />
                 <NumberField label="滑入时间" value={settings.sidebar.enterDurationMs} min={0} max={2000} step={20} suffix="ms" onChange={(enterDurationMs) => updateSidebar({ enterDurationMs })} />
                 <NumberField label="滑出时间" value={settings.sidebar.exitDurationMs} min={0} max={3000} step={20} suffix="ms" onChange={(exitDurationMs) => updateSidebar({ exitDurationMs })} />
                 <NumberField label="滑动距离" value={settings.sidebar.slideDistance} min={8} max={180} step={2} suffix="px" onChange={(slideDistance) => updateSidebar({ slideDistance })} />
