@@ -140,6 +140,8 @@ pub struct ConnectionSnapshot {
     pub room: Option<RoomConnectionInfo>,
     /// 统一配置中保存的用户输入房间号。
     pub saved_room_id: String,
+    /// 是否应在冷启动时自动恢复该直播间连接。
+    pub auto_connect: bool,
 }
 
 /// 当前在线贡献榜中的用户。

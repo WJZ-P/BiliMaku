@@ -72,13 +72,13 @@ pub async fn connect_live_room(
     if requested_room_id == 0 {
         return Err("直播间 ID 需要大于 0".to_string());
     }
-    store.set_room_id(requested_room_id.to_string())?;
-
     ensure_bilibili_session_initialized(&app, &account, &store).await?;
 
     let session_id = SESSION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let config = bilibili::prepare_room(requested_room_id, session_id, &account).await?;
     apply_remote_account_validation(&app, &account, &store, config.account_profile.clone())?;
+    // 只有房间信息成功解析后才开启冷启动恢复，避免无效房间造成循环失败。
+    store.set_live_connection_intent(requested_room_id.to_string(), true)?;
     let info = config.connection_info();
 
     let (cancel, cancel_receiver) = watch::channel(false);
@@ -141,7 +141,10 @@ pub async fn get_live_online_rank(
 pub fn disconnect_live_room(
     app: AppHandle,
     state: State<'_, LiveConnectionState>,
+    store: State<'_, AppConfigStore>,
 ) -> Result<(), String> {
+    // 主动断开先关闭持久化连接意图；保留房间号供下次手动连接。
+    store.set_live_auto_connect(false)?;
     let active = state
         .active
         .lock()
@@ -181,6 +184,7 @@ pub fn get_live_connection_status(
         room_id: active.as_ref().map(|connection| connection.room.room_id),
         room: active.as_ref().map(|connection| connection.room.clone()),
         saved_room_id: store.room_id()?,
+        auto_connect: store.live_auto_connect()?,
     })
 }
 

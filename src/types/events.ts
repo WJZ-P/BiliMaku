@@ -143,4 +143,6 @@ export interface ConnectionSnapshot {
   room: RoomConnectionInfo | null;
   /** 统一配置中保存的用户输入房间号。 */
   savedRoomId: string;
+  /** 是否应在冷启动时自动恢复该直播间连接。 */
+  autoConnect: boolean;
 }

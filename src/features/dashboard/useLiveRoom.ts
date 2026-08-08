@@ -60,7 +60,44 @@ export function useLiveRoomController() {
   const [onlineRankError, setOnlineRankError] = useState("");
   const [ttsSettings, setTtsSettings] = useState<TtsSettings>(() => loadTtsSettings());
   const lastSpokenId = useRef<string | null>(null);
+  const startupAutoConnectStarted = useRef(false);
   const desktopRuntime = useMemo(() => isDesktopRuntime(), []);
+
+  const connect = useCallback(
+    async (roomId: string) => {
+      const numericRoomId = Number(roomId);
+      setStatus({
+        sessionId: 0,
+        roomId: Number.isFinite(numericRoomId) ? numericRoomId : 0,
+        state: "connecting",
+        message: desktopRuntime
+          ? "正在解析直播间与 WBI 长链参数"
+          : "请从 Tauri 桌面窗口启动真实连接",
+        attempt: 0,
+      });
+      setEvents([]);
+      setPopularity(0);
+      setOnlineRank(null);
+      setOnlineRankError("");
+
+      try {
+        const info = await connectLiveRoom(roomId);
+        setRoom(info);
+        return info;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setStatus({
+          sessionId: 0,
+          roomId: Number.isFinite(numericRoomId) ? numericRoomId : 0,
+          state: "error",
+          message,
+          attempt: 0,
+        });
+        throw error;
+      }
+    },
+    [desktopRuntime],
+  );
 
   useEffect(() => {
     let active = true;
@@ -106,7 +143,7 @@ export function useLiveRoomController() {
         );
       } else if (active && snapshot.savedRoomId) {
         const savedRoomId = Number(snapshot.savedRoomId);
-        if (Number.isFinite(savedRoomId) && savedRoomId > 0) {
+        if (Number.isSafeInteger(savedRoomId) && savedRoomId > 0) {
           setStatus((current) =>
             current.roomId === 0
               ? {
@@ -116,6 +153,14 @@ export function useLiveRoomController() {
                 }
               : current,
           );
+          if (snapshot.autoConnect && !startupAutoConnectStarted.current) {
+            startupAutoConnectStarted.current = true;
+            try {
+              await connect(snapshot.savedRoomId);
+            } catch {
+              // connect 已将具体失败原因写入共享状态；保留自动连接开关供下次冷启动重试。
+            }
+          }
         }
       }
     });
@@ -124,7 +169,7 @@ export function useLiveRoomController() {
       active = false;
       unlisteners.forEach((unsubscribe) => unsubscribe());
     };
-  }, []);
+  }, [connect]);
 
   useEffect(() => {
     if (!desktopRuntime || status.state !== "connected" || status.sessionId === 0) {
@@ -207,42 +252,6 @@ export function useLiveRoomController() {
       cancelSpeech();
     },
     [],
-  );
-
-  const connect = useCallback(
-    async (roomId: string) => {
-      const numericRoomId = Number(roomId);
-      setStatus({
-        sessionId: 0,
-        roomId: Number.isFinite(numericRoomId) ? numericRoomId : 0,
-        state: "connecting",
-        message: desktopRuntime
-          ? "正在解析直播间与 WBI 长链参数"
-          : "请从 Tauri 桌面窗口启动真实连接",
-        attempt: 0,
-      });
-      setEvents([]);
-      setPopularity(0);
-      setOnlineRank(null);
-      setOnlineRankError("");
-
-      try {
-        const info = await connectLiveRoom(roomId);
-        setRoom(info);
-        return info;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        setStatus({
-          sessionId: 0,
-          roomId: Number.isFinite(numericRoomId) ? numericRoomId : 0,
-          state: "error",
-          message,
-          attempt: 0,
-        });
-        throw error;
-      }
-    },
-    [desktopRuntime],
   );
 
   const disconnect = useCallback(async () => {

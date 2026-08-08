@@ -72,6 +72,8 @@ impl Default for LiveAppearanceSettings {
 pub struct LiveStorageConfig {
     /// 用户最近一次输入并通过格式校验的房间号。
     pub room_id: String,
+    /// 上次运行结束时是否保持直播间连接；为真时冷启动自动恢复长链。
+    pub auto_connect: bool,
     /// 聊天区的可持久化外观。
     pub appearance: LiveAppearanceSettings,
 }

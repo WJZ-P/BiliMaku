@@ -217,6 +217,28 @@ impl AppConfigStore {
         self.update(|config| config.live.room_id = room_id)
     }
 
+    /// 读取冷启动时是否应自动恢复直播间连接。
+    pub fn live_auto_connect(&self) -> Result<bool, String> {
+        Ok(self.snapshot()?.live.auto_connect)
+    }
+
+    /// 原子保存房间号与连接意图，避免一次连接操作触发两次配置落盘。
+    pub fn set_live_connection_intent(
+        &self,
+        room_id: String,
+        auto_connect: bool,
+    ) -> Result<bool, String> {
+        self.update(|config| {
+            config.live.room_id = room_id;
+            config.live.auto_connect = auto_connect;
+        })
+    }
+
+    /// 只更新连接意图；主动断开时保留最近使用的房间号。
+    pub fn set_live_auto_connect(&self, auto_connect: bool) -> Result<bool, String> {
+        self.update(|config| config.live.auto_connect = auto_connect)
+    }
+
     /// 读取直播间聊天区外观设置。
     pub fn live_appearance_settings(&self) -> Result<LiveAppearanceSettings, String> {
         let mut settings = self.snapshot()?.live.appearance;
@@ -488,6 +510,42 @@ mod tests {
         disk.live.room_id = "999".to_string();
         persist_config(&path, &disk).expect("simulate manual edit while running");
         assert_eq!(store.room_id().expect("read memory"), "4457340");
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn persists_live_connection_intent() {
+        let directory = test_directory("live-connection-intent");
+        let path = directory.join(CONFIG_FILE_NAME);
+        let store = AppConfigStore::default();
+        store
+            .initialize_from_path(path.clone())
+            .expect("initialize store");
+
+        assert!(!store.live_auto_connect().expect("read default intent"));
+        assert!(store
+            .set_live_connection_intent("4457340".to_string(), true)
+            .expect("enable startup reconnect"));
+        assert!(!store
+            .set_live_connection_intent("4457340".to_string(), true)
+            .expect("skip unchanged intent"));
+
+        let reloaded = AppConfigStore::default();
+        reloaded
+            .initialize_from_path(path.clone())
+            .expect("reload store");
+        assert_eq!(reloaded.room_id().expect("read persisted room"), "4457340");
+        assert!(reloaded.live_auto_connect().expect("read persisted intent"));
+        assert!(reloaded
+            .set_live_auto_connect(false)
+            .expect("disable startup reconnect"));
+        assert_eq!(reloaded.room_id().expect("keep persisted room"), "4457340");
+        assert!(!reloaded.live_auto_connect().expect("read disabled intent"));
+
+        let persisted: Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("read persisted config"))
+                .expect("parse persisted config");
+        assert_eq!(persisted["live"]["autoConnect"], false);
         let _ = fs::remove_dir_all(directory);
     }
 

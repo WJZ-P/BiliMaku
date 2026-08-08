@@ -142,6 +142,7 @@ export async function getLiveConnectionStatus() {
       roomId: null,
       room: null,
       savedRoomId: "",
+      autoConnect: false,
     } satisfies ConnectionSnapshot;
   }
   return invoke<ConnectionSnapshot>("get_live_connection_status");
