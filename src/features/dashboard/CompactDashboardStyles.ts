@@ -411,6 +411,10 @@ export const MessageViewport = styled.div`
   --message-uid-font-size: 10px;
   --message-tag-font-size: 9px;
   --message-time-font-size: 9px;
+  /* 聊天正文字号调参区：普通消息、系统消息与空状态提示统一从这里调整。 */
+  --message-content-font-size: 13px;
+  --message-system-font-size: 10px;
+  --message-empty-font-size: 11px;
   /* 气泡磨砂调参区：模糊负责磨砂，饱和度与表层混合比例负责玻璃质感。 */
   --message-glass-blur: 16px;
   --message-glass-saturation: 1.45;
@@ -651,7 +655,7 @@ export const MessageBubble = styled.div`
   isolation: isolate;
   overflow: hidden;
   margin: 0;
-  padding: 8px 10px;
+  padding: 9px 12px;
   border: 1px solid color-mix(
     in srgb,
     var(--message-bubble-color, ${theme.colors.messageBubble}) 38%,
@@ -680,8 +684,8 @@ export const MessageBubble = styled.div`
     saturate(var(--message-glass-saturation))
     brightness(var(--message-glass-brightness));
   color: ${theme.colors.textSecondary};
-  font-size: 10px;
-  line-height: 1.52;
+  font-size: var(--message-content-font-size);
+  line-height: 1.55;
   overflow-wrap: anywhere;
   vertical-align: top;
   box-shadow:
@@ -742,7 +746,7 @@ export const MessageBubble = styled.div`
     border-radius: ${theme.radius.pill};
     background: color-mix(in srgb, ${theme.colors.surfaceMuted} 58%, transparent);
     color: ${theme.colors.textMuted};
-    font-size: 8px;
+    font-size: var(--message-system-font-size);
     text-align: center;
   }
 
@@ -770,7 +774,7 @@ export const EmptyFeed = styled.div`
   min-height: 100%;
   place-items: center;
   color: ${theme.colors.textMuted};
-  font-size: 9px;
+  font-size: var(--message-empty-font-size);
   line-height: 1.6;
   text-align: center;
 
@@ -778,7 +782,7 @@ export const EmptyFeed = styled.div`
     display: block;
     margin-bottom: 3px;
     color: ${theme.colors.textSecondary};
-    font-size: 12px;
+    font-size: 13px;
   }
 `;
 
