@@ -808,7 +808,7 @@ export const ComposerInputShell = styled.div`
   display: grid;
   min-width: 0;
   height: 34px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;
   padding: 0 8px;
@@ -824,9 +824,7 @@ export const ComposerInputShell = styled.div`
   &:focus-within {
     border-color: color-mix(in srgb, ${theme.colors.brand} 68%, ${theme.colors.border});
     background: ${theme.colors.surface};
-    box-shadow:
-      0 0 0 3px color-mix(in srgb, ${theme.colors.brandSoft} 54%, transparent),
-      inset 0 1px 0 ${theme.colors.highlight};
+    box-shadow: inset 0 1px 0 ${theme.colors.highlight};
   }
 
   &[data-state="error"] {
@@ -839,18 +837,14 @@ export const ComposerInputShell = styled.div`
   }
 `;
 
-export const ComposerInputIcon = styled.span`
-  display: grid;
-  place-items: center;
-  color: ${theme.colors.brand};
-`;
-
 export const ComposerInput = styled.input`
   width: 100%;
   min-width: 0;
+  appearance: none;
   border: 0;
   outline: 0;
   background: transparent;
+  box-shadow: none;
   color: ${theme.colors.textPrimary};
   font: 600 11px/1.2 ${theme.typography.family};
 
@@ -1093,27 +1087,4 @@ export const RailButton = styled.button`
 
 export const RailSpacer = styled.div`
   flex: 1;
-`;
-
-export const RailConnection = styled.div`
-  display: grid;
-  place-items: center;
-  gap: 4px;
-  padding: 6px 2px;
-  color: ${theme.colors.textMuted};
-  font-size: 7px;
-  line-height: 1.3;
-  text-align: center;
-`;
-
-export const RailConnectionDot = styled.span`
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: ${theme.colors.textMuted};
-
-  &[data-connected="true"] {
-    background: ${theme.colors.success};
-    box-shadow: 0 0 0 3px ${theme.colors.successSoft};
-  }
 `;

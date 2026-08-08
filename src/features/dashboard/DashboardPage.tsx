@@ -35,7 +35,6 @@ import {
   ComposerCounter,
   ComposerField,
   ComposerInput,
-  ComposerInputIcon,
   ComposerInputShell,
   ConnectButton,
   ConnectForm,
@@ -64,8 +63,6 @@ import {
   RankFace,
   RankFaces,
   RailButton,
-  RailConnection,
-  RailConnectionDot,
   RailSpacer,
   RailTitle,
   RoomCaption,
@@ -807,9 +804,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 data-state={sendPhase}
                 data-disabled={!connected}
               >
-                <ComposerInputIcon>
-                  <Icon name="message" size={14} />
-                </ComposerInputIcon>
                 <ComposerInput
                   value={outgoingMessage}
                   type="text"
@@ -919,10 +913,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           ))}
 
           <RailSpacer />
-          <RailConnection data-tooltip={live.status.message} data-tooltip-placement="left">
-            <RailConnectionDot data-connected={connected} />
-            {statusLabels[live.status.state]}
-          </RailConnection>
           <RailButton
             type="button"
             data-tooltip="账号、主题与应用设置"

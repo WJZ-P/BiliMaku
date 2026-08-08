@@ -110,43 +110,17 @@ const Brand = styled.div`
   }
 `;
 
-const BrandMark = styled.div`
-  position: relative;
-  display: grid;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, ${theme.colors.highlight} 70%, transparent);
-  border-radius: 2px;
-  background: ${theme.gradients.brand};
-  color: ${theme.colors.textOnBrand};
-  box-shadow: 0 8px 18px color-mix(in srgb, ${theme.colors.brand} 24%, transparent);
-
-  &::before,
-  &::after {
-    position: absolute;
-    top: -4px;
-    width: 9px;
-    height: 9px;
-    border-radius: 2px;
-    background: ${theme.colors.brand};
-    content: "";
-    transform: rotate(45deg);
-  }
-
-  &::before {
-    left: 6px;
-  }
-
-  &::after {
-    right: 6px;
-  }
-
-  svg {
-    position: relative;
-    z-index: 1;
-  }
+const BrandMark = styled.img`
+  display: block;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  object-fit: contain;
+  filter: drop-shadow(
+    0 6px 12px color-mix(in srgb, ${theme.colors.brand} 22%, transparent)
+  );
+  pointer-events: none;
+  user-select: none;
 `;
 
 const BrandText = styled.div`
@@ -185,25 +159,17 @@ const BrandCaption = styled.div`
   letter-spacing: 0.06em;
 `;
 
-const SectionLabel = styled.div`
-  height: 24px;
-  padding: 4px 7px 6px;
-  color: ${theme.colors.textMuted};
-  font-size: 9px;
-  font-weight: 750;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-  white-space: nowrap;
-
-  [data-collapsed="true"] & {
-    height: 1px;
-    margin: 6px 5px 10px;
-    padding: 0;
-    overflow: hidden;
-    background: ${theme.colors.border};
-    color: transparent;
-    font-size: 0;
-  }
+const SectionDivider = styled.div`
+  height: 1px;
+  flex: 0 0 1px;
+  margin: 6px 5px 10px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    ${theme.colors.borderStrong} 12%,
+    ${theme.colors.borderStrong} 88%,
+    transparent
+  );
 `;
 
 const Nav = styled.nav`
@@ -523,9 +489,7 @@ export function Sidebar({ activeView, onNavigate, onPreload }: SidebarProps) {
   return (
     <Aside data-collapsed={collapsed}>
       <Brand>
-        <BrandMark>
-          <Icon name="message" size={20} />
-        </BrandMark>
+        <BrandMark src="/icon.png" alt="" aria-hidden="true" draggable={false} />
         <BrandText>
           <BrandName>
             Bili<span>Maku</span>
@@ -534,7 +498,7 @@ export function Sidebar({ activeView, onNavigate, onPreload }: SidebarProps) {
         </BrandText>
       </Brand>
 
-      <SectionLabel>Workspace</SectionLabel>
+      <SectionDivider aria-hidden="true" />
       <Nav id="bilimaku-primary-navigation" aria-label="主导航">
         {navigation.map((item) => (
           <ParticleGlowHover key={item.id}>
