@@ -401,10 +401,11 @@ export const RankAvatar = styled.img`
 `;
 
 export const MessageViewport = styled.div`
-  --message-layout-duration: 560ms;
-  --message-enter-duration: 680ms;
-  --message-enter-offset-x: -26px;
-  --message-enter-offset-y: 18px;
+  /* 聊天消息入场调参区：时长越长、初始位移与过冲越小，弹簧表现越柔和。 */
+  --message-layout-duration: 620ms;
+  --message-enter-duration: 820ms;
+  --message-enter-offset-x: -20px;
+  --message-enter-offset-y: 13px;
 
   min-height: 0;
   overflow-x: hidden;
@@ -442,7 +443,7 @@ export const MessageEntry = styled.div`
   &[data-entering="true"] {
     overflow: clip;
     animation: bilimaku-message-layout-in var(--message-layout-duration)
-      cubic-bezier(0.2, 0.82, 0.22, 1) both;
+      cubic-bezier(0.22, 0.72, 0.26, 1) both;
   }
 
   @keyframes bilimaku-message-layout-in {
@@ -477,27 +478,27 @@ export const MessageEntryContent = styled.div`
   @keyframes bilimaku-message-spring-in {
     0% {
       opacity: 0;
-      filter: blur(2px);
+      filter: blur(1.4px);
       transform: translate3d(
           var(--message-enter-offset-x),
           var(--message-enter-offset-y),
           0
         )
-        scale(0.96);
+        scale(0.975);
     }
-    44% {
+    52% {
       opacity: 1;
       filter: blur(0);
-      transform: translate3d(5px, -3px, 0) scale(1.012);
+      transform: translate3d(2.6px, -1.5px, 0) scale(1.0065);
     }
-    65% {
-      transform: translate3d(-2px, 1.5px, 0) scale(0.997);
+    72% {
+      transform: translate3d(-0.9px, 0.55px, 0) scale(0.9984);
     }
-    81% {
-      transform: translate3d(1px, -0.5px, 0) scale(1.003);
+    87% {
+      transform: translate3d(0.28px, -0.16px, 0) scale(1.0006);
     }
-    92% {
-      transform: translate3d(-0.35px, 0.2px, 0) scale(0.9995);
+    95% {
+      transform: translate3d(-0.08px, 0.04px, 0) scale(0.9999);
     }
     100% {
       opacity: 1;

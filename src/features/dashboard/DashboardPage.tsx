@@ -560,7 +560,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     const motionDuration = readCssTimeMilliseconds(
       viewport,
       "--message-enter-duration",
-      680,
+      820,
     ) + 80;
     const startedAt = window.performance.now();
     const tick = (now: number) => {
