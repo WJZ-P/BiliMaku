@@ -1,6 +1,6 @@
 import { styled } from "@linaria/react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import {
   finalizeSidebarOverlayPosition,
@@ -36,11 +36,11 @@ const Feed = styled.div`
   padding: 10px;
   pointer-events: none;
 
-  &[data-entry-direction="top"] {
+  &[data-vertical-alignment="top"] {
     justify-content: flex-start;
   }
 
-  &[data-entry-direction="bottom"] {
+  &[data-vertical-alignment="bottom"] {
     justify-content: flex-end;
   }
 
@@ -282,9 +282,8 @@ export function EventSidebarOverlayWindow() {
     setEvents((current) => {
       const filtered = current.filter((item) => item.id !== event.id);
       const maximum = Math.max(1, Math.floor(settings.maxEvents));
-      return settings.entryDirection === "bottom"
-        ? [...filtered, event].slice(-maximum)
-        : [event, ...filtered].slice(0, maximum);
+      // 内部始终保持旧 -> 新的时间顺序，渲染时再根据停靠位置决定展示方向。
+      return [...filtered, event].slice(-maximum);
     });
   }, [settings]);
 
@@ -379,6 +378,11 @@ export function EventSidebarOverlayWindow() {
     }
   }, [clearDragSettleTimer, settings.editMode]);
 
+  const displayEvents = useMemo(
+    () => settings.verticalAlignment === "top" ? [...events].reverse() : events,
+    [events, settings.verticalAlignment],
+  );
+
   const feedStyle: CSSProperties = {
     fontFamily: settings.fontFamily,
     fontSize: settings.fontSize,
@@ -396,10 +400,10 @@ export function EventSidebarOverlayWindow() {
       <Feed
         style={feedStyle}
         data-editing={settings.editMode}
-        data-entry-direction={settings.entryDirection}
+        data-vertical-alignment={settings.verticalAlignment}
         aria-live="polite"
       >
-        {events.map((event) => (
+        {displayEvents.map((event) => (
           <SidebarRow
             key={event.id}
             event={event}

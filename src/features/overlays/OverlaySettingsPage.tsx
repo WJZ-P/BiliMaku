@@ -26,6 +26,7 @@ import type {
   OverlaySettings,
   SidebarEntryDirection,
   SidebarOverlaySettings,
+  SidebarVerticalAlignment,
 } from "../../types/overlay";
 
 const Page = styled.div`
@@ -696,6 +697,16 @@ export function OverlaySettingsPage() {
                 <Toggle>鼠标穿透<input type="checkbox" checked={settings.sidebar.clickThrough} onChange={(event) => updateSidebar({ clickThrough: event.target.checked })} /></Toggle>
               </ToggleGrid>
               <Fields>
+                <OverlaySelectField<SidebarVerticalAlignment>
+                  label="播报停靠位置"
+                  hint="默认靠下"
+                  value={settings.sidebar.verticalAlignment}
+                  options={[
+                    { value: "bottom", label: "靠下显示" },
+                    { value: "top", label: "靠上显示" },
+                  ]}
+                  onChange={(verticalAlignment) => updateSidebar({ verticalAlignment })}
+                />
                 <OverlaySelectField<SidebarEntryDirection>
                   label="新消息进入方向"
                   hint="默认从下方"

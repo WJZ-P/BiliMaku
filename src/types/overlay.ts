@@ -3,6 +3,8 @@ import type { LiveEventType } from "./events";
 export type OverlayKind = "danmaku" | "sidebar";
 /** 侧边事件栏中新消息从窗口顶部或底部进入。 */
 export type SidebarEntryDirection = "top" | "bottom";
+/** 侧边事件栏内容在窗口中的纵向停靠位置。 */
+export type SidebarVerticalAlignment = "top" | "bottom";
 
 /** 各类直播事件在悬浮窗中的主题色。 */
 export interface EventColorMap {
@@ -79,6 +81,8 @@ export interface SidebarOverlaySettings {
 
   /** 新消息相对侧边事件栏从顶部或底部进入。 */
   entryDirection: SidebarEntryDirection;
+  /** 播报消息在侧边事件栏中靠上或靠下排列。 */
+  verticalAlignment: SidebarVerticalAlignment;
   /** 窗口宽度。 */
   width: number;
   /** 窗口高度。 */

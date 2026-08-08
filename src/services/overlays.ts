@@ -50,6 +50,7 @@ export const defaultOverlaySettings: OverlaySettings = {
     clickThrough: true,
     editMode: false,
     entryDirection: "bottom",
+    verticalAlignment: "bottom",
     width: 390,
     height: 720,
     enabledEventTypes: ["message", "interaction", "gift", "superchat", "guard"],
