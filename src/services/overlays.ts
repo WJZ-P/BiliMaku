@@ -71,9 +71,9 @@ export const defaultOverlaySettings: OverlaySettings = {
     usernameColor: DEFAULT_USERNAME_COLOR,
     colors: defaultColors,
     backgroundColor: "#0d1d2f",
-    cardOpacity: 0.9,
-    blur: 12,
-    radius: 8,
+    cardOpacity: 0.68,
+    blur: 22,
+    radius: 6,
     slideDistance: 52,
     scrollDurationMs: 720,
     enterDurationMs: 320,
@@ -96,6 +96,10 @@ function mergeSidebarSettings(stored?: LegacySidebarSettings): SidebarOverlaySet
     && stored.slideDistance === 42
     && stored.enterDurationMs === 260
     && stored.exitDurationMs === 360;
+  const usedFlatGlassDefaults = stored.backgroundColor === "#0d1d2f"
+    && stored.cardOpacity === 0.9
+    && stored.blur === 12
+    && stored.radius === 8;
   const current = Object.fromEntries(
     Object.entries(stored).filter(([key]) => (
       Object.prototype.hasOwnProperty.call(defaultOverlaySettings.sidebar, key)
@@ -109,18 +113,21 @@ function mergeSidebarSettings(stored?: LegacySidebarSettings): SidebarOverlaySet
       ...stored.colors,
     },
   };
-  return usedLegacyDefaults
-    ? {
-        ...merged,
-        backgroundColor: defaultOverlaySettings.sidebar.backgroundColor,
-        cardOpacity: defaultOverlaySettings.sidebar.cardOpacity,
-        blur: defaultOverlaySettings.sidebar.blur,
-        radius: defaultOverlaySettings.sidebar.radius,
-        slideDistance: defaultOverlaySettings.sidebar.slideDistance,
-        enterDurationMs: defaultOverlaySettings.sidebar.enterDurationMs,
-        exitDurationMs: defaultOverlaySettings.sidebar.exitDurationMs,
-      }
-    : merged;
+  if (!usedLegacyDefaults && !usedFlatGlassDefaults) return merged;
+  return {
+    ...merged,
+    backgroundColor: defaultOverlaySettings.sidebar.backgroundColor,
+    cardOpacity: defaultOverlaySettings.sidebar.cardOpacity,
+    blur: defaultOverlaySettings.sidebar.blur,
+    radius: defaultOverlaySettings.sidebar.radius,
+    ...(usedLegacyDefaults
+      ? {
+          slideDistance: defaultOverlaySettings.sidebar.slideDistance,
+          enterDurationMs: defaultOverlaySettings.sidebar.enterDurationMs,
+          exitDurationMs: defaultOverlaySettings.sidebar.exitDurationMs,
+        }
+      : {}),
+  };
 }
 
 function normalizeOverlaySettings(parsed: Partial<OverlaySettings>): OverlaySettings {

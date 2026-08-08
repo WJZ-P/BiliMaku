@@ -87,8 +87,10 @@ const RowClip = styled.div`
  */
 const EventRow = styled.article`
   --event-accent: #78f0c0;
-  --row-background: rgba(13, 29, 47, 0.32);
-  --row-blur: 12px;
+  --row-background-strong: rgba(13, 29, 47, 0.24);
+  --row-background-soft: rgba(13, 29, 47, 0.08);
+  --row-glass-highlight: rgba(255, 255, 255, 0.1);
+  --row-blur: 22px;
   --row-radius: 5px;
 
   position: relative;
@@ -101,37 +103,110 @@ const EventRow = styled.article`
   padding: 6px 10px 6px 7px;
   border: 0;
   border-radius: var(--row-radius);
-  background: linear-gradient(
-    90deg,
-    var(--row-background) 0%,
-    color-mix(in srgb, var(--row-background) 76%, transparent) 72%,
-    transparent 100%
-  );
-  box-shadow: 0 5px 18px rgba(1, 10, 22, 0.1);
-  backdrop-filter: blur(var(--row-blur)) saturate(1.08);
+  background:
+    radial-gradient(
+      circle at 8% -35%,
+      var(--row-glass-highlight) 0%,
+      transparent 46%
+    ),
+    linear-gradient(
+      112deg,
+      color-mix(in srgb, var(--row-glass-highlight) 78%, transparent) 0%,
+      color-mix(in srgb, var(--event-accent) 7%, transparent) 42%,
+      transparent 78%
+    ),
+    linear-gradient(
+      90deg,
+      var(--row-background-strong) 0%,
+      var(--row-background-soft) 72%,
+      transparent 100%
+    );
+  box-shadow:
+    0 10px 28px rgba(1, 10, 22, 0.14),
+    0 2px 8px rgba(1, 10, 22, 0.08),
+    inset 0 1px 0 color-mix(in srgb, var(--row-glass-highlight) 88%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--event-accent) 10%, transparent);
+  -webkit-backdrop-filter:
+    blur(var(--row-blur))
+    saturate(1.58)
+    brightness(1.08)
+    contrast(1.05);
+  backdrop-filter:
+    blur(var(--row-blur))
+    saturate(1.58)
+    brightness(1.08)
+    contrast(1.05);
   pointer-events: none;
-  will-change: transform, opacity, filter;
+  will-change: transform, opacity;
+
+  &::before,
+  &::after {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    border-radius: inherit;
+    content: "";
+    pointer-events: none;
+  }
+
+  &::before {
+    background:
+      linear-gradient(
+        104deg,
+        color-mix(in srgb, var(--row-glass-highlight) 92%, transparent),
+        transparent 24%,
+        color-mix(in srgb, var(--event-accent) 8%, transparent) 58%,
+        transparent 84%
+      );
+    opacity: 0.72;
+  }
+
+  &::after {
+    background-image:
+      radial-gradient(circle at 14% 20%, rgba(255, 255, 255, 0.34) 0 0.55px, transparent 0.9px),
+      radial-gradient(circle at 72% 66%, color-mix(in srgb, var(--event-accent) 24%, transparent) 0 0.5px, transparent 0.9px);
+    background-position: 0 0, 2px 3px;
+    background-size: 5px 5px, 7px 7px;
+    mask-image: linear-gradient(90deg, black, rgba(0, 0, 0, 0.45) 62%, transparent 95%);
+    opacity: 0.12;
+  }
 
   &[data-avatar="false"] {
     grid-template-columns: minmax(0, 1fr);
     min-height: 34px;
     padding-left: 9px;
   }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background:
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--row-background-strong) 86%, rgba(255, 255, 255, 0.1)),
+        var(--row-background-soft) 78%,
+        transparent
+      );
+  }
 `;
 
 const Avatar = styled.div`
+  position: relative;
+  z-index: 2;
   display: grid;
   width: 32px;
   height: 32px;
   overflow: hidden;
   place-items: center;
-  border: 0;
+  border: 1px solid color-mix(in srgb, var(--row-glass-highlight) 72%, var(--event-accent));
   border-radius: 50%;
-  background: color-mix(in srgb, var(--event-accent) 32%, rgba(7, 20, 35, 0.82));
+  background: color-mix(in srgb, var(--event-accent) 24%, rgba(7, 20, 35, 0.62));
   color: white;
   font-size: 11px;
   font-weight: 850;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+  box-shadow:
+    0 5px 16px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 color-mix(in srgb, var(--row-glass-highlight) 80%, transparent);
+  -webkit-backdrop-filter: blur(7px) saturate(1.35);
+  backdrop-filter: blur(7px) saturate(1.35);
 
   img {
     width: 100%;
@@ -141,6 +216,8 @@ const Avatar = styled.div`
 `;
 
 const Sentence = styled.div`
+  position: relative;
+  z-index: 2;
   display: -webkit-box;
   overflow: hidden;
   min-width: 0;
@@ -148,6 +225,7 @@ const Sentence = styled.div`
   -webkit-line-clamp: 2;
   line-height: 1.42;
   overflow-wrap: anywhere;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.34);
 `;
 
 const User = styled.strong`
@@ -230,16 +308,14 @@ function SidebarRow({ event, settings, onDone }: SidebarRowProps) {
       [
         {
           opacity: 0,
-          filter: "blur(6px)",
           transform: `translate3d(0, ${entryOffsetY}px, 0) scale(.975)`,
         },
         {
           opacity: 1,
-          filter: "blur(0)",
           offset: 0.74,
           transform: `translate3d(0, ${-Math.sign(entryOffsetY) * 3}px, 0) scale(1.006)`,
         },
-        { opacity: 1, filter: "blur(0)", transform: "translate3d(0, 0, 0) scale(1)" },
+        { opacity: 1, transform: "translate3d(0, 0, 0) scale(1)" },
       ],
       {
         duration: enterDuration,
@@ -258,10 +334,9 @@ function SidebarRow({ event, settings, onDone }: SidebarRowProps) {
     const timer = window.setTimeout(() => {
       exit = element.animate(
         [
-          { opacity: 1, filter: "blur(0)", transform: "translate3d(0, 0, 0) scale(1)" },
+          { opacity: 1, transform: "translate3d(0, 0, 0) scale(1)" },
           {
             opacity: 0,
-            filter: "blur(4px)",
             transform: `translate3d(0, ${-Math.sign(entryOffsetY) * 8}px, 0) scale(.985)`,
           },
         ],
@@ -308,10 +383,18 @@ function SidebarRow({ event, settings, onDone }: SidebarRowProps) {
     color: settings.textColor,
     "--event-accent": accent,
     "--username-color": settings.usernameColor,
-    "--row-background": hexToRgba(
+    "--row-background-strong": hexToRgba(
       settings.backgroundColor,
-      Math.min(0.46, settings.cardOpacity * 0.46),
+      Math.min(0.4, settings.cardOpacity * 0.36),
     ),
+    "--row-background-soft": hexToRgba(
+      settings.backgroundColor,
+      Math.min(0.18, settings.cardOpacity * 0.14),
+    ),
+    "--row-glass-highlight": `rgba(255, 255, 255, ${Math.min(
+      0.18,
+      settings.cardOpacity * 0.15,
+    )})`,
     "--row-blur": `${settings.blur}px`,
     "--row-radius": `${Math.min(settings.radius, 6)}px`,
   } as CSSProperties;
