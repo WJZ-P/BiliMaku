@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "id": "bilicast-command-smoke-test",
-  "name": "BiliCast 命令适配器测试音",
+  "id": "bilimaku-command-smoke-test",
+  "name": "bilimaku 命令适配器测试音",
   "description": "使用 Python 标准库生成短 WAV，用于验证自定义 TTS 导入与播放链路。",
   "version": "1.0.0",
-  "author": "BiliCast",
+  "author": "bilimaku",
   "runtime": {
     "type": "command",
     "program": "python",

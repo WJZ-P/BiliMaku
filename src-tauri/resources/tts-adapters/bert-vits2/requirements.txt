@@ -1,0 +1,15 @@
+# Install torch separately from the PyTorch CUDA or CPU wheel index selected by
+# bilimaku's environment guide.
+# Bert-VITS2 uses the stable AutoTokenizer/AutoModelForMaskedLM API. Keep the
+# runtime on Transformers 4.x so a future major release cannot silently break
+# an already imported voice package.
+transformers>=4.45,<5
+huggingface_hub>=0.34,<1
+numpy
+cn2an
+jieba
+numba
+pypinyin
+requests
+scipy
+tqdm

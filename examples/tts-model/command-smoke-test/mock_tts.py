@@ -1,4 +1,4 @@
-"""Generate a tiny WAV so BiliCast's command adapter can be tested without dependencies."""
+"""Generate a tiny WAV so bilimaku's command adapter can be tested without dependencies."""
 
 from __future__ import annotations
 

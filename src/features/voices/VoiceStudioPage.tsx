@@ -11,16 +11,28 @@ import {
   SubtleButton,
 } from "../../components/ui";
 import {
+  chooseAndRegisterChineseBert,
   chooseAndImportTtsModel,
   defaultTtsSettings,
+  getTtsPreloadStatus,
+  inspectTtsEnvironment,
+  listenToTtsPreloadStatus,
   listTtsModels,
   loadTtsSettings,
+  preloadTtsModel,
   removeTtsModel,
   saveTtsSettings,
 } from "../../services/tts";
 import { cancelSpeech, previewSpeech } from "../../services/ttsPlayback";
 import { theme } from "../../styles/theme";
-import type { InstalledTtsModel, TtsSettings } from "../../types/tts";
+import type {
+  InstalledTtsModel,
+  TtsEnvironmentReport,
+  TtsEnvironmentState,
+  TtsPreloadStatus,
+  TtsPreparationResult,
+  TtsSettings,
+} from "../../types/tts";
 
 const Page = styled.div`
   display: grid;
@@ -325,18 +337,161 @@ const Notice = styled.div`
   }
 `;
 
+const EnvironmentCard = styled.section`
+  display: grid;
+  gap: 11px;
+  padding: 13px;
+  border: 1px solid ${theme.colors.border};
+  border-radius: ${theme.radius.sm};
+  background: ${theme.colors.surfaceMuted};
+`;
+
+const EnvironmentHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+`;
+
+const EnvironmentTitle = styled.div`
+  color: ${theme.colors.textPrimary};
+  font-size: 10px;
+  font-weight: 800;
+`;
+
+const EnvironmentSummary = styled.div`
+  margin-top: 4px;
+  color: ${theme.colors.textMuted};
+  font-size: 8px;
+  line-height: 1.55;
+`;
+
+const EnvironmentBadge = styled.span`
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border-radius: ${theme.radius.pill};
+  background: ${theme.colors.warningSoft};
+  color: ${theme.colors.warning};
+  font-size: 8px;
+  font-weight: 800;
+
+  &[data-ready="true"] {
+    background: ${theme.colors.successSoft};
+    color: ${theme.colors.success};
+  }
+`;
+
+const EnvironmentChecks = styled.div`
+  display: grid;
+  gap: 7px;
+`;
+
+const EnvironmentCheckRow = styled.div`
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  gap: 8px;
+  padding-top: 7px;
+  border-top: 1px solid ${theme.colors.border};
+`;
+
+const CheckDot = styled.span`
+  width: 7px;
+  height: 7px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: ${theme.colors.warning};
+
+  &[data-state="ready"] {
+    background: ${theme.colors.success};
+  }
+
+  &[data-state="missing"] {
+    background: ${theme.colors.danger};
+  }
+`;
+
+const CheckName = styled.div`
+  color: ${theme.colors.textSecondary};
+  font-size: 8px;
+  font-weight: 800;
+`;
+
+const CheckDetail = styled.div`
+  overflow-wrap: anywhere;
+  margin-top: 2px;
+  color: ${theme.colors.textMuted};
+  font-size: 8px;
+  line-height: 1.5;
+`;
+
+const CheckGuide = styled.div`
+  margin-top: 3px;
+  color: ${theme.colors.warning};
+  font-size: 8px;
+  line-height: 1.5;
+
+  a {
+    margin-left: 5px;
+    color: ${theme.colors.brand};
+    font-weight: 750;
+  }
+`;
+
+const SetupCommands = styled.div`
+  display: grid;
+  gap: 5px;
+`;
+
+const SetupCommand = styled.button`
+  overflow: hidden;
+  padding: 7px 8px;
+  border: 1px solid ${theme.colors.border};
+  border-radius: ${theme.radius.xs};
+  background: ${theme.colors.surface};
+  color: ${theme.colors.textSecondary};
+  font: 7px/1.45 ${theme.typography.mono};
+  text-align: left;
+  text-overflow: ellipsis;
+
+  &:hover {
+    border-color: ${theme.colors.brand};
+  }
+`;
+
+const EnvironmentActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+`;
+
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function runtimeLabel(model: InstalledTtsModel) {
+  if (model.runtime.type === "builtin") {
+    return model.runtime.adapter.toUpperCase();
+  }
+  return model.runtime.type.toUpperCase();
+}
+
+function checkStateLabel(state: TtsEnvironmentState) {
+  if (state === "ready") return "就绪";
+  if (state === "missing") return "待配置";
+  return "提示";
 }
 
 export function VoiceStudioPage() {
   const [models, setModels] = useState<InstalledTtsModel[]>([]);
   const [settings, setSettings] = useState<TtsSettings>(() => loadTtsSettings());
   const [systemVoices, setSystemVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [testText, setTestText] = useState("欢迎使用 BiliCast 自定义语音模型，今天也要开心直播喵！");
+  const [testText, setTestText] = useState("欢迎使用 bilimaku 自定义语音模型，今天也要开心直播喵！");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [success, setSuccess] = useState(false);
+  const [environment, setEnvironment] = useState<TtsEnvironmentReport | null>(null);
+  const [checkingEnvironment, setCheckingEnvironment] = useState(false);
+  const [preloadStatus, setPreloadStatus] = useState<TtsPreloadStatus | null>(null);
 
   const refreshModels = async () => {
     setModels(await listTtsModels());
@@ -361,6 +516,100 @@ export function VoiceStudioPage() {
     () => models.find((model) => model.id === settings.modelId) ?? null,
     [models, settings.modelId],
   );
+  const selectedPreloadStatus = preloadStatus?.modelId === settings.modelId
+    ? preloadStatus
+    : null;
+  const preparation: TtsPreparationResult | null = selectedPreloadStatus?.result ?? null;
+  const preparingModel = selectedPreloadStatus?.phase === "queued"
+    || selectedPreloadStatus?.phase === "loading";
+
+  useEffect(() => {
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    const applyStatus = (status: TtsPreloadStatus) => {
+      if (!active) return;
+      setPreloadStatus(status);
+      if (status.phase === "error") {
+        setSuccess(false);
+        setNotice(status.message);
+      }
+    };
+    void listenToTtsPreloadStatus(applyStatus).then((stop) => {
+      if (active) unlisten = stop;
+      else stop();
+    });
+    void getTtsPreloadStatus().then((status) => {
+      if (status) applyStatus(status);
+    });
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, []);
+
+  const refreshEnvironment = async (modelId: string) => {
+    setCheckingEnvironment(true);
+    try {
+      const report = await inspectTtsEnvironment(modelId, true);
+      setEnvironment(report);
+    } catch (error) {
+      setEnvironment(null);
+      setSuccess(false);
+      setNotice(errorText(error));
+    } finally {
+      setCheckingEnvironment(false);
+    }
+  };
+
+  useEffect(() => {
+    if (settings.provider !== "custom" || !settings.modelId) {
+      setEnvironment(null);
+      setCheckingEnvironment(false);
+      return;
+    }
+    let active = true;
+    setCheckingEnvironment(true);
+    void inspectTtsEnvironment(settings.modelId)
+      .then((report) => {
+        if (active) setEnvironment(report);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setEnvironment(null);
+        setSuccess(false);
+        setNotice(errorText(error));
+      })
+      .finally(() => {
+        if (active) setCheckingEnvironment(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [settings.modelId, settings.provider]);
+
+  useEffect(() => {
+    if (
+      settings.provider !== "custom" ||
+      !settings.modelId ||
+      !environment?.ready ||
+      environment.modelId !== settings.modelId
+    ) {
+      return;
+    }
+    let active = true;
+    void preloadTtsModel(settings.modelId)
+      .then((status) => {
+        if (active) setPreloadStatus(status);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setSuccess(false);
+        setNotice(errorText(error));
+      });
+    return () => {
+      active = false;
+    };
+  }, [environment, settings.modelId, settings.provider]);
 
   const updateSettings = (patch: Partial<TtsSettings>) => {
     const next = { ...settings, ...patch };
@@ -381,7 +630,26 @@ export function VoiceStudioPage() {
         voiceId: model.defaultVoice || model.voices[0]?.id || "",
       });
       setSuccess(true);
-      setNotice(`已导入 ${model.name}，可以直接试听`);
+      setNotice(`已识别并导入 ${model.name}，共发现 ${model.voices.length} 个音色`);
+    } catch (error) {
+      setSuccess(false);
+      setNotice(errorText(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const registerChineseBert = async () => {
+    setBusy(true);
+    setNotice("");
+    try {
+      const path = await chooseAndRegisterChineseBert();
+      if (!path) return;
+      setSuccess(true);
+      setNotice(`Chinese BERT 已登记：${path}`);
+      if (settings.modelId) {
+        await refreshEnvironment(settings.modelId);
+      }
     } catch (error) {
       setSuccess(false);
       setNotice(errorText(error));
@@ -431,14 +699,13 @@ export function VoiceStudioPage() {
           <IntroKicker>TTS MODEL STUDIO</IntroKicker>
           <IntroTitle>把喜欢的声音，接进统一播报队列</IntroTitle>
           <IntroDescription>
-            模型目录通过 bilicast-tts.json 描述运行方式。命令适配器适合 CosyVoice、
-            GPT-SoVITS 与 ModelScope Python 项目，HTTP 适配器可连接本机 OpenAI
-            兼容语音服务；模型权重始终留在你选择的目录。
+            直接选择原始模型目录，bilimaku 会检查配置、权重与音色映射，并交给匹配的内置适配器。
+            模型目录保持原样；当前已接入 Bert-VITS2 自动识别，后续架构只需扩展应用侧适配器。
           </IntroDescription>
           <IntroActions>
             <PrimaryButton type="button" onClick={() => void importModel()} disabled={busy}>
               <Icon name="sparkles" size={15} />
-              {busy ? "处理中…" : "导入 TTS 模型包"}
+              {busy ? "识别中…" : "识别 TTS 模型目录"}
             </PrimaryButton>
             <SubtleButton type="button" onClick={() => void refreshModels()}>
               刷新登记
@@ -493,7 +760,7 @@ export function VoiceStudioPage() {
                     <EngineName>{model.name}</EngineName>
                     <EngineDescription>{model.description || model.modelDir}</EngineDescription>
                   </div>
-                  <RuntimeBadge>{model.runtime.type.toUpperCase()}</RuntimeBadge>
+                  <RuntimeBadge>{runtimeLabel(model)}</RuntimeBadge>
                 </EngineCard>
                 <ModelMeta>
                   <span>{model.version || "未标版本"}</span>
@@ -508,8 +775,8 @@ export function VoiceStudioPage() {
 
             {models.length === 0 ? (
               <EmptyModels>
-                暂无自定义模型。准备模型目录与 bilicast-tts.json 后点击“导入 TTS 模型包”。
-                完整清单格式位于 docs/tts-model-package.md。
+                暂无自定义模型。选择模型原始目录即可，bilimaku 会自动探测架构并读取音色，
+                无需往模型目录添加专用清单。
               </EmptyModels>
             ) : null}
           </EngineBody>
@@ -560,6 +827,104 @@ export function VoiceStudioPage() {
               </Field>
             )}
 
+            {settings.provider === "custom" && selectedModel ? (
+              <EnvironmentCard>
+                <EnvironmentHeader>
+                  <div>
+                    <EnvironmentTitle>TTS 运行环境</EnvironmentTitle>
+                    <EnvironmentSummary>
+                      {checkingEnvironment
+                        ? "Rust 后端正在检查 Python、推理依赖、BERT 与计算设备…"
+                        : preparingModel
+                          ? "环境检查通过，正在把 BERT 与音色模型预热到显存…"
+                          : selectedPreloadStatus?.phase === "error"
+                            ? selectedPreloadStatus.message
+                            : preparation?.ready
+                              ? `${preparation.gpu || preparation.device} 已驻留显存 · ${preparation.gpuMemoryMb} MiB · 预热 ${(preparation.loadMs / 1000).toFixed(1)} 秒`
+                              : environment?.cached
+                                ? `${environment.summary} · 已复用上次检查结果`
+                                : environment?.summary || "等待环境检查"}
+                    </EnvironmentSummary>
+                  </div>
+                  <div>
+                    <EnvironmentBadge
+                      data-ready={environment?.ready === true && selectedPreloadStatus?.phase !== "error"}
+                    >
+                      {checkingEnvironment
+                        ? "CHECKING"
+                        : preparingModel
+                          ? "WARMING"
+                          : selectedPreloadStatus?.phase === "error"
+                            ? "FAILED"
+                            : preparation?.ready
+                              ? "GPU READY"
+                              : environment?.ready
+                                ? "READY"
+                                : "SETUP"}
+                    </EnvironmentBadge>
+                  </div>
+                </EnvironmentHeader>
+
+                {environment ? (
+                  <EnvironmentChecks>
+                    {environment.checks.map((check) => (
+                      <EnvironmentCheckRow key={check.id}>
+                        <CheckDot data-state={check.state} />
+                        <div>
+                          <CheckName>
+                            {check.label} · {checkStateLabel(check.state)}
+                          </CheckName>
+                          <CheckDetail>{check.detail}</CheckDetail>
+                          {check.guide || check.downloadUrl ? (
+                            <CheckGuide>
+                              {check.guide}
+                              {check.downloadUrl ? (
+                                <a href={check.downloadUrl} target="_blank" rel="noreferrer">
+                                  查看下载页
+                                </a>
+                              ) : null}
+                            </CheckGuide>
+                          ) : null}
+                        </div>
+                      </EnvironmentCheckRow>
+                    ))}
+                  </EnvironmentChecks>
+                ) : null}
+
+                {environment?.setupCommands.length ? (
+                  <SetupCommands>
+                    {environment.setupCommands.map((command) => (
+                      <SetupCommand
+                        key={command}
+                        type="button"
+                        data-tooltip="点击复制命令"
+                        onClick={() => void navigator.clipboard.writeText(command)}
+                      >
+                        {command}
+                      </SetupCommand>
+                    ))}
+                  </SetupCommands>
+                ) : null}
+
+                <EnvironmentActions>
+                  <SubtleButton
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void registerChineseBert()}
+                  >
+                    选择已有 Chinese BERT
+                  </SubtleButton>
+                  <SubtleButton
+                    type="button"
+                    disabled={checkingEnvironment}
+                    onClick={() => void refreshEnvironment(selectedModel.id)}
+                  >
+                    {checkingEnvironment ? "检查中…" : "重新检查环境"}
+                  </SubtleButton>
+                </EnvironmentActions>
+              </EnvironmentCard>
+            ) : null}
+
             <Field>
               <FieldTop>语速 <FieldValue>{settings.rate.toFixed(2)}×</FieldValue></FieldTop>
               <Range
@@ -598,15 +963,26 @@ export function VoiceStudioPage() {
           <PanelHeader>
             <PanelHeading>
               <PanelTitle>实时试听</PanelTitle>
-              <PanelDescription>自定义模型会通过 Rust 调用清单中的本地运行时</PanelDescription>
+              <PanelDescription>自定义模型由 Rust 调用 bilimaku 内置的架构适配器</PanelDescription>
             </PanelHeading>
             <EyebrowBadge>PREVIEW</EyebrowBadge>
           </PanelHeader>
           <PreviewBody>
             <TextArea value={testText} onChange={(event) => setTestText(event.target.value)} />
             <PreviewActions>
-              <PrimaryButton type="button" onClick={() => void preview()} disabled={busy || !testText.trim()}>
-                <Icon name="play" size={14} />试听
+              <PrimaryButton
+                type="button"
+                onClick={() => void preview()}
+                disabled={
+                  busy ||
+                  preparingModel ||
+                  !testText.trim() ||
+                  (settings.provider === "custom" &&
+                    (checkingEnvironment || environment?.ready !== true))
+                }
+              >
+                <Icon name="play" size={14} />
+                {preparingModel ? "模型预热中…" : "试听"}
               </PrimaryButton>
               <SubtleButton type="button" onClick={cancelSpeech}>停止</SubtleButton>
             </PreviewActions>
