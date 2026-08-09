@@ -112,10 +112,12 @@ export const theme = {
     titleBarControlIconSizePx: 14,
   },
   titleBar: {
-    /** 账号头像图片的实际宽高。 */
+    /** 标题栏账号头像的实际宽高。 */
     avatarSizePx: 48,
-    /** 头像经验环的外框宽高。 */
-    avatarFrameSizePx: 56,
+    /** 头像悬浮资料卡宽度。 */
+    profileTooltipWidthPx: 360,
+    /** 头像悬浮资料卡内的大头像宽高。 */
+    profileTooltipAvatarSizePx: 68,
     /** 顶部实时统计格高度。 */
     metricHeightPx: 42,
     /** 顶部实时统计格最小宽度。 */

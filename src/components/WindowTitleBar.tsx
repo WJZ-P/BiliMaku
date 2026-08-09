@@ -2,6 +2,7 @@ import { styled } from "@linaria/react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { AccountProfileTooltip } from "./AccountProfileTooltip";
 import { Icon } from "./Icon";
 import {
   isDesktopRuntime,
@@ -66,87 +67,6 @@ const DragRegion = styled.div`
   overflow: hidden;
 `;
 
-const AvatarExperience = styled.div`
-  position: relative;
-  display: grid;
-  width: ${theme.titleBar.avatarFrameSizePx}px;
-  height: ${theme.layout.titleBarHeight};
-  flex: 0 0 ${theme.titleBar.avatarFrameSizePx}px;
-  place-items: center;
-`;
-const ExperienceSvg = styled.svg`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: ${theme.titleBar.avatarFrameSizePx}px;
-  height: ${theme.titleBar.avatarFrameSizePx}px;
-  transform: translate(-50%, -50%);
-  overflow: visible;
-  filter: drop-shadow(0 4px 9px color-mix(in srgb, ${theme.colors.brand} 24%, transparent));
-`;
-const ExperienceTrack = styled.circle`
-  fill: color-mix(in srgb, ${theme.colors.surface} 88%, transparent);
-  stroke: color-mix(in srgb, ${theme.colors.borderStrong} 78%, transparent);
-  stroke-width: 3;
-`;
-
-const ExperienceProgress = styled.circle`
-  fill: none;
-  stroke: ${theme.colors.brand};
-  stroke-linecap: round;
-  stroke-width: 3;
-  transform: rotate(-90deg);
-  transform-origin: ${theme.titleBar.avatarFrameSizePx / 2}px ${theme.titleBar.avatarFrameSizePx / 2}px;
-  transition: stroke-dashoffset ${theme.motion.spring};
-`;
-
-const AvatarImage = styled.img`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: ${theme.titleBar.avatarSizePx}px;
-  height: ${theme.titleBar.avatarSizePx}px;
-  transform: translate(-50%, -50%);
-  border: 2px solid color-mix(in srgb, ${theme.colors.surface} 94%, transparent);
-  border-radius: 50%;
-  background: ${theme.colors.brandSoft};
-  object-fit: cover;
-`;
-const AvatarFallback = styled.span`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: grid;
-  width: ${theme.titleBar.avatarSizePx}px;
-  height: ${theme.titleBar.avatarSizePx}px;
-  transform: translate(-50%, -50%);
-  place-items: center;
-  border: 2px solid color-mix(in srgb, ${theme.colors.surface} 94%, transparent);
-  border-radius: 50%;
-  background: ${theme.gradients.brand};
-  color: ${theme.colors.textOnBrand};
-  font-size: 18px;
-  font-weight: 850;
-`;
-const LevelBadge = styled.span`
-  position: absolute;
-  z-index: 2;
-  bottom: 0;
-  left: 50%;
-  min-width: 32px;
-  height: 16px;
-  padding: 0 5px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.surface} 92%, transparent);
-  border-radius: ${theme.radius.pill};
-  background: ${theme.gradients.brand};
-  box-shadow: 0 3px 8px color-mix(in srgb, ${theme.colors.brandDeep} 27%, transparent);
-  color: ${theme.colors.textOnBrand};
-  font-size: 9px;
-  font-weight: 900;
-  line-height: 14px;
-  text-align: center;
-  transform: translateX(-50%);
-`;
 const AvatarDivider = styled.span`
   width: 1px;
   height: 44px;
@@ -372,9 +292,6 @@ const ControlButton = styled.button`
   }
 `;
 
-const LEVEL_RING_CENTER = theme.titleBar.avatarFrameSizePx / 2;
-const LEVEL_RING_RADIUS = theme.titleBar.avatarFrameSizePx / 2 - 2;
-const LEVEL_RING_CIRCUMFERENCE = 2 * Math.PI * LEVEL_RING_RADIUS;
 
 interface TitleBarLiveStats {
   /** 当前统计所属的本地长连接会话。 */
@@ -426,24 +343,6 @@ const coinNumber = new Intl.NumberFormat("zh-CN", {
   maximumFractionDigits: 1,
 });
 
-function levelProgress(profile: AccountProfile) {
-  if (profile.nextExp === null) {
-    return profile.level >= 6 ? 1 : 0;
-  }
-  const levelSpan = profile.nextExp - profile.currentMinExp;
-  if (levelSpan <= 0) return 0;
-  return Math.min(
-    1,
-    Math.max(0, (profile.currentExp - profile.currentMinExp) / levelSpan),
-  );
-}
-
-function levelDescription(profile: AccountProfile) {
-  if (profile.level >= 6 && profile.nextExp === null) {
-    return `${profile.username} · LV${profile.level} · 当前已满级`;
-  }
-  return `${profile.username} · LV${profile.level} · ${profile.currentExp.toLocaleString("zh-CN")} / ${profile.nextExp?.toLocaleString("zh-CN") ?? "--"} 经验`;
-}
 
 function formatLiveCount(value: number | null) {
   return value === null ? "--" : compactNumber.format(value);
@@ -565,7 +464,6 @@ export function WindowTitleBar({
     void appWindow.startDragging();
   };
 
-  const progress = profile ? levelProgress(profile) : 0;
   const displayedLikeCount =
     liveStats.likeCount ??
     (liveStats.observedLikeCount > 0 ? liveStats.observedLikeCount : null);
@@ -584,42 +482,12 @@ export function WindowTitleBar({
     <Bar data-compact={compact} data-tauri-drag-region onMouseDown={drag}>
       <DragRegion data-tauri-drag-region>
         {!compact && profile ? (
-          <AvatarExperience
-            data-tauri-drag-region
-            data-tooltip={levelDescription(profile)}
-            aria-label={levelDescription(profile)}
-          >
-            <ExperienceSvg
-              viewBox={`0 0 ${theme.titleBar.avatarFrameSizePx} ${theme.titleBar.avatarFrameSizePx}`}
-              aria-hidden="true"
-            >
-              <ExperienceTrack
-                cx={LEVEL_RING_CENTER}
-                cy={LEVEL_RING_CENTER}
-                r={LEVEL_RING_RADIUS}
-              />
-              <ExperienceProgress
-                cx={LEVEL_RING_CENTER}
-                cy={LEVEL_RING_CENTER}
-                r={LEVEL_RING_RADIUS}
-                strokeDasharray={LEVEL_RING_CIRCUMFERENCE}
-                strokeDashoffset={LEVEL_RING_CIRCUMFERENCE * (1 - progress)}
-              />
-            </ExperienceSvg>
-            {profile.avatar ? (
-              <AvatarImage
-                src={profile.avatar}
-                alt={`${profile.username} 的头像`}
-                referrerPolicy="no-referrer"
-                draggable={false}
-              />
-            ) : (
-              <AvatarFallback aria-hidden="true">
-                {profile.username.trim().slice(0, 1) || "B"}
-              </AvatarFallback>
-            )}
-            <LevelBadge>LV{profile.level}</LevelBadge>
-          </AvatarExperience>
+          <AccountProfileTooltip
+            profile={profile}
+            roomId={liveStats.roomId}
+            watchedCount={liveStats.watchedCount}
+            likeCount={displayedLikeCount}
+          />
         ) : null}
         {!compact && profile ? (
           <SummaryRail aria-label="账号与本场直播数据摘要">
