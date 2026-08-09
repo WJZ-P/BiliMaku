@@ -1,6 +1,7 @@
 import { styled } from "@linaria/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { CardDanmakuParticles } from "../../components/CardDanmakuParticles";
 import { Icon } from "../../components/Icon";
 import { PanelDescription, PanelHeader, PanelHeading, PanelTitle } from "../../components/ui";
 import {
@@ -37,20 +38,28 @@ const SettingsPanel = styled.section`
   overflow: hidden;
   border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 86%, transparent);
   border-radius: 6px;
+  background: color-mix(in srgb, ${theme.colors.surface} 15%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 72%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.textMuted} 9%, transparent);
+`;
+
+/** 位于弹幕 Canvas 上方的真实玻璃表层。 */
+const SettingsPanelSurface = styled.div`
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
   background:
     linear-gradient(
       132deg,
-      color-mix(in srgb, ${theme.colors.highlight} 16%, transparent),
-      transparent 38%
+      color-mix(in srgb, ${theme.colors.highlight} 14%, transparent),
+      transparent 42%
     ),
     color-mix(
       in srgb,
       ${theme.colors.surface} ${theme.frostedGlass.surfaceMix},
       transparent
     );
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 68%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.textMuted} 9%, transparent);
   -webkit-backdrop-filter: blur(${theme.frostedGlass.blur})
     saturate(${theme.frostedGlass.saturation})
     brightness(${theme.frostedGlass.brightness})
@@ -62,7 +71,7 @@ const SettingsPanel = styled.section`
 
   &::before {
     position: absolute;
-    z-index: -1;
+    z-index: 0;
     inset: 0;
     background-image: url("/textures/frosted-noise.svg");
     background-size: 96px 96px;
@@ -70,6 +79,15 @@ const SettingsPanel = styled.section`
     mix-blend-mode: soft-light;
     opacity: ${theme.frostedGlass.noiseOpacity};
     pointer-events: none;
+  }
+
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background: color-mix(in srgb, ${theme.colors.surface} 84%, ${theme.colors.canvasAccent});
   }
 `;
 
@@ -259,7 +277,14 @@ const ThemeOption = styled.div`
   padding: 13px;
   border: 1px solid color-mix(in srgb, ${theme.colors.brand} 27%, ${theme.colors.border});
   border-radius: 5px;
-  background: color-mix(in srgb, ${theme.colors.brandSubtle} 62%, transparent);
+  background: linear-gradient(
+    122deg,
+    color-mix(in srgb, ${theme.colors.surface} 34%, transparent),
+    color-mix(in srgb, ${theme.colors.brandSubtle} 24%, transparent)
+  );
+  -webkit-backdrop-filter: blur(10px) saturate(1.3) brightness(1.025);
+  backdrop-filter: blur(10px) saturate(1.3) brightness(1.025);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 62%, transparent);
 `;
 
 const BubbleColorOption = styled.div`
@@ -270,7 +295,10 @@ const BubbleColorOption = styled.div`
   padding: 13px;
   border: 1px solid ${theme.colors.border};
   border-radius: 5px;
-  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 70%, transparent);
+  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 34%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(1.3) brightness(1.025);
+  backdrop-filter: blur(10px) saturate(1.3) brightness(1.025);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 58%, transparent);
 `;
 
 const BubblePreview = styled.div`
@@ -325,7 +353,10 @@ const MessageLimitOption = styled.div`
   padding: 13px;
   border: 1px solid ${theme.colors.border};
   border-radius: 5px;
-  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 70%, transparent);
+  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 34%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(1.3) brightness(1.025);
+  backdrop-filter: blur(10px) saturate(1.3) brightness(1.025);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 58%, transparent);
 `;
 
 const MessageLimitField = styled.label`
@@ -412,7 +443,10 @@ const Detail = styled.div`
   padding: 11px 12px;
   border: 1px solid ${theme.colors.border};
   border-radius: 4px;
-  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 64%, transparent);
+  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 30%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(1.28) brightness(1.025);
+  backdrop-filter: blur(10px) saturate(1.28) brightness(1.025);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 52%, transparent);
   color: ${theme.colors.textMuted};
   font-size: 9px;
   line-height: 1.65;
@@ -565,7 +599,9 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
     <Page>
       <Grid>
         <SettingsPanel>
-          <PanelHeader>
+          <CardDanmakuParticles seed={0x41434354} />
+          <SettingsPanelSurface>
+            <PanelHeader>
             <PanelHeading>
               <PanelTitle>账号与记录</PanelTitle>
               <PanelDescription>
@@ -614,11 +650,14 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
               {busy ? "正在退出…" : "退出登录"}
             </LogoutButton>
           </AccountBody>
-          {error ? <ErrorMessage>{error}</ErrorMessage> : null}
+            {error ? <ErrorMessage>{error}</ErrorMessage> : null}
+          </SettingsPanelSurface>
         </SettingsPanel>
 
         <SettingsPanel>
-          <PanelHeader>
+          <CardDanmakuParticles seed={0x53455454} />
+          <SettingsPanelSurface>
+            <PanelHeader>
             <PanelHeading>
               <PanelTitle>界面与消息</PanelTitle>
               <PanelDescription>主题外观与聊天缓存</PanelDescription>
@@ -685,7 +724,8 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
             {appearanceError ? <ErrorMessage>{appearanceError}</ErrorMessage> : null}
             {messageSettingsError ? <ErrorMessage>{messageSettingsError}</ErrorMessage> : null}
             <Detail>配置文件：{configPath || "正在读取…"}</Detail>
-          </ThemeBody>
+            </ThemeBody>
+          </SettingsPanelSurface>
         </SettingsPanel>
       </Grid>
     </Page>
