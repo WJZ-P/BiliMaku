@@ -1,18 +1,8 @@
 import { styled } from "@linaria/react";
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "../../components/Icon";
-import {
-  EyebrowBadge,
-  Panel,
-  PanelDescription,
-  PanelHeader,
-  PanelHeading,
-  PanelTitle,
-  SubtleButton,
-} from "../../components/ui";
+import { OverlayCardParticles } from "./OverlayCardParticles";
 import {
   closeOverlay,
-  defaultOverlaySettings,
   loadOverlaySettings,
   openOverlay,
   previewOverlayEvent,
@@ -31,100 +21,130 @@ import type {
 
 const Page = styled.div`
   display: grid;
-  gap: 16px;
-  padding: 4px 30px 30px;
-`;
+  gap: 18px;
+  padding: 12px 24px 30px;
 
-const Intro = styled.section`
-  position: relative;
-  overflow: hidden;
-  padding: 28px 30px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.radius.xl};
-  background: ${theme.gradients.soft};
-  box-shadow: ${theme.shadows.card}, ${theme.shadows.inset};
-`;
-
-const IntroKicker = styled.div`
-  color: ${theme.colors.brand};
-  font-size: 9px;
-  font-weight: 850;
-  letter-spacing: 0.16em;
-`;
-
-const IntroTitle = styled.h2`
-  max-width: 800px;
-  margin: 7px 0 10px;
-  color: ${theme.colors.textPrimary};
-  font-size: clamp(25px, 3vw, 37px);
-  font-weight: 850;
-  letter-spacing: -0.05em;
-`;
-
-const IntroDescription = styled.p`
-  max-width: 780px;
-  margin: 0;
-  color: ${theme.colors.textSecondary};
-  font-size: 11px;
-  line-height: 1.75;
-`;
-
-const IntroActions = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
-  margin-top: 20px;
-`;
-
-const PrimaryButton = styled.button`
-  display: inline-flex;
-  min-height: 38px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 15px;
-  border: 0;
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.brand};
-  color: ${theme.colors.textOnBrand};
-  font-size: 10px;
-  font-weight: 800;
-  box-shadow: 0 9px 22px color-mix(in srgb, ${theme.colors.brand} 24%, transparent);
+  @media (max-width: 700px) {
+    padding: 10px 12px 24px;
+  }
 `;
 
 const Grid = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  align-items: start;
+  gap: 24px;
 
   @media (max-width: 1180px) {
     grid-template-columns: 1fr;
   }
 `;
 
-const Body = styled.div`
+const OverlayModule = styled.section`
   display: grid;
-  gap: 17px;
-  padding: 18px 20px 22px;
+  min-width: 0;
+  gap: 9px;
+`;
+
+const ModuleTitle = styled.h2`
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  padding: 0 2px;
+  color: ${theme.colors.textPrimary};
+  font-size: 19px;
+  font-weight: 880;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+
+  &::before {
+    width: 3px;
+    height: 19px;
+    flex: 0 0 3px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, ${theme.colors.cyan}, ${theme.colors.brand});
+    box-shadow: 0 0 10px color-mix(in srgb, ${theme.colors.brand} 28%, transparent);
+    content: "";
+  }
+`;
+
+const OverlayCard = styled.div`
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 74%, transparent);
+  border-radius: 4px;
+  background:
+    linear-gradient(
+      138deg,
+      color-mix(in srgb, ${theme.colors.surface} 54%, transparent),
+      color-mix(in srgb, ${theme.colors.brandSubtle} 27%, transparent) 52%,
+      color-mix(in srgb, ${theme.colors.surface} 38%, transparent)
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 78%, transparent),
+    inset 1px 0 0 color-mix(in srgb, ${theme.colors.highlight} 34%, transparent),
+    0 12px 30px color-mix(in srgb, ${theme.colors.brandDeep} 7%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.34) brightness(1.025);
+  backdrop-filter: blur(22px) saturate(1.34) brightness(1.025);
+
+  &::before {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    background-image: url("/textures/frosted-noise.svg");
+    background-size: 96px 96px;
+    content: "";
+    mix-blend-mode: soft-light;
+    opacity: 0.035;
+    pointer-events: none;
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background: color-mix(in srgb, ${theme.colors.surface} 88%, ${theme.colors.canvasAccent});
+  }
+`;
+
+const Body = styled.div`
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 18px;
+  padding: 18px 20px 21px;
+
+  @media (max-width: 700px) {
+    padding: 15px 13px 18px;
+  }
 `;
 
 const Section = styled.section`
   display: grid;
   gap: 11px;
   padding-top: 4px;
+
+  & + & {
+    padding-top: 17px;
+    border-top: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 56%, transparent);
+  }
 `;
 
 const SectionTitle = styled.h3`
   margin: 0;
   color: ${theme.colors.textPrimary};
-  font-size: 10px;
-  font-weight: 820;
+  font-size: 11px;
+  font-weight: 840;
+  letter-spacing: 0.015em;
 `;
 
 const Fields = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 11px;
+
+  @media (max-width: 620px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const Field = styled.label`
@@ -153,23 +173,76 @@ const Select = styled.select`
   width: 100%;
   height: 36px;
   padding: 0 10px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.radius.sm};
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 72%, transparent);
+  border-radius: 4px;
   outline: 0;
-  background: ${theme.colors.surfaceMuted};
+  background: color-mix(in srgb, ${theme.colors.surface} 48%, transparent);
   color: ${theme.colors.textPrimary};
   font-size: 9px;
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  backdrop-filter: blur(10px) saturate(1.2);
+  transition: border-color ${theme.motion.fast}, background ${theme.motion.fast};
+
+  &:hover,
+  &:focus-visible {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 56%, ${theme.colors.border});
+    background: color-mix(in srgb, ${theme.colors.surface} 66%, transparent);
+  }
 `;
 
 const Range = styled.input`
+  --overlay-range-height: 4px;
+  --overlay-range-thumb: 13px;
+
   width: 100%;
-  accent-color: ${theme.colors.brand};
+  height: 22px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: grab;
+
+  &::-webkit-slider-runnable-track {
+    height: var(--overlay-range-height);
+    border-radius: 3px;
+    background: linear-gradient(90deg, ${theme.colors.brand}, ${theme.colors.cyan});
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, ${theme.colors.borderStrong} 62%, transparent);
+    transition: height 190ms cubic-bezier(0.18, 1.3, 0.34, 1);
+  }
+
+  &::-webkit-slider-thumb {
+    width: var(--overlay-range-thumb);
+    height: var(--overlay-range-thumb);
+    margin-top: calc((var(--overlay-range-height) - var(--overlay-range-thumb)) / 2);
+    appearance: none;
+    border: 2px solid ${theme.colors.brandDeep};
+    border-radius: 3px;
+    background: ${theme.colors.surface};
+    box-shadow: 0 3px 9px color-mix(in srgb, ${theme.colors.brandDeep} 20%, transparent);
+    transition: margin-top 190ms cubic-bezier(0.18, 1.3, 0.34, 1), transform ${theme.motion.spring};
+  }
+
+  &:hover {
+    --overlay-range-height: 6px;
+  }
+
+  &:active {
+    --overlay-range-height: 8px;
+    cursor: grabbing;
+  }
+
+  &:active::-webkit-slider-thumb {
+    transform: scale(1.13);
+  }
 `;
 
 const ColorGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+
+  @media (max-width: 620px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 `;
 
 const ColorField = styled.label`
@@ -177,19 +250,21 @@ const ColorField = styled.label`
   align-items: center;
   gap: 8px;
   padding: 7px 8px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.surfaceMuted};
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 65%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, ${theme.colors.surface} 43%, transparent);
   color: ${theme.colors.textSecondary};
   font-size: 8px;
   font-weight: 700;
+  -webkit-backdrop-filter: blur(8px) saturate(1.18);
+  backdrop-filter: blur(8px) saturate(1.18);
 
   input {
     width: 24px;
     height: 24px;
     padding: 0;
     border: 0;
-    border-radius: 7px;
+    border-radius: 4px;
     background: transparent;
   }
 `;
@@ -207,9 +282,9 @@ const Toggle = styled.label`
   justify-content: space-between;
   gap: 8px;
   padding: 0 10px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.surfaceMuted};
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 65%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, ${theme.colors.surface} 42%, transparent);
   color: ${theme.colors.textSecondary};
   font-size: 8px;
   font-weight: 700;
@@ -232,9 +307,9 @@ const WindowSwitch = styled.label`
   align-items: center;
   gap: 12px;
   padding: 9px 11px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.surfaceMuted};
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 66%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, ${theme.colors.surface} 42%, transparent);
   cursor: pointer;
 
   input {
@@ -286,7 +361,7 @@ const WindowSwitchTrack = styled.span`
   height: 19px;
   flex: 0 0 auto;
   border: 1px solid color-mix(in srgb, ${theme.colors.textMuted} 28%, transparent);
-  border-radius: 999px;
+  border-radius: 4px;
   background: color-mix(in srgb, ${theme.colors.textMuted} 13%, white);
   transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
 
@@ -296,11 +371,11 @@ const WindowSwitchTrack = styled.span`
     left: 2px;
     width: 13px;
     height: 13px;
-    border-radius: 50%;
+    border-radius: 3px;
     background: white;
     box-shadow: 0 2px 5px rgba(13, 50, 88, 0.22);
     content: "";
-    transition: transform 220ms cubic-bezier(.2, .85, .25, 1.25);
+    transition: transform 220ms cubic-bezier(0.2, 0.85, 0.25, 1.25);
   }
 `;
 
@@ -316,16 +391,16 @@ const TypeToggle = styled.label`
   align-items: center;
   gap: 6px;
   padding: 0 9px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.radius.pill};
-  background: ${theme.colors.surfaceMuted};
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 66%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, ${theme.colors.surface} 42%, transparent);
   color: ${theme.colors.textMuted};
   font-size: 8px;
   font-weight: 750;
 
   &:has(input:checked) {
-    border-color: color-mix(in srgb, ${theme.colors.brand} 34%, ${theme.colors.border});
-    background: ${theme.colors.brandSubtle};
+    border-color: color-mix(in srgb, ${theme.colors.brand} 38%, ${theme.colors.border});
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 62%, transparent);
     color: ${theme.colors.brand};
   }
 
@@ -341,18 +416,65 @@ const PanelActions = styled.div`
   padding-top: 2px;
 `;
 
+const PrimaryButton = styled.button`
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.brandDeep} 32%, transparent);
+  border-radius: 6px;
+  background: linear-gradient(135deg, ${theme.colors.brand}, ${theme.colors.brandDeep});
+  color: ${theme.colors.textOnBrand};
+  font-size: 10px;
+  font-weight: 800;
+  box-shadow: 0 7px 18px color-mix(in srgb, ${theme.colors.brand} 20%, transparent);
+  transition: transform ${theme.motion.spring}, filter ${theme.motion.fast};
+
+  &:hover {
+    filter: saturate(1.12) brightness(1.04);
+    transform: translateY(-1px);
+  }
+`;
+
+const SecondaryButton = styled.button`
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 13px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 76%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, ${theme.colors.surface} 43%, transparent);
+  color: ${theme.colors.textSecondary};
+  font-size: 10px;
+  font-weight: 720;
+  -webkit-backdrop-filter: blur(10px) saturate(1.18);
+  backdrop-filter: blur(10px) saturate(1.18);
+  transition: border-color ${theme.motion.fast}, color ${theme.motion.fast}, transform ${theme.motion.spring};
+
+  &:hover {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 46%, ${theme.colors.border});
+    color: ${theme.colors.brandDeep};
+    transform: translateY(-1px);
+  }
+`;
+
 const Notice = styled.div`
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.brand} 16%, transparent);
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.brandSubtle};
+  border: 1px solid color-mix(in srgb, ${theme.colors.brand} 18%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, ${theme.colors.brandSubtle} 44%, transparent);
   color: ${theme.colors.textSecondary};
   font-size: 9px;
   line-height: 1.6;
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
 
   &[data-error="true"] {
-    border-color: color-mix(in srgb, ${theme.colors.danger} 20%, transparent);
-    background: ${theme.colors.dangerSoft};
+    border-color: color-mix(in srgb, ${theme.colors.danger} 26%, transparent);
+    background: color-mix(in srgb, ${theme.colors.dangerSoft} 58%, transparent);
     color: ${theme.colors.danger};
   }
 `;
@@ -563,43 +685,15 @@ export function OverlaySettingsPage() {
     }
   };
 
-  const reset = () => {
-    setSettings(defaultOverlaySettings);
-    setError(false);
-    setNotice("已经恢复浅蓝主题推荐参数");
-  };
-
   return (
     <Page>
-      <Intro>
-        <IntroKicker>TRANSPARENT OVERLAYS</IntroKicker>
-        <IntroTitle>两个独立组件，一条实时事件流</IntroTitle>
-        <IntroDescription>
-          全屏弹幕层只负责横向滚动；侧边事件栏负责进场、点赞、弹幕、礼物和大航海卡片。
-          两个窗口分别订阅 LiveEvent，样式、动画、显示范围和鼠标穿透互不耦合。
-        </IntroDescription>
-        <IntroActions>
-          <PrimaryButton type="button" onClick={() => void showOverlay("danmaku", true)}>
-            <Icon name="message" size={15} />打开并预览全屏弹幕
-          </PrimaryButton>
-          <PrimaryButton type="button" onClick={() => void showOverlay("sidebar", true)}>
-            <Icon name="radio" size={15} />打开并预览事件栏
-          </PrimaryButton>
-          <SubtleButton type="button" onClick={reset}>恢复推荐参数</SubtleButton>
-        </IntroActions>
-      </Intro>
-
       <Grid>
-        <Panel>
-          <PanelHeader>
-            <PanelHeading>
-              <PanelTitle>全屏滚动弹幕</PanelTitle>
-              <PanelDescription>透明、置顶、默认鼠标穿透</PanelDescription>
-            </PanelHeading>
-            <EyebrowBadge>DECOUPLED WINDOW A</EyebrowBadge>
-          </PanelHeader>
-          <Body>
-            <Section>
+        <OverlayModule>
+          <ModuleTitle>全屏滚动弹幕</ModuleTitle>
+          <OverlayCard>
+            <OverlayCardParticles seed={0x4d414b55} />
+            <Body>
+              <Section>
               <SectionTitle>内容与交互</SectionTitle>
               <EventTypeToggles
                 value={settings.danmaku.enabledEventTypes}
@@ -661,21 +755,18 @@ export function OverlaySettingsPage() {
 
             <PanelActions>
               <PrimaryButton type="button" onClick={() => void showOverlay("danmaku", true)}>应用并预览</PrimaryButton>
-              <SubtleButton type="button" onClick={() => void closeOverlay("danmaku")}>关闭弹幕层</SubtleButton>
+              <SecondaryButton type="button" onClick={() => void closeOverlay("danmaku")}>关闭弹幕层</SecondaryButton>
             </PanelActions>
-          </Body>
-        </Panel>
+            </Body>
+          </OverlayCard>
+        </OverlayModule>
 
-        <Panel>
-          <PanelHeader>
-            <PanelHeading>
-              <PanelTitle>侧边事件栏</PanelTitle>
-              <PanelDescription>适合直播画面侧边的小区域事件流</PanelDescription>
-            </PanelHeading>
-            <EyebrowBadge>DECOUPLED WINDOW B</EyebrowBadge>
-          </PanelHeader>
-          <Body>
-            <Section>
+        <OverlayModule>
+          <ModuleTitle>侧边栏弹幕</ModuleTitle>
+          <OverlayCard>
+            <OverlayCardParticles seed={0x53494445} />
+            <Body>
+              <Section>
               <SectionTitle>内容与窗口</SectionTitle>
               <EventTypeToggles
                 value={settings.sidebar.enabledEventTypes}
@@ -771,10 +862,11 @@ export function OverlaySettingsPage() {
 
             <PanelActions>
               <PrimaryButton type="button" onClick={() => void showOverlay("sidebar", true)}>应用并预览</PrimaryButton>
-              <SubtleButton type="button" onClick={() => void closeOverlay("sidebar")}>关闭事件栏</SubtleButton>
+              <SecondaryButton type="button" onClick={() => void closeOverlay("sidebar")}>关闭事件栏</SecondaryButton>
             </PanelActions>
-          </Body>
-        </Panel>
+            </Body>
+          </OverlayCard>
+        </OverlayModule>
       </Grid>
 
       <Notice data-error={error}>{notice}</Notice>
