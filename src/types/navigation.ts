@@ -6,7 +6,6 @@ export type AppView =
   | "rules"
   | "voices"
   | "overlays"
-  | "connection"
   | "settings";
 
 export interface NavigationItem {

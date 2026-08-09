@@ -44,12 +44,6 @@ const navigation: NavigationItem[] = [
     icon: "message",
   },
   {
-    id: "connection",
-    label: "连接设置",
-    description: "直播间接入",
-    icon: "plug",
-  },
-  {
     id: "settings",
     label: "应用设置",
     description: "账号与主题",

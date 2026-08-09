@@ -34,11 +34,6 @@ const DebugPage = lazy(() =>
     default: module.DebugPage,
   })),
 );
-const ConnectionPage = lazy(() =>
-  import("./features/connection/ConnectionPage").then((module) => ({
-    default: module.ConnectionPage,
-  })),
-);
 const OverlaySettingsPage = lazy(() =>
   import("./features/overlays/OverlaySettingsPage").then((module) => ({
     default: module.OverlaySettingsPage,
@@ -67,12 +62,10 @@ const viewPreloaders: Record<AppView, () => Promise<unknown>> = {
   rules: () => import("./features/shared/FeaturePage"),
   voices: () => import("./features/voices/VoiceStudioPage"),
   overlays: () => import("./features/overlays/OverlaySettingsPage"),
-  connection: () => import("./features/connection/ConnectionPage"),
   settings: () => import("./features/settings/SettingsPage"),
 };
 
 const secondaryViews: AppView[] = [
-  "connection",
   "debug",
   "overlays",
   "voices",
@@ -242,9 +235,6 @@ function Workspace({ accountStatus, onAccountStatusChange }: WorkspaceProps) {
                 {activeView === "rules" && <FeaturePage view="rules" />}
                 {activeView === "voices" && <VoiceStudioPage />}
                 {activeView === "overlays" && <OverlaySettingsPage />}
-                {activeView === "connection" && (
-                  <ConnectionPage onNavigateDashboard={() => navigate("dashboard")} />
-                )}
                 {activeView === "settings" && (
                   <SettingsPage
                     accountStatus={accountStatus}
