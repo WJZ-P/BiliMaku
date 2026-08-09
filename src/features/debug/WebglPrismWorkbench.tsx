@@ -767,7 +767,7 @@ export function WebglPrismWorkbench({ density, onAction }: WebglPrismWorkbenchPr
                 min="0"
                 max="100"
                 value={intensity}
-                aria-label="????"
+                aria-label="折射强度"
                 onChange={(event) => setIntensity(Number(event.target.value))}
               />
               <strong>{intensity}%</strong>

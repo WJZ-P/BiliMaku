@@ -1,5 +1,5 @@
 import { styled } from "@linaria/react";
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { Icon, type IconName } from "../../components/Icon";
 import { theme } from "../../styles/theme";
 
@@ -117,8 +117,12 @@ const ConceptButton = styled.button`
     opacity: 0;
     transition: opacity ${theme.motion.normal};
   }
-  &:hover,
-  &:focus-visible { color: ${theme.colors.textPrimary}; outline: 0; }
+  &:hover { color: ${theme.colors.textPrimary}; }
+  &:focus-visible {
+    color: ${theme.colors.textPrimary};
+    outline: 2px solid ${theme.colors.brand};
+    outline-offset: -3px;
+  }
   &:hover::before,
   &:focus-visible::before,
   &[data-active="true"]::before { opacity: 0.88; transform: scale(1.08); }
@@ -260,11 +264,47 @@ export function DesignDecisionBoard({ onAction }: DesignDecisionBoardProps) {
   const selected = useMemo(() => concepts.find((item) => item.id === selectedId) ?? concepts[1], [selectedId]);
   const scoreRows = [["可读性", selected.scores.readability], ["辨识度", selected.scores.identity], ["运行效率", selected.scores.efficiency]] as const;
 
+  const selectConcept = (concept: DesignConcept) => {
+    setSelectedId(concept.id);
+    onAction?.(`选型 · ${concept.name}`);
+  };
+
+  const handleConceptKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const lastIndex = concepts.length - 1;
+    const nextIndex = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? lastIndex
+        : event.key === "ArrowRight" || event.key === "ArrowDown"
+          ? (index + 1) % concepts.length
+          : event.key === "ArrowLeft" || event.key === "ArrowUp"
+            ? (index - 1 + concepts.length) % concepts.length
+            : -1;
+    if (nextIndex < 0) return;
+
+    event.preventDefault();
+    selectConcept(concepts[nextIndex]);
+    event.currentTarget.parentElement
+      ?.querySelectorAll<HTMLButtonElement>("[data-concept]")
+      .item(nextIndex)
+      .focus();
+  };
+
   return (
     <Board>
-      <ConceptList aria-label="视觉方案选择">
-        {concepts.map((concept) => (
-          <ConceptButton key={concept.id} type="button" data-active={selectedId === concept.id} aria-pressed={selectedId === concept.id} onClick={() => { setSelectedId(concept.id); onAction?.(`选型 · ${concept.name}`); }}>
+      <ConceptList role="radiogroup" aria-label="视觉方案选择">
+        {concepts.map((concept, index) => (
+          <ConceptButton
+            key={concept.id}
+            type="button"
+            role="radio"
+            data-concept={concept.id}
+            data-active={selectedId === concept.id}
+            aria-checked={selectedId === concept.id}
+            tabIndex={selectedId === concept.id ? 0 : -1}
+            onClick={() => selectConcept(concept)}
+            onKeyDown={(event) => handleConceptKeyDown(event, index)}
+          >
             <ConceptTop>
               <ConceptIcon><Icon name={concept.icon} size={16} /></ConceptIcon>
               <span><ConceptCode>{concept.code}</ConceptCode><ConceptName>{concept.name}</ConceptName></span>
