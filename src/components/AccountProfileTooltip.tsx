@@ -127,15 +127,23 @@ const TooltipArrow = styled.span`
   width: 10px;
   height: 10px;
   border-top: 1px solid
-    color-mix(in srgb, ${theme.colors.highlight} 38%, ${theme.colors.border});
+    color-mix(in srgb, ${theme.colors.highlight} 62%, ${theme.colors.borderStrong});
   border-left: 1px solid
-    color-mix(in srgb, ${theme.colors.highlight} 38%, ${theme.colors.border});
+    color-mix(in srgb, ${theme.colors.highlight} 62%, ${theme.colors.borderStrong});
   background: color-mix(
     in srgb,
-    ${theme.colors.popoverSurface} ${theme.titleBar.profileBackgroundMix},
+    ${theme.colors.popoverSurface} ${theme.frostedGlass.surfaceMix},
     transparent
   );
-  backdrop-filter: blur(${theme.tooltip.blur}) saturate(${theme.tooltip.backdropSaturation});
+  -webkit-backdrop-filter: blur(${theme.frostedGlass.blur})
+    saturate(${theme.frostedGlass.saturation})
+    brightness(${theme.frostedGlass.brightness})
+    contrast(${theme.frostedGlass.contrast});
+  backdrop-filter: blur(${theme.frostedGlass.blur})
+    saturate(${theme.frostedGlass.saturation})
+    brightness(${theme.frostedGlass.brightness})
+    contrast(${theme.frostedGlass.contrast});
+  box-shadow: -2px -2px 5px color-mix(in srgb, ${theme.colors.highlight} 34%, transparent);
   opacity: 0;
   transform: translateX(-50%) rotate(45deg);
   transition: opacity ${theme.tooltip.exitDurationMs}ms ease;
@@ -158,45 +166,75 @@ const GlassCard = styled.div`
     transform ${theme.tooltip.exitDurationMs}ms ease;
   will-change: opacity, transform;
   border: 1px solid
-    color-mix(in srgb, ${theme.colors.highlight} 42%, ${theme.colors.border});
+    color-mix(in srgb, ${theme.colors.highlight} 62%, ${theme.colors.borderStrong});
   border-radius: ${theme.tooltip.radius};
-  background:
+  background-image:
     radial-gradient(
-      circle at 16% 0%,
-      color-mix(in srgb, ${theme.colors.highlight} 20%, transparent),
-      transparent 52%
+      circle at 14% -8%,
+      color-mix(in srgb, ${theme.colors.highlight} 50%, transparent),
+      transparent 44%
     ),
     linear-gradient(
-      145deg,
-      color-mix(
-        in srgb,
-        ${theme.colors.surface} ${theme.tooltip.surfaceMix},
-        transparent
-      ),
-      color-mix(
-        in srgb,
-        ${theme.colors.brandSubtle} ${theme.tooltip.accentMix},
-        transparent
-      )
+      138deg,
+      color-mix(in srgb, ${theme.colors.surface} 22%, transparent) 0%,
+      color-mix(in srgb, ${theme.colors.popoverSurface} 8%, transparent) 48%,
+      color-mix(in srgb, ${theme.colors.textMuted} 6%, transparent) 100%
     );
   background-color: color-mix(
     in srgb,
-    ${theme.colors.popoverSurface} ${theme.titleBar.profileBackgroundMix},
+    ${theme.colors.popoverSurface} ${theme.frostedGlass.surfaceMix},
     transparent
   );
   box-shadow:
-    0 18px 42px color-mix(in srgb, ${theme.colors.brandDeep} 15%, transparent),
-    0 4px 14px color-mix(in srgb, ${theme.colors.shadowStrong} 32%, transparent),
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 48%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.brand} 10%, transparent);
-  -webkit-backdrop-filter: blur(${theme.tooltip.blur})
-    saturate(${theme.tooltip.backdropSaturation})
-    brightness(${theme.tooltip.backdropBrightness})
-    contrast(${theme.tooltip.backdropContrast});
-  backdrop-filter: blur(${theme.tooltip.blur})
-    saturate(${theme.tooltip.backdropSaturation})
-    brightness(${theme.tooltip.backdropBrightness})
-    contrast(${theme.tooltip.backdropContrast});
+    0 24px 64px color-mix(in srgb, ${theme.colors.textPrimary} 20%, transparent),
+    0 7px 20px color-mix(in srgb, ${theme.colors.textPrimary} 9%, transparent),
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 92%, transparent),
+    inset 1px 0 0 color-mix(in srgb, ${theme.colors.highlight} 34%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.textMuted} 13%, transparent);
+  -webkit-backdrop-filter: blur(${theme.frostedGlass.blur})
+    saturate(${theme.frostedGlass.saturation})
+    brightness(${theme.frostedGlass.brightness})
+    contrast(${theme.frostedGlass.contrast});
+  backdrop-filter: blur(${theme.frostedGlass.blur})
+    saturate(${theme.frostedGlass.saturation})
+    brightness(${theme.frostedGlass.brightness})
+    contrast(${theme.frostedGlass.contrast});
+
+  &::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background-image: url("/textures/frosted-noise.svg");
+    background-size: 96px 96px;
+    content: "";
+    mix-blend-mode: soft-light;
+    opacity: ${theme.frostedGlass.noiseOpacity};
+    pointer-events: none;
+  }
+
+  &::after {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background:
+      linear-gradient(
+        112deg,
+        color-mix(in srgb, ${theme.colors.highlight} 24%, transparent),
+        transparent 31%
+      ),
+      radial-gradient(
+        circle at 78% 112%,
+        color-mix(in srgb, ${theme.colors.textMuted} 8%, transparent),
+        transparent 46%
+      );
+    content: "";
+    pointer-events: none;
+  }
+
+  & > canvas {
+    mix-blend-mode: soft-light;
+    opacity: ${theme.frostedGlass.refractionOpacity};
+  }
 
   [data-visible="true"] & {
     opacity: 1;
@@ -220,13 +258,18 @@ const GlassCard = styled.div`
 const GlassAccent = styled.span`
   position: absolute;
   z-index: 3;
-  top: 6px;
+  top: 0;
+  right: 12px;
   left: 12px;
-  width: 28px;
   height: 1px;
-  background: linear-gradient(90deg, ${theme.colors.cyan}, transparent);
-  box-shadow: 0 0 9px color-mix(in srgb, ${theme.colors.cyan} 36%, transparent);
-  opacity: 0.58;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, ${theme.colors.highlight} 90%, transparent) 22%,
+    color-mix(in srgb, ${theme.colors.highlight} 42%, transparent) 72%,
+    transparent
+  );
+  opacity: 0.86;
 `;
 
 const CardContent = styled.div`
@@ -367,7 +410,9 @@ const MetricGrid = styled.div`
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0 -16px;
   padding: 10px 12px;
-  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 28%, transparent);
+  border-block: 1px solid
+    color-mix(in srgb, ${theme.colors.highlight} 28%, ${theme.colors.border});
+  background: color-mix(in srgb, ${theme.colors.popoverSurface} 48%, transparent);
 `;
 
 const Metric = styled.div`

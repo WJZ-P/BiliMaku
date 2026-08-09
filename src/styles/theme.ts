@@ -126,8 +126,6 @@ export const theme = {
     profileTooltipAvatarSizePx: 68,
     /** 资料卡房间 ID、UID 标签与数值的统一字号。 */
     profileIdentityFontSize: "12px",
-    /** 浅灰色资料卡底色的不透明混合比例。 */
-    profileBackgroundMix: "88%",
     /** 顶部实时统计格高度。 */
     metricHeightPx: 42,
     /** 顶部实时统计格最小宽度。 */
@@ -138,6 +136,20 @@ export const theme = {
     metricValueFontSize: "14px",
     /** 顶部统计标签图标尺寸。 */
     metricIconSizePx: 13,
+  },
+  frostedGlass: {
+    /** 中性玻璃表层占比；降低会更通透，提高会更接近实体面板。 */
+    surfaceMix: "74%",
+    /** 背景高斯模糊半径；OpenAI 风格的主要材质来源。 */
+    blur: "28px",
+    /** 模糊背景的色彩、亮度与对比度校正。 */
+    saturation: 1.24,
+    brightness: 1.035,
+    contrast: 1.025,
+    /** 微噪点纹理透明度，用来消除纯色塑料感。 */
+    noiseOpacity: 0.055,
+    /** WebGL 折射层透明度；仅保留轻微灵动感，不覆盖真实毛玻璃。 */
+    refractionOpacity: 0.24,
   },
   tooltip: {
     /** Tooltip 正文字号；感觉偏小或偏大时优先调整这里。 */
