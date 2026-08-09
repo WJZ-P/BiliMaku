@@ -17,6 +17,7 @@ import {
 import type { LiveConnectionPhase, LiveEvent, LiveEventType } from "../../types/events";
 import { DEFAULT_MESSAGE_BUBBLE_COLOR } from "../../styles/theme";
 import type { LiveOnlineRankEntry } from "../../types/liveRank";
+import type { LiveMessageDisplayFilter } from "../../types/liveMessages";
 import { LIVE_DANMAKU_MAX_LENGTH } from "../../types/liveChat";
 import type { AppView } from "../../types/navigation";
 import {
@@ -102,7 +103,7 @@ interface RailAction {
   icon: IconName;
 }
 
-const eventFilters: Array<{ label: string; value: "all" | LiveEventType }> = [
+const eventFilters: Array<{ label: string; value: LiveMessageDisplayFilter }> = [
   { label: "全部", value: "all" },
   { label: "弹幕", value: "message" },
   { label: "互动", value: "interaction" },
@@ -400,7 +401,6 @@ let dashboardFirstFrameReported = false;
 export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const live = useLiveRoom();
   const [roomId, setRoomId] = useState("");
-  const [filter, setFilter] = useState<"all" | LiveEventType>("all");
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [overlaysOpen, setOverlaysOpen] = useState(false);
   const [overlayBusy, setOverlayBusy] = useState(false);
@@ -435,12 +435,13 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const reconnecting = live.status.state === "reconnecting";
   const hasLiveContext = live.status.state !== "disconnected";
   const sourceEvents = live.events;
+  const filter = live.messageSettings.displayFilter;
 
   const events = useMemo(() => {
     const filtered = filter === "all"
       ? sourceEvents
       : sourceEvents.filter((event) => event.type === filter);
-    return filtered.slice(0, 150).reverse();
+    return [...filtered].reverse();
   }, [filter, sourceEvents]);
 
   const messageCount = live.events.filter((event) => event.type === "message").length;
@@ -739,7 +740,13 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                   key={item.value}
                   type="button"
                   data-active={filter === item.value}
-                  onClick={() => setFilter(item.value)}
+                  onClick={() => {
+                    void live.updateMessageSettings({
+                      displayFilter: item.value,
+                    }).catch((error) => {
+                      console.error("bilimaku message filter persistence failed", error);
+                    });
+                  }}
                 >
                   {item.label}
                 </FilterButton>

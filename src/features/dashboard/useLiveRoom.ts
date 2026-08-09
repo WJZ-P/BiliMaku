@@ -4,11 +4,13 @@ import {
   connectLiveRoom,
   disconnectLiveRoom,
   getLiveConnectionStatus,
+  getLiveMessageSettings,
   getLiveOnlineRank,
   isDesktopRuntime,
   listenToLiveEvents,
   listenToLiveStatus,
   listenToPopularity,
+  saveLiveMessageSettings,
 } from "../../services/desktop";
 import {
   loadTtsSettings,
@@ -24,6 +26,10 @@ import type {
   LiveStatusPayload,
   RoomConnectionInfo,
 } from "../../types/events";
+import {
+  DEFAULT_LIVE_MESSAGE_SETTINGS,
+  type LiveMessageSettings,
+} from "../../types/liveMessages";
 import type { LiveOnlineRankSnapshot } from "../../types/liveRank";
 import type { TtsSettings, TtsSpeechEventType } from "../../types/tts";
 
@@ -58,10 +64,35 @@ export function useLiveRoomController() {
   const [popularity, setPopularity] = useState(0);
   const [onlineRank, setOnlineRank] = useState<LiveOnlineRankSnapshot | null>(null);
   const [onlineRankError, setOnlineRankError] = useState("");
+  const [messageSettings, setMessageSettings] = useState<LiveMessageSettings>(() => ({
+    ...DEFAULT_LIVE_MESSAGE_SETTINGS,
+  }));
   const [ttsSettings, setTtsSettings] = useState<TtsSettings>(() => loadTtsSettings());
+  const messageSettingsRef = useRef(messageSettings);
+  const messageSettingsSaveChainRef = useRef<Promise<void>>(Promise.resolve());
   const lastSpokenId = useRef<string | null>(null);
   const startupAutoConnectStarted = useRef(false);
   const desktopRuntime = useMemo(() => isDesktopRuntime(), []);
+
+  const applyMessageSettings = useCallback((next: LiveMessageSettings) => {
+    messageSettingsRef.current = next;
+    setMessageSettings(next);
+    setEvents((current) => current.slice(0, next.maxStoredMessages));
+  }, []);
+
+  /** 更新共享消息偏好，先即时反映到 UI，再按顺序写入 Rust Store。 */
+  const updateMessageSettings = useCallback(
+    (patch: Partial<LiveMessageSettings>) => {
+      const next = { ...messageSettingsRef.current, ...patch };
+      applyMessageSettings(next);
+      const save = messageSettingsSaveChainRef.current.then(() =>
+        saveLiveMessageSettings(next),
+      );
+      messageSettingsSaveChainRef.current = save.catch(() => undefined);
+      return save;
+    },
+    [applyMessageSettings],
+  );
 
   const connect = useCallback(
     async (roomId: string) => {
@@ -101,6 +132,18 @@ export function useLiveRoomController() {
 
   useEffect(() => {
     let active = true;
+    void getLiveMessageSettings().then((settings) => {
+      if (active) applyMessageSettings(settings);
+    }).catch((error) => {
+      console.error("bilimaku live message settings loading failed", error);
+    });
+    return () => {
+      active = false;
+    };
+  }, [applyMessageSettings]);
+
+  useEffect(() => {
+    let active = true;
     const unlisteners: UnlistenFn[] = [];
 
     Promise.all([
@@ -108,7 +151,10 @@ export function useLiveRoomController() {
         if (!active) return;
         setEvents((current) => {
           if (current.some((item) => item.id === event.id)) return current;
-          return [event, ...current].slice(0, 150);
+          return [event, ...current].slice(
+            0,
+            messageSettingsRef.current.maxStoredMessages,
+          );
         });
       }),
       listenToLiveStatus((nextStatus) => {
@@ -285,6 +331,8 @@ export function useLiveRoomController() {
     popularity,
     onlineRank,
     onlineRankError,
+    messageSettings,
+    updateMessageSettings,
     autoSpeak: ttsSettings.autoSpeak,
     toggleAutoSpeak,
     connect,

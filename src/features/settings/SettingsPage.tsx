@@ -13,6 +13,11 @@ import {
 import { DEFAULT_MESSAGE_BUBBLE_COLOR, theme } from "../../styles/theme";
 import type { BilibiliLoginStatus } from "../../types/account";
 import type { LiveAppearanceSettings } from "../../types/liveAppearance";
+import {
+  MAX_STORED_LIVE_MESSAGES,
+  MIN_STORED_LIVE_MESSAGES,
+} from "../../types/liveMessages";
+import { useLiveRoom } from "../dashboard/LiveRoomContext";
 
 interface SettingsPageProps {
   accountStatus: BilibiliLoginStatus;
@@ -273,6 +278,67 @@ const BubbleColorInput = styled.input`
   }
 `;
 
+const MessageLimitOption = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 13px;
+  border: 1px solid ${theme.colors.border};
+  border-radius: 7px;
+  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 84%, transparent);
+`;
+
+const MessageLimitField = styled.label`
+  display: grid;
+  width: 112px;
+  height: 38px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid ${theme.colors.borderStrong};
+  border-radius: 6px;
+  background: ${theme.colors.surface};
+  transition:
+    border-color ${theme.motion.fast},
+    box-shadow ${theme.motion.fast};
+
+  &:focus-within {
+    border-color: ${theme.colors.brand};
+    box-shadow: 0 0 0 3px color-mix(in srgb, ${theme.colors.brand} 13%, transparent);
+  }
+`;
+
+const MessageLimitInput = styled.input`
+  width: 100%;
+  min-width: 0;
+  padding: 0 7px 0 10px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: ${theme.colors.textPrimary};
+  font-family: ${theme.typography.mono};
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+
+  &::-webkit-inner-spin-button {
+    opacity: 0.58;
+  }
+`;
+
+const MessageLimitUnit = styled.span`
+  display: grid;
+  height: 100%;
+  place-items: center;
+  padding: 0 9px;
+  border-left: 1px solid ${theme.colors.border};
+  background: ${theme.colors.surfaceMuted};
+  color: ${theme.colors.textMuted};
+  font-size: 9px;
+  font-weight: 750;
+`;
+
 const Swatches = styled.div`
   display: grid;
   width: 48px;
@@ -324,10 +390,15 @@ function errorText(error: unknown) {
 }
 
 export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsPageProps) {
+  const live = useLiveRoom();
   const [configPath, setConfigPath] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [appearanceError, setAppearanceError] = useState("");
+  const [messageSettingsError, setMessageSettingsError] = useState("");
+  const [messageLimitDraft, setMessageLimitDraft] = useState(() =>
+    String(live.messageSettings.maxStoredMessages),
+  );
   const [appearanceReady, setAppearanceReady] = useState(false);
   const [liveAppearance, setLiveAppearance] = useState<LiveAppearanceSettings>({
     messageBubbleColor: DEFAULT_MESSAGE_BUBBLE_COLOR,
@@ -343,6 +414,10 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
     });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    setMessageLimitDraft(String(live.messageSettings.maxStoredMessages));
+  }, [live.messageSettings.maxStoredMessages]);
 
   useEffect(() => {
     let active = true;
@@ -391,6 +466,31 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
   const bubblePreviewStyle = {
     "--preview-bubble-color": liveAppearance.messageBubbleColor,
   } as CSSProperties;
+
+  const commitMessageLimit = async () => {
+    const nextLimit = Number(messageLimitDraft);
+    if (
+      !Number.isInteger(nextLimit)
+      || nextLimit < MIN_STORED_LIVE_MESSAGES
+      || nextLimit > MAX_STORED_LIVE_MESSAGES
+    ) {
+      setMessageSettingsError(
+        `请输入 ${MIN_STORED_LIVE_MESSAGES} 到 ${MAX_STORED_LIVE_MESSAGES.toLocaleString("zh-CN")} 之间的整数`,
+      );
+      setMessageLimitDraft(String(live.messageSettings.maxStoredMessages));
+      return;
+    }
+    if (nextLimit === live.messageSettings.maxStoredMessages) {
+      setMessageSettingsError("");
+      return;
+    }
+    try {
+      await live.updateMessageSettings({ maxStoredMessages: nextLimit });
+      setMessageSettingsError("");
+    } catch (reason) {
+      setMessageSettingsError(errorText(reason));
+    }
+  };
 
   const logout = async () => {
     setBusy(true);
@@ -449,8 +549,8 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
         <Panel>
           <PanelHeader>
             <PanelHeading>
-              <PanelTitle>外观主题</PanelTitle>
-              <PanelDescription>统一语义色令牌</PanelDescription>
+              <PanelTitle>界面与消息</PanelTitle>
+              <PanelDescription>主题外观与聊天缓存</PanelDescription>
             </PanelHeading>
             <EyebrowBadge>BLUE DEFAULT</EyebrowBadge>
           </PanelHeader>
@@ -479,7 +579,40 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
                 onChange={(event) => updateMessageBubbleColor(event.target.value)}
               />
             </BubbleColorOption>
+            <MessageLimitOption>
+              <div>
+                <OptionTitle>最大存储消息条数</OptionTitle>
+                <OptionDescription>
+                  保留当前会话最新的 {live.messageSettings.maxStoredMessages.toLocaleString("zh-CN")} 条；消息分类也会自动记住
+                </OptionDescription>
+              </div>
+              <MessageLimitField>
+                <MessageLimitInput
+                  type="number"
+                  inputMode="numeric"
+                  min={MIN_STORED_LIVE_MESSAGES}
+                  max={MAX_STORED_LIVE_MESSAGES}
+                  step={1}
+                  aria-label="最大存储消息条数"
+                  aria-invalid={Boolean(messageSettingsError)}
+                  value={messageLimitDraft}
+                  onChange={(event) => setMessageLimitDraft(event.target.value)}
+                  onBlur={() => void commitMessageLimit()}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") event.currentTarget.blur();
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      setMessageLimitDraft(String(live.messageSettings.maxStoredMessages));
+                      setMessageSettingsError("");
+                    }
+                  }}
+                  onWheel={(event) => event.currentTarget.blur()}
+                />
+                <MessageLimitUnit>条</MessageLimitUnit>
+              </MessageLimitField>
+            </MessageLimitOption>
             {appearanceError ? <ErrorMessage>{appearanceError}</ErrorMessage> : null}
+            {messageSettingsError ? <ErrorMessage>{messageSettingsError}</ErrorMessage> : null}
             <Detail>配置文件：{configPath || "正在读取…"}</Detail>
           </ThemeBody>
         </Panel>

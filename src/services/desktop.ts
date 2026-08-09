@@ -16,6 +16,10 @@ import type {
 import type { DesktopStatus } from "../types/app";
 import { DEFAULT_MESSAGE_BUBBLE_COLOR } from "../styles/theme";
 import type { LiveAppearanceSettings } from "../types/liveAppearance";
+import {
+  DEFAULT_LIVE_MESSAGE_SETTINGS,
+  type LiveMessageSettings,
+} from "../types/liveMessages";
 import type { LiveOnlineRankSnapshot } from "../types/liveRank";
 import type {
   AnchorAnalyticsOverview,
@@ -54,6 +58,20 @@ export async function saveLiveAppearanceSettings(
 ): Promise<void> {
   if (!isDesktopRuntime()) return;
   await invoke("update_live_appearance_settings", { settings });
+}
+
+/** 读取 Rust 统一配置中的消息分类与缓存上限。 */
+export async function getLiveMessageSettings(): Promise<LiveMessageSettings> {
+  if (!isDesktopRuntime()) return { ...DEFAULT_LIVE_MESSAGE_SETTINGS };
+  return invoke<LiveMessageSettings>("get_live_message_settings");
+}
+
+/** 保存消息分类与缓存上限；Rust 会再次校验输入范围。 */
+export async function saveLiveMessageSettings(
+  settings: LiveMessageSettings,
+): Promise<void> {
+  if (!isDesktopRuntime()) return;
+  await invoke("update_live_message_settings", { settings });
 }
 
 /** 使用 Rust 持久化扫码会话读取当前账号自己的主播中心数据。 */

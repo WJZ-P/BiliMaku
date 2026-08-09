@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// 当前统一配置文件结构版本。
-pub const CONFIG_SCHEMA_VERSION: u32 = 1;
+pub const CONFIG_SCHEMA_VERSION: u32 = 2;
 
 /// bilimaku 统一配置文件。
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -66,6 +66,30 @@ impl Default for LiveAppearanceSettings {
     }
 }
 
+/// 默认在内存中保留的最新直播事件数量。
+pub const DEFAULT_MAX_STORED_LIVE_MESSAGES: u32 = 821;
+/// 允许用户配置的直播事件缓存上限，避免误输入导致无界内存增长。
+pub const MAX_STORED_LIVE_MESSAGES: u32 = 50_000;
+
+/// 直播间消息展示与内存缓存偏好。
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct LiveMessageSettings {
+    /// 聊天工作台最后一次选中的消息分类。
+    pub display_filter: String,
+    /// 当前会话最多保留的最新消息条数。
+    pub max_stored_messages: u32,
+}
+
+impl Default for LiveMessageSettings {
+    fn default() -> Self {
+        Self {
+            display_filter: "all".to_string(),
+            max_stored_messages: DEFAULT_MAX_STORED_LIVE_MESSAGES,
+        }
+    }
+}
+
 /// 直播间连接与界面配置。
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -76,6 +100,8 @@ pub struct LiveStorageConfig {
     pub auto_connect: bool,
     /// 聊天区的可持久化外观。
     pub appearance: LiveAppearanceSettings,
+    /// 消息分类与当前会话缓存上限。
+    pub messages: LiveMessageSettings,
 }
 
 fn default_tts_event_types() -> Vec<String> {

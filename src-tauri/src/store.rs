@@ -1,7 +1,8 @@
 use crate::types::account::AccountProfile;
 use crate::types::config::{
-    AccountStorageConfig, AppConfig, LiveAppearanceSettings, OverlayAutoOpenConfig,
-    TtsUserSettings, CONFIG_SCHEMA_VERSION,
+    AccountStorageConfig, AppConfig, LiveAppearanceSettings, LiveMessageSettings,
+    OverlayAutoOpenConfig, TtsUserSettings, CONFIG_SCHEMA_VERSION,
+    DEFAULT_MAX_STORED_LIVE_MESSAGES, MAX_STORED_LIVE_MESSAGES,
 };
 use crate::types::overlay::SidebarOverlayPlacement;
 use crate::types::tts::TtsEnvironmentCache;
@@ -57,6 +58,36 @@ fn normalize_tts_settings(mut settings: TtsUserSettings) -> TtsUserSettings {
     }
     settings.enabled_event_types = enabled_event_types;
     settings
+}
+
+const LIVE_MESSAGE_DISPLAY_FILTERS: [&str; 5] =
+    ["all", "message", "interaction", "gift", "superchat"];
+
+/// 容错读取用户手动编辑的 JSON，并将越界值恢复到可用范围。
+fn normalize_live_message_settings(mut settings: LiveMessageSettings) -> LiveMessageSettings {
+    if !LIVE_MESSAGE_DISPLAY_FILTERS.contains(&settings.display_filter.as_str()) {
+        settings.display_filter = LiveMessageSettings::default().display_filter;
+    }
+    if settings.max_stored_messages == 0 {
+        settings.max_stored_messages = DEFAULT_MAX_STORED_LIVE_MESSAGES;
+    } else {
+        settings.max_stored_messages = settings.max_stored_messages.min(MAX_STORED_LIVE_MESSAGES);
+    }
+    settings
+}
+
+fn validate_live_message_settings(
+    settings: LiveMessageSettings,
+) -> Result<LiveMessageSettings, String> {
+    if !LIVE_MESSAGE_DISPLAY_FILTERS.contains(&settings.display_filter.as_str()) {
+        return Err(format!("不支持的消息展示分类：{}", settings.display_filter));
+    }
+    if !(1..=MAX_STORED_LIVE_MESSAGES).contains(&settings.max_stored_messages) {
+        return Err(format!(
+            "最大存储消息条数需要在 1 到 {MAX_STORED_LIVE_MESSAGES} 之间"
+        ));
+    }
+    Ok(settings)
 }
 
 fn normalize_hex_color(value: &str) -> Result<String, String> {
@@ -119,6 +150,11 @@ impl AppConfigStore {
         }
         if config.schema_version < CONFIG_SCHEMA_VERSION {
             config.schema_version = CONFIG_SCHEMA_VERSION;
+            should_persist = true;
+        }
+        let normalized_messages = normalize_live_message_settings(config.live.messages.clone());
+        if config.live.messages != normalized_messages {
+            config.live.messages = normalized_messages;
             should_persist = true;
         }
         if should_persist {
@@ -254,6 +290,19 @@ impl AppConfigStore {
     ) -> Result<bool, String> {
         settings.message_bubble_color = normalize_hex_color(&settings.message_bubble_color)?;
         self.update(|config| config.live.appearance = settings)
+    }
+
+    /// 读取聊天区消息展示与缓存偏好。
+    pub fn live_message_settings(&self) -> Result<LiveMessageSettings, String> {
+        Ok(normalize_live_message_settings(
+            self.snapshot()?.live.messages,
+        ))
+    }
+
+    /// 校验并保存聊天区消息展示与缓存偏好。
+    pub fn set_live_message_settings(&self, settings: LiveMessageSettings) -> Result<bool, String> {
+        let settings = validate_live_message_settings(settings)?;
+        self.update(|config| config.live.messages = settings)
     }
 
     /// 读取 TTS 模型注册表的 JSON 值。
@@ -464,6 +513,23 @@ pub fn update_live_appearance_settings(
     store.set_live_appearance_settings(settings)
 }
 
+/// 读取聊天区消息分类与缓存上限。
+#[tauri::command]
+pub fn get_live_message_settings(
+    store: State<'_, AppConfigStore>,
+) -> Result<LiveMessageSettings, String> {
+    store.live_message_settings()
+}
+
+/// 更新聊天区消息分类与缓存上限。
+#[tauri::command]
+pub fn update_live_message_settings(
+    store: State<'_, AppConfigStore>,
+    settings: LiveMessageSettings,
+) -> Result<bool, String> {
+    store.set_live_message_settings(settings)
+}
+
 /// 保存用户在播报台输入的直播间号。
 #[tauri::command]
 pub fn update_saved_room_id(
@@ -587,6 +653,104 @@ mod tests {
                 .message_bubble_color,
             "#FF72AD"
         );
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn migrates_missing_live_message_settings_to_default() {
+        let directory = test_directory("live-message-migration");
+        let path = directory.join(CONFIG_FILE_NAME);
+        fs::create_dir_all(&directory).expect("create config directory");
+        fs::write(
+            &path,
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "schemaVersion": 1,
+                "live": {
+                    "roomId": "4457340",
+                    "autoConnect": false
+                }
+            }))
+            .expect("serialize legacy config"),
+        )
+        .expect("write legacy config");
+
+        let store = AppConfigStore::default();
+        store
+            .initialize_from_path(path.clone())
+            .expect("migrate store");
+        assert_eq!(
+            store
+                .live_message_settings()
+                .expect("read migrated message settings"),
+            LiveMessageSettings::default()
+        );
+        let persisted: Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("read migrated config"))
+                .expect("parse migrated config");
+        assert_eq!(persisted["schemaVersion"], CONFIG_SCHEMA_VERSION);
+        assert_eq!(persisted["live"]["messages"]["displayFilter"], "all");
+        assert_eq!(
+            persisted["live"]["messages"]["maxStoredMessages"],
+            DEFAULT_MAX_STORED_LIVE_MESSAGES
+        );
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn persists_and_validates_live_message_settings() {
+        let directory = test_directory("live-message-settings");
+        let path = directory.join(CONFIG_FILE_NAME);
+        let store = AppConfigStore::default();
+        store
+            .initialize_from_path(path.clone())
+            .expect("initialize store");
+
+        assert_eq!(
+            store
+                .live_message_settings()
+                .expect("read default message settings"),
+            LiveMessageSettings::default()
+        );
+        assert!(store
+            .set_live_message_settings(LiveMessageSettings {
+                display_filter: "interaction".to_string(),
+                max_stored_messages: 1_234,
+            })
+            .expect("save message settings"));
+        assert!(store
+            .set_live_message_settings(LiveMessageSettings {
+                display_filter: "unknown".to_string(),
+                max_stored_messages: 821,
+            })
+            .is_err());
+        assert!(store
+            .set_live_message_settings(LiveMessageSettings {
+                display_filter: "all".to_string(),
+                max_stored_messages: MAX_STORED_LIVE_MESSAGES + 1,
+            })
+            .is_err());
+
+        let reloaded = AppConfigStore::default();
+        reloaded
+            .initialize_from_path(path.clone())
+            .expect("reload store");
+        assert_eq!(
+            reloaded
+                .live_message_settings()
+                .expect("read persisted message settings"),
+            LiveMessageSettings {
+                display_filter: "interaction".to_string(),
+                max_stored_messages: 1_234,
+            }
+        );
+        let persisted: Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("read persisted config"))
+                .expect("parse persisted config");
+        assert_eq!(
+            persisted["live"]["messages"]["displayFilter"],
+            "interaction"
+        );
+        assert_eq!(persisted["live"]["messages"]["maxStoredMessages"], 1_234);
         let _ = fs::remove_dir_all(directory);
     }
 
