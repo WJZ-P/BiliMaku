@@ -21,6 +21,8 @@ interface WindowTitleBarProps {
 }
 
 const Bar = styled.header`
+  --window-control-size: ${theme.layout.titleBarControlSize};
+
   position: fixed;
   z-index: 1000;
   top: 0;
@@ -39,6 +41,8 @@ const Bar = styled.header`
   -webkit-backdrop-filter: blur(26px) saturate(1.42);
 
   &[data-compact="true"] {
+    --window-control-size: ${theme.layout.compactTitleBarHeight};
+
     right: 0;
     left: 0;
     height: ${theme.layout.compactTitleBarHeight};
@@ -304,27 +308,50 @@ const Controls = styled.div`
 `;
 
 const ControlButton = styled.button`
+  --window-control-hover-background: color-mix(
+    in srgb,
+    ${theme.colors.brandSoft} 78%,
+    transparent
+  );
+
   position: relative;
   display: grid;
-  width: ${theme.layout.titleBarControlWidth};
-  height: 100%;
+  width: var(--window-control-size);
+  height: var(--window-control-size);
+  flex: 0 0 var(--window-control-size);
   place-items: center;
+  isolation: isolate;
+  overflow: hidden;
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: ${theme.colors.textSecondary};
-  transition:
-    background ${theme.motion.normal},
-    color ${theme.motion.normal};
+  transition: color ${theme.motion.normal};
+
+  &::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background: var(--window-control-hover-background);
+    content: "";
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity ${theme.motion.normal};
+  }
 
   & > svg {
+    position: relative;
+    z-index: 1;
     transition: transform ${theme.motion.spring};
   }
 
   &:hover {
-    background: color-mix(in srgb, ${theme.colors.brandSoft} 78%, transparent);
     color: ${theme.colors.brandDeep};
+  }
+
+  &:hover::before {
+    opacity: 1;
   }
 
   &:hover > svg {
@@ -336,8 +363,11 @@ const ControlButton = styled.button`
     transition-duration: 90ms;
   }
 
+  &[data-kind="close"] {
+    --window-control-hover-background: ${theme.colors.dangerSoft};
+  }
+
   &[data-kind="close"]:hover {
-    background: ${theme.colors.dangerSoft};
     color: ${theme.colors.danger};
   }
 `;

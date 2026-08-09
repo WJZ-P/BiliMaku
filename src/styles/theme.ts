@@ -106,8 +106,8 @@ export const theme = {
     titleBarHeight: "70px",
     /** 登录页保留的紧凑窗口控制区高度。 */
     compactTitleBarHeight: "32px",
-    /** 右上角三个窗口控制按钮的单个宽度。 */
-    titleBarControlWidth: "36px",
+    /** 工作台右上角窗口控制按钮的正方形边长。 */
+    titleBarControlSize: "36px",
     /** 统一图标系统中窗口控制按钮的图标尺寸。 */
     titleBarControlIconSizePx: 14,
   },
