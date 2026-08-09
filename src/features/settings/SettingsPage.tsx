@@ -1,8 +1,8 @@
 import { styled } from "@linaria/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Icon } from "../../components/Icon";
-import { EyebrowBadge, Panel, PanelDescription, PanelHeader, PanelHeading, PanelTitle } from "../../components/ui";
+import { PanelDescription, PanelHeader, PanelHeading, PanelTitle } from "../../components/ui";
 import {
   disconnectLiveRoom,
   getConfigFilePath,
@@ -26,176 +26,226 @@ interface SettingsPageProps {
 
 const Page = styled.div`
   display: grid;
-  gap: 16px;
-  padding: 4px 30px 30px;
+  gap: 12px;
+  padding: 12px 20px 24px;
 `;
 
-const Hero = styled.section`
+/** 设置页专用的硬朗毛玻璃卡片，不使用大圆角和外投影。 */
+const SettingsPanel = styled.section`
   position: relative;
-  display: grid;
+  isolation: isolate;
   overflow: hidden;
-  min-height: 178px;
-  grid-template-columns: minmax(0, 1.5fr) minmax(230px, 0.5fr);
-  border: 1px solid color-mix(in srgb, ${theme.colors.brand} 15%, transparent);
-  border-radius: ${theme.radius.xl};
-  background: ${theme.gradients.soft};
-  box-shadow: ${theme.shadows.card}, ${theme.shadows.inset};
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 86%, transparent);
+  border-radius: 6px;
+  background:
+    linear-gradient(
+      132deg,
+      color-mix(in srgb, ${theme.colors.highlight} 16%, transparent),
+      transparent 38%
+    ),
+    color-mix(
+      in srgb,
+      ${theme.colors.surface} ${theme.frostedGlass.surfaceMix},
+      transparent
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 68%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.textMuted} 9%, transparent);
+  -webkit-backdrop-filter: blur(${theme.frostedGlass.blur})
+    saturate(${theme.frostedGlass.saturation})
+    brightness(${theme.frostedGlass.brightness})
+    contrast(${theme.frostedGlass.contrast});
+  backdrop-filter: blur(${theme.frostedGlass.blur})
+    saturate(${theme.frostedGlass.saturation})
+    brightness(${theme.frostedGlass.brightness})
+    contrast(${theme.frostedGlass.contrast});
 
-  &::after {
+  &::before {
     position: absolute;
-    top: -130px;
-    right: -55px;
-    width: 340px;
-    height: 340px;
-    border-radius: 50%;
-    background: radial-gradient(circle, color-mix(in srgb, ${theme.colors.cyan} 32%, transparent), transparent 67%);
+    z-index: -1;
+    inset: 0;
+    background-image: url("/textures/frosted-noise.svg");
+    background-size: 96px 96px;
     content: "";
-  }
-`;
-
-const HeroCopy = styled.div`
-  position: relative;
-  z-index: 1;
-  padding: 28px 30px;
-`;
-
-const Kicker = styled.div`
-  color: ${theme.colors.brand};
-  font-size: 9px;
-  font-weight: 850;
-  letter-spacing: 0.17em;
-`;
-
-const HeroTitle = styled.h2`
-  margin: 8px 0 8px;
-  color: ${theme.colors.textPrimary};
-  font-size: clamp(25px, 3vw, 36px);
-  font-weight: 880;
-  letter-spacing: -0.05em;
-`;
-
-const HeroDescription = styled.p`
-  max-width: 680px;
-  margin: 0;
-  color: ${theme.colors.textSecondary};
-  font-size: 11px;
-  line-height: 1.75;
-`;
-
-const ThemeOrb = styled.div`
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-`;
-
-const Orb = styled.div`
-  display: grid;
-  width: 104px;
-  height: 104px;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, ${theme.colors.highlight} 78%, transparent);
-  border-radius: 34px 34px 34px 13px;
-  background: color-mix(in srgb, ${theme.colors.surface} 65%, transparent);
-  color: ${theme.colors.brand};
-  box-shadow: ${theme.shadows.floating}, ${theme.shadows.inset};
-  backdrop-filter: blur(18px);
-  transition: transform ${theme.motion.spring};
-
-  &:hover {
-    transform: rotate(5deg) scale(1.06);
+    mix-blend-mode: soft-light;
+    opacity: ${theme.frostedGlass.noiseOpacity};
+    pointer-events: none;
   }
 `;
 
 const Grid = styled.div`
   display: grid;
-  grid-template-columns: minmax(360px, 1.1fr) minmax(300px, 0.9fr);
-  gap: 16px;
-
-  @media (max-width: 1050px) {
-    grid-template-columns: 1fr;
-  }
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
 `;
 
 const AccountBody = styled.div`
   display: grid;
-  grid-template-columns: 82px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(330px, 1.2fr) auto;
   align-items: center;
-  gap: 18px;
-  padding: 24px;
+  gap: 20px;
+  padding: 18px 20px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: minmax(0, 1fr) auto;
+
+    & > div:nth-child(2) {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 620px) {
+    grid-template-columns: minmax(0, 1fr);
+
+    & > button {
+      justify-self: start;
+    }
+  }
+`;
+
+const AccountIdentity = styled.div`
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
 `;
 
 const Avatar = styled.img`
-  width: 82px;
-  height: 82px;
-  border: 4px solid ${theme.colors.surface};
-  border-radius: 27px 27px 27px 10px;
+  width: 64px;
+  height: 64px;
+  border: 2px solid color-mix(in srgb, ${theme.colors.brand} 36%, ${theme.colors.surface});
+  border-radius: 50%;
+  background: ${theme.colors.surfaceMuted};
   object-fit: cover;
-  box-shadow: ${theme.shadows.floating};
 `;
 
 const AvatarFallback = styled.div`
   display: grid;
-  width: 82px;
-  height: 82px;
+  width: 64px;
+  height: 64px;
   place-items: center;
-  border-radius: 27px 27px 27px 10px;
+  border: 2px solid color-mix(in srgb, ${theme.colors.brand} 36%, ${theme.colors.surface});
+  border-radius: 50%;
   background: ${theme.gradients.brand};
   color: ${theme.colors.textOnBrand};
-  font-size: 25px;
+  font-size: 22px;
   font-weight: 900;
-  box-shadow: ${theme.shadows.floating};
 `;
 
 const AccountName = styled.div`
+  overflow: hidden;
   color: ${theme.colors.textPrimary};
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 const AccountUid = styled.div`
   margin-top: 4px;
   color: ${theme.colors.textMuted};
   font-family: ${theme.typography.mono};
-  font-size: 9px;
+  font-size: 10px;
 `;
 
 const SessionState = styled.div`
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 9px;
+  margin-top: 8px;
   color: ${theme.colors.success};
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 750;
+`;
+
+const PanelMeta = styled.span`
+  color: ${theme.colors.textMuted};
+  font-size: 10px;
+  font-weight: 720;
+  letter-spacing: 0.02em;
+`;
+
+const AccountStats = styled.div`
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(86px, 1fr));
+  align-items: stretch;
+  border-left: 1px solid ${theme.colors.border};
+
+  @media (max-width: 900px) {
+    padding-top: 14px;
+    border-top: 1px solid ${theme.colors.border};
+    border-left: 0;
+  }
+`;
+
+const AccountStat = styled.div`
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 2px 14px;
+
+  & + & {
+    border-left: 1px solid ${theme.colors.border};
+  }
+
+  svg {
+    color: ${theme.colors.brand};
+  }
+`;
+
+const AccountStatCopy = styled.div`
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+`;
+
+const AccountStatValue = styled.strong`
+  overflow: hidden;
+  color: ${theme.colors.textPrimary};
+  font-size: 18px;
+  font-weight: 860;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-overflow: ellipsis;
+`;
+
+const AccountStatLabel = styled.span`
+  color: ${theme.colors.textMuted};
+  font-size: 10px;
+  font-weight: 680;
+  white-space: nowrap;
 `;
 
 const LogoutButton = styled.button`
   display: inline-flex;
-  height: 39px;
+  height: 36px;
   align-items: center;
   gap: 7px;
-  padding: 0 14px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.danger} 22%, ${theme.colors.border});
-  border-radius: 13px;
-  background: color-mix(in srgb, ${theme.colors.dangerSoft} 80%, transparent);
+  justify-self: end;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.danger} 28%, ${theme.colors.border});
+  border-radius: 5px;
+  background: color-mix(in srgb, ${theme.colors.dangerSoft} 58%, transparent);
   color: ${theme.colors.danger};
   font-size: 10px;
   font-weight: 800;
   transition:
-    transform ${theme.motion.spring},
-    box-shadow ${theme.motion.normal},
-    background ${theme.motion.normal};
+    transform ${theme.motion.fast},
+    border-color ${theme.motion.fast},
+    background ${theme.motion.fast};
 
   &:hover {
-    background: ${theme.colors.dangerSoft};
-    box-shadow: 0 9px 22px color-mix(in srgb, ${theme.colors.danger} 16%, transparent);
-    transform: translateY(-2px) scale(1.03);
+    border-color: color-mix(in srgb, ${theme.colors.danger} 52%, ${theme.colors.border});
+    background: color-mix(in srgb, ${theme.colors.dangerSoft} 82%, transparent);
+    transform: translateX(2px);
   }
 
   &:active {
-    transform: translateY(1px) scale(0.89);
-    transition-duration: 90ms;
+    transform: translateX(1px) scale(0.97);
   }
 
   &:disabled {
@@ -218,9 +268,8 @@ const ThemeOption = styled.div`
   gap: 13px;
   padding: 13px;
   border: 1px solid color-mix(in srgb, ${theme.colors.brand} 27%, ${theme.colors.border});
-  border-radius: ${theme.radius.md};
-  background: ${theme.colors.brandSubtle};
-  box-shadow: ${theme.shadows.inset};
+  border-radius: 5px;
+  background: color-mix(in srgb, ${theme.colors.brandSubtle} 62%, transparent);
 `;
 
 const BubbleColorOption = styled.div`
@@ -230,8 +279,8 @@ const BubbleColorOption = styled.div`
   gap: 13px;
   padding: 13px;
   border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.radius.md};
-  background: ${theme.colors.surfaceMuted};
+  border-radius: 5px;
+  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 70%, transparent);
 `;
 
 const BubblePreview = styled.div`
@@ -265,8 +314,8 @@ const BubbleColorInput = styled.input`
   height: 38px;
   padding: 3px;
   border: 1px solid ${theme.colors.borderStrong};
-  border-radius: 10px;
-  background: ${theme.colors.surface};
+  border-radius: 4px;
+  background: color-mix(in srgb, ${theme.colors.surface} 76%, transparent);
 
   &::-webkit-color-swatch-wrapper {
     padding: 0;
@@ -285,8 +334,8 @@ const MessageLimitOption = styled.div`
   gap: 16px;
   padding: 13px;
   border: 1px solid ${theme.colors.border};
-  border-radius: 7px;
-  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 84%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 70%, transparent);
 `;
 
 const MessageLimitField = styled.label`
@@ -297,8 +346,8 @@ const MessageLimitField = styled.label`
   align-items: center;
   overflow: hidden;
   border: 1px solid ${theme.colors.borderStrong};
-  border-radius: 6px;
-  background: ${theme.colors.surface};
+  border-radius: 4px;
+  background: color-mix(in srgb, ${theme.colors.surface} 76%, transparent);
   transition:
     border-color ${theme.motion.fast},
     box-shadow ${theme.motion.fast};
@@ -345,9 +394,8 @@ const Swatches = styled.div`
   height: 40px;
   grid-template-columns: repeat(2, 1fr);
   overflow: hidden;
-  border: 3px solid ${theme.colors.surface};
-  border-radius: 13px;
-  box-shadow: 0 6px 15px ${theme.colors.shadow};
+  border: 1px solid ${theme.colors.borderStrong};
+  border-radius: 4px;
 
   span:nth-child(1) { background: ${theme.colors.brand}; }
   span:nth-child(2) { background: ${theme.colors.cyan}; }
@@ -369,8 +417,9 @@ const OptionDescription = styled.div`
 
 const Detail = styled.div`
   padding: 11px 12px;
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.surfaceMuted};
+  border: 1px solid ${theme.colors.border};
+  border-radius: 4px;
+  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 64%, transparent);
   color: ${theme.colors.textMuted};
   font-size: 9px;
   line-height: 1.65;
@@ -379,7 +428,7 @@ const Detail = styled.div`
 
 const ErrorMessage = styled.div`
   padding: 10px 12px;
-  border-radius: ${theme.radius.sm};
+  border-radius: 4px;
   background: ${theme.colors.dangerSoft};
   color: ${theme.colors.danger};
   font-size: 9px;
@@ -406,6 +455,20 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
   const latestAppearanceRef = useRef(liveAppearance);
   const appearanceReadyRef = useRef(false);
   const profile = accountStatus.profile;
+  const recordedActivity = useMemo(() => {
+    const totals = { entrances: 0, messages: 0, gifts: 0 };
+    for (const event of live.events) {
+      if (event.type === "interaction" && event.interactionKind === "enter") {
+        totals.entrances += 1;
+      } else if (event.type === "message") {
+        totals.messages += 1;
+      } else if (event.type === "gift") {
+        const quantity = Number(event.content.match(/×\s*(\d+)/u)?.[1] ?? "1");
+        totals.gifts += Number.isSafeInteger(quantity) && quantity > 0 ? quantity : 1;
+      }
+    }
+    return totals;
+  }, [live.events]);
 
   useEffect(() => {
     let active = true;
@@ -507,52 +570,68 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
 
   return (
     <Page>
-      <Hero>
-        <HeroCopy>
-          <Kicker>APPLICATION SETTINGS</Kicker>
-          <HeroTitle>账号、主题与本地配置</HeroTitle>
-          <HeroDescription>
-            当前采用浅蓝色默认主题。界面组件只消费语义化 Theme Token，后续加入粉色方案时可以整体切换，无需逐个修改组件。
-          </HeroDescription>
-        </HeroCopy>
-        <ThemeOrb aria-hidden="true"><Orb><Icon name="settings" size={43} /></Orb></ThemeOrb>
-      </Hero>
-
       <Grid>
-        <Panel>
+        <SettingsPanel>
           <PanelHeader>
             <PanelHeading>
-              <PanelTitle>登录账号</PanelTitle>
-              <PanelDescription>{accountStatus.message}</PanelDescription>
+              <PanelTitle>账号与记录</PanelTitle>
+              <PanelDescription>
+                BiliMaku 当前会话已记录 {recordedActivity.entrances.toLocaleString("zh-CN")} 个入场、{recordedActivity.messages.toLocaleString("zh-CN")} 条弹幕和 {recordedActivity.gifts.toLocaleString("zh-CN")} 个礼物
+              </PanelDescription>
             </PanelHeading>
-            <EyebrowBadge>{accountStatus.persisted ? "PERSISTED" : "SESSION"}</EyebrowBadge>
+            <PanelMeta>{accountStatus.persisted ? "登录态已持久化" : "当前会话"}</PanelMeta>
           </PanelHeader>
           <AccountBody>
-            {profile?.avatar ? (
-              <Avatar src={profile.avatar} alt="" referrerPolicy="no-referrer" />
-            ) : (
-              <AvatarFallback>{profile?.username.slice(0, 1) || "播"}</AvatarFallback>
-            )}
-            <div>
-              <AccountName>{profile?.username || "已登录账号"}</AccountName>
-              <AccountUid>UID {profile?.uid || "--"}</AccountUid>
-              <SessionState><Icon name="check" size={13} />本地登录态已启用</SessionState>
-            </div>
+            <AccountIdentity>
+              {profile?.avatar ? (
+                <Avatar src={profile.avatar} alt="" referrerPolicy="no-referrer" />
+              ) : (
+                <AvatarFallback>{profile?.username.slice(0, 1) || "播"}</AvatarFallback>
+              )}
+              <div>
+                <AccountName>{profile?.username || "已登录账号"}</AccountName>
+                <AccountUid>UID {profile?.uid || "--"}</AccountUid>
+                <SessionState><Icon name="check" size={13} />本地登录态已启用</SessionState>
+              </div>
+            </AccountIdentity>
+            <AccountStats aria-label="BiliMaku 当前会话记录">
+              <AccountStat data-tooltip="当前消息缓存中的进场事件数">
+                <Icon name="users" size={18} />
+                <AccountStatCopy>
+                  <AccountStatValue>{recordedActivity.entrances.toLocaleString("zh-CN")}</AccountStatValue>
+                  <AccountStatLabel>入场消息</AccountStatLabel>
+                </AccountStatCopy>
+              </AccountStat>
+              <AccountStat data-tooltip="当前消息缓存中的普通弹幕数">
+                <Icon name="message" size={18} />
+                <AccountStatCopy>
+                  <AccountStatValue>{recordedActivity.messages.toLocaleString("zh-CN")}</AccountStatValue>
+                  <AccountStatLabel>弹幕记录</AccountStatLabel>
+                </AccountStatCopy>
+              </AccountStat>
+              <AccountStat data-tooltip="当前消息缓存中的礼物总数">
+                <Icon name="gift" size={18} />
+                <AccountStatCopy>
+                  <AccountStatValue>{recordedActivity.gifts.toLocaleString("zh-CN")}</AccountStatValue>
+                  <AccountStatLabel>收到礼物</AccountStatLabel>
+                </AccountStatCopy>
+              </AccountStat>
+            </AccountStats>
             <LogoutButton type="button" disabled={busy} onClick={() => void logout()}>
               <Icon name="arrow" size={14} />
               {busy ? "正在退出…" : "退出登录"}
             </LogoutButton>
           </AccountBody>
           {error ? <ErrorMessage>{error}</ErrorMessage> : null}
-        </Panel>
+        </SettingsPanel>
 
-        <Panel>
+        <SettingsPanel>
           <PanelHeader>
             <PanelHeading>
               <PanelTitle>界面与消息</PanelTitle>
               <PanelDescription>主题外观与聊天缓存</PanelDescription>
             </PanelHeading>
-            <EyebrowBadge>BLUE DEFAULT</EyebrowBadge>
+            <PanelMeta>浅蓝默认</PanelMeta>
           </PanelHeader>
           <ThemeBody>
             <ThemeOption>
@@ -615,7 +694,7 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
             {messageSettingsError ? <ErrorMessage>{messageSettingsError}</ErrorMessage> : null}
             <Detail>配置文件：{configPath || "正在读取…"}</Detail>
           </ThemeBody>
-        </Panel>
+        </SettingsPanel>
       </Grid>
     </Page>
   );
