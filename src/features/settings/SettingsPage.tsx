@@ -354,15 +354,18 @@ const MessageLimitInput = styled.input`
   padding: 0 7px 0 10px;
   border: 0;
   outline: 0;
+  appearance: textfield;
   background: transparent;
   color: ${theme.colors.textPrimary};
   font-family: ${theme.typography.mono};
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   text-align: right;
 
-  &::-webkit-inner-spin-button {
-    opacity: 0.58;
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
   }
 `;
 
@@ -374,7 +377,7 @@ const MessageLimitUnit = styled.span`
   border-left: 1px solid ${theme.colors.border};
   background: ${theme.colors.surfaceMuted};
   color: ${theme.colors.textMuted};
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 750;
 `;
 
