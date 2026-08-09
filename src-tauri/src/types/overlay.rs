@@ -10,6 +10,9 @@ pub struct OverlayWindowOptions {
     /// 是否显示侧边栏编辑边界并启用原生窗口拖动。
     #[serde(default)]
     pub edit_mode: bool,
+    /// 边缘防护是否使用显示器完整边界，而不是避让系统任务栏的工作区。
+    #[serde(default)]
+    pub include_taskbar: bool,
 
     /// 侧边栏窗口宽度，单位为逻辑像素。
     #[serde(default = "default_sidebar_width")]
@@ -19,7 +22,7 @@ pub struct OverlayWindowOptions {
     pub height: f64,
 }
 
-/// 侧边悬浮窗相对于某一显示器工作区的持久化位置。
+/// 侧边悬浮窗相对于某一显示器边缘防护范围的持久化位置。
 ///
 /// 使用归一化比例而非固定像素，能够在分辨率、DPI 或显示器排列变化后
 /// 继续恢复到相近位置；显示器原点允许为负数。
@@ -28,13 +31,13 @@ pub struct OverlayWindowOptions {
 pub struct SidebarOverlayPlacement {
     /// 操作系统提供的显示器名称；同名设备通过保存时原点进一步区分。
     pub monitor_name: Option<String>,
-    /// 保存时显示器工作区左上角物理 X 坐标。
+    /// 保存时边缘防护范围左上角物理 X 坐标。
     pub monitor_origin_x: i32,
-    /// 保存时显示器工作区左上角物理 Y 坐标。
+    /// 保存时边缘防护范围左上角物理 Y 坐标。
     pub monitor_origin_y: i32,
-    /// 窗口在工作区可移动宽度中的横向比例。
+    /// 窗口在边缘防护范围可移动宽度中的横向比例。
     pub x_ratio: f64,
-    /// 窗口在工作区可移动高度中的纵向比例。
+    /// 窗口在边缘防护范围可移动高度中的纵向比例。
     pub y_ratio: f64,
 }
 

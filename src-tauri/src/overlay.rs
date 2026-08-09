@@ -22,7 +22,18 @@ struct ScreenRect {
 }
 
 impl ScreenRect {
-    fn from_monitor(monitor: &Monitor) -> Self {
+    fn from_monitor(monitor: &Monitor, include_taskbar: bool) -> Self {
+        if include_taskbar {
+            let position = monitor.position();
+            let size = monitor.size();
+            return Self {
+                x: position.x,
+                y: position.y,
+                width: size.width,
+                height: size.height,
+            };
+        }
+
         let work_area = monitor.work_area();
         Self {
             x: work_area.position.x,
@@ -144,13 +155,11 @@ fn finite_or(value: f64, fallback: f64) -> f64 {
 }
 
 fn sidebar_physical_size(options: &OverlayWindowOptions, monitor: &Monitor) -> PhysicalSize<u32> {
-    let screen = ScreenRect::from_monitor(monitor);
-    let logical_work_area = monitor
-        .work_area()
-        .size
-        .to_logical::<f64>(monitor.scale_factor());
-    let maximum_width = logical_work_area.width.max(1.0);
-    let maximum_height = logical_work_area.height.max(1.0);
+    let screen = ScreenRect::from_monitor(monitor, options.include_taskbar);
+    let logical_bounds =
+        PhysicalSize::new(screen.width, screen.height).to_logical::<f64>(monitor.scale_factor());
+    let maximum_width = logical_bounds.width.max(1.0);
+    let maximum_height = logical_bounds.height.max(1.0);
     let minimum_width = 280.0_f64.min(maximum_width);
     let minimum_height = 360.0_f64.min(maximum_height);
     let width = finite_or(options.width, 390.0).clamp(minimum_width, maximum_width);
@@ -192,8 +201,9 @@ fn placement_from_position(
     monitor: &Monitor,
     position: PhysicalPosition<i32>,
     size: PhysicalSize<u32>,
+    include_taskbar: bool,
 ) -> SidebarOverlayPlacement {
-    let screen = ScreenRect::from_monitor(monitor);
+    let screen = ScreenRect::from_monitor(monitor, include_taskbar);
     let available_x = screen.width.saturating_sub(size.width);
     let available_y = screen.height.saturating_sub(size.height);
     SidebarOverlayPlacement {
@@ -213,8 +223,12 @@ fn placement_from_position(
     }
 }
 
-fn monitor_origin_distance(monitor: &Monitor, placement: &SidebarOverlayPlacement) -> i128 {
-    let screen = ScreenRect::from_monitor(monitor);
+fn monitor_origin_distance(
+    monitor: &Monitor,
+    placement: &SidebarOverlayPlacement,
+    include_taskbar: bool,
+) -> i128 {
+    let screen = ScreenRect::from_monitor(monitor, include_taskbar);
     let dx = i128::from(screen.x) - i128::from(placement.monitor_origin_x);
     let dy = i128::from(screen.y) - i128::from(placement.monitor_origin_y);
     dx * dx + dy * dy
@@ -224,6 +238,7 @@ fn restored_monitor_index(
     monitors: &[Monitor],
     primary: Option<&Monitor>,
     placement: Option<&SidebarOverlayPlacement>,
+    include_taskbar: bool,
 ) -> usize {
     if let Some(placement) = placement {
         if let Some(index) = monitors
@@ -232,16 +247,17 @@ fn restored_monitor_index(
             .filter(|(_, monitor)| {
                 monitor.name().map(String::as_str) == placement.monitor_name.as_deref()
             })
-            .min_by_key(|(_, monitor)| monitor_origin_distance(monitor, placement))
+            .min_by_key(|(_, monitor)| monitor_origin_distance(monitor, placement, include_taskbar))
             .map(|(index, _)| index)
         {
             return index;
         }
     }
     if let Some(primary) = primary {
-        let primary_screen = ScreenRect::from_monitor(primary);
+        let primary_screen = ScreenRect::from_monitor(primary, include_taskbar);
         if let Some(index) = monitors.iter().position(|monitor| {
-            ScreenRect::from_monitor(monitor) == primary_screen && monitor.name() == primary.name()
+            ScreenRect::from_monitor(monitor, include_taskbar) == primary_screen
+                && monitor.name() == primary.name()
         }) {
             return index;
         }
@@ -263,9 +279,15 @@ fn persist_sidebar_placement(
     monitor: &Monitor,
     position: PhysicalPosition<i32>,
     size: PhysicalSize<u32>,
+    include_taskbar: bool,
 ) -> Result<(), String> {
     store
-        .set_sidebar_overlay_placement(placement_from_position(monitor, position, size))
+        .set_sidebar_overlay_placement(placement_from_position(
+            monitor,
+            position,
+            size,
+            include_taskbar,
+        ))
         .map(|_| ())
 }
 
@@ -278,7 +300,7 @@ fn apply_sidebar_geometry(
     let monitors = available_monitors(window)?;
     let screens = monitors
         .iter()
-        .map(ScreenRect::from_monitor)
+        .map(|monitor| ScreenRect::from_monitor(monitor, options.include_taskbar))
         .collect::<Vec<_>>();
     let saved_placement = store.sidebar_overlay_placement()?;
     let current_position = window.outer_position().unwrap_or_default();
@@ -289,9 +311,12 @@ fn apply_sidebar_geometry(
         .primary_monitor()
         .map_err(|error| format!("读取主显示器失败：{error}"))?;
     let monitor_index = match mode {
-        SidebarGeometryMode::Restore => {
-            restored_monitor_index(&monitors, primary.as_ref(), saved_placement.as_ref())
-        }
+        SidebarGeometryMode::Restore => restored_monitor_index(
+            &monitors,
+            primary.as_ref(),
+            saved_placement.as_ref(),
+            options.include_taskbar,
+        ),
         SidebarGeometryMode::Preserve => {
             target_screen_index(&screens, current_position, current_size).unwrap_or(0)
         }
@@ -315,7 +340,7 @@ fn apply_sidebar_geometry(
     window
         .set_position(position)
         .map_err(|error| format!("调整侧边栏位置失败：{error}"))?;
-    persist_sidebar_placement(store, monitor, position, size)
+    persist_sidebar_placement(store, monitor, position, size, options.include_taskbar)
 }
 
 fn apply_window_options(
@@ -427,6 +452,7 @@ pub fn update_overlay_window(
 pub fn finalize_sidebar_overlay_position(
     app: AppHandle,
     store: State<'_, AppConfigStore>,
+    include_taskbar: bool,
 ) -> Result<(), String> {
     let Some(window) = app.get_webview_window(SIDEBAR_LABEL) else {
         return Ok(());
@@ -434,7 +460,7 @@ pub fn finalize_sidebar_overlay_position(
     let monitors = available_monitors(&window)?;
     let screens = monitors
         .iter()
-        .map(ScreenRect::from_monitor)
+        .map(|monitor| ScreenRect::from_monitor(monitor, include_taskbar))
         .collect::<Vec<_>>();
     let size = window
         .outer_size()
@@ -450,7 +476,7 @@ pub fn finalize_sidebar_overlay_position(
             .set_position(position)
             .map_err(|error| format!("收回超出显示器的侧边栏失败：{error}"))?;
     }
-    persist_sidebar_placement(store.inner(), monitor, position, size)
+    persist_sidebar_placement(store.inner(), monitor, position, size, include_taskbar)
 }
 
 #[tauri::command]
@@ -511,6 +537,13 @@ mod tests {
     use super::*;
 
     #[test]
+    fn legacy_window_options_avoid_taskbar_by_default() {
+        let options: OverlayWindowOptions =
+            serde_json::from_value(json!({})).expect("overlay options");
+        assert!(!options.include_taskbar);
+    }
+
+    #[test]
     fn maps_supported_overlay_kinds() {
         assert_eq!(overlay_label("danmaku").expect("danmaku"), DANMAKU_LABEL);
         assert_eq!(overlay_label("sidebar").expect("sidebar"), SIDEBAR_LABEL);
@@ -553,6 +586,33 @@ mod tests {
             PhysicalSize::new(500, 700),
         );
         assert_eq!(index, Some(0));
+    }
+
+    #[test]
+    fn taskbar_inclusion_extends_the_available_bottom_edge() {
+        let work_area = ScreenRect {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1040,
+        };
+        let full_monitor = ScreenRect {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let requested = PhysicalPosition::new(40, 360);
+        let sidebar = PhysicalSize::new(390, 720);
+
+        assert_eq!(
+            clamp_position(requested, sidebar, work_area),
+            PhysicalPosition::new(40, 320),
+        );
+        assert_eq!(
+            clamp_position(requested, sidebar, full_monitor),
+            PhysicalPosition::new(40, 360),
+        );
     }
 
     #[test]

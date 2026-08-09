@@ -456,13 +456,13 @@ export function EventSidebarOverlayWindow() {
     clearDragSettleTimer();
     finalizingPosition.current = true;
     try {
-      await finalizeSidebarOverlayPosition();
+      await finalizeSidebarOverlayPosition(settings.includeTaskbarInBounds);
     } catch (error) {
       console.error("收回超出显示器的侧边悬浮窗失败", error);
     } finally {
       finalizingPosition.current = false;
     }
-  }, [clearDragSettleTimer]);
+  }, [clearDragSettleTimer, settings.includeTaskbarInBounds]);
 
   const scheduleDragFinish = useCallback(() => {
     clearDragSettleTimer();
@@ -566,7 +566,7 @@ export function EventSidebarOverlayWindow() {
       {settings.editMode ? (
         <>
           <EditFrame />
-          <EditCaption>拖动定位 · {settings.width} × {settings.height}</EditCaption>
+          <EditCaption>拖动定位 · {settings.width} × {settings.height} · {settings.includeTaskbarInBounds ? "包含任务栏" : "避让任务栏"}</EditCaption>
         </>
       ) : null}
     </Canvas>

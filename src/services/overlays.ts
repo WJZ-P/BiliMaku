@@ -60,6 +60,7 @@ export const defaultOverlaySettings: OverlaySettings = {
   sidebar: {
     clickThrough: true,
     editMode: false,
+    includeTaskbarInBounds: false,
     entryDirection: "bottom",
     verticalAlignment: "bottom",
     width: 390,
@@ -185,6 +186,7 @@ function windowOptions(kind: OverlayKind, settings: OverlaySettings) {
   return {
     clickThrough: target.clickThrough,
     editMode: kind === "sidebar" && settings.sidebar.editMode,
+    includeTaskbar: kind === "sidebar" && settings.sidebar.includeTaskbarInBounds,
     width: settings.sidebar.width,
     height: settings.sidebar.height,
   };
@@ -272,9 +274,9 @@ export async function restoreAutoOpenOverlays(
 }
 
 /** 拖动结束后由 Rust 选择目标显示器、固定执行防溢出并持久化归一化位置。 */
-export async function finalizeSidebarOverlayPosition() {
+export async function finalizeSidebarOverlayPosition(includeTaskbar: boolean) {
   if (!isDesktopRuntime()) return;
-  await invoke("finalize_sidebar_overlay_position");
+  await invoke("finalize_sidebar_overlay_position", { includeTaskbar });
 }
 
 /** 查询指定悬浮组件的桌面窗口当前是否存在。 */

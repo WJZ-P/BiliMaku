@@ -97,6 +97,8 @@ export interface SidebarOverlaySettings {
   clickThrough: boolean;
   /** 是否显示窗口编辑边界并允许拖动定位。 */
   editMode: boolean;
+  /** 边缘防护是否使用显示器完整边界；开启后允许覆盖 Windows 任务栏区域。 */
+  includeTaskbarInBounds: boolean;
 
   /** 新消息相对侧边事件栏从顶部或底部进入。 */
   entryDirection: SidebarEntryDirection;

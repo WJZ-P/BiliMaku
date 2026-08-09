@@ -691,6 +691,18 @@ export function OverlaySettingsPage() {
                   <WindowSwitchTrack aria-hidden="true" />
                 </WindowSwitch>
 
+                <WindowSwitch>
+                  <WindowSwitchCopy>
+                    <WindowSwitchTitle>边缘范围包含任务栏</WindowSwitchTitle>
+                    <WindowSwitchHint>开启后可贴到显示器完整底边；关闭时自动避让 Windows 任务栏</WindowSwitchHint>
+                  </WindowSwitchCopy>
+                  <input
+                    type="checkbox"
+                    checked={settings.sidebar.includeTaskbarInBounds}
+                    onChange={(event) => updateSidebar({ includeTaskbarInBounds: event.target.checked })}
+                  />
+                  <WindowSwitchTrack aria-hidden="true" />
+                </WindowSwitch>
               </WindowSwitchGrid>
               <ToggleGrid>
                 <Toggle>显示头像<input type="checkbox" checked={settings.sidebar.showAvatar} onChange={(event) => updateSidebar({ showAvatar: event.target.checked })} /></Toggle>
