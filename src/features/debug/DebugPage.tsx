@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import { Icon } from "../../components/Icon";
 import { WebglParticleButton } from "../../components/WebglParticleButton";
+import { WebglDanmakuFlow } from "./WebglDanmakuFlow";
 import { WebglSpectralDeck } from "./WebglSpectralDeck";
 import {
   Avatar,
@@ -357,6 +358,22 @@ overlay: ${overlayEnabled ? "enabled" : "disabled"}`}</SignalCode>
           </SectionCopy>
         </SectionHeader>
         <WebglSpectralDeck density={particleDensity} onAction={setLastAction} />
+      </Section>
+
+      <Section>
+        <SectionHeader>
+          <SectionIndex>05</SectionIndex>
+          <SectionCopy>
+            <SectionTitle>弹幕流场预演</SectionTitle>
+            <SectionCaption>让 WebGL 负责光场与脉冲，DOM 负责保持昵称和正文的清晰度。</SectionCaption>
+          </SectionCopy>
+        </SectionHeader>
+        <WebglDanmakuFlow
+          message={sampleText}
+          density={particleDensity}
+          channel={channelNames[eventChannel]}
+          onAction={setLastAction}
+        />
       </Section>
 
       <FooterNote>

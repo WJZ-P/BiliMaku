@@ -2,6 +2,7 @@ import { styled } from "@linaria/react";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { Icon } from "../../components/Icon";
 import { theme } from "../../styles/theme";
+import { createFullscreenWebglRuntime, parseCssColor } from "./webglRuntime";
 
 type SpectralMode = "flow" | "pulse" | "warp";
 
@@ -396,16 +397,6 @@ const RenderStatus = styled.span`
   }
 `;
 
-const VERTEX_SHADER = `
-  attribute vec2 a_position;
-  varying vec2 v_uv;
-
-  void main() {
-    v_uv = a_position * 0.5 + 0.5;
-    gl_Position = vec4(a_position, 0.0, 1.0);
-  }
-`;
-
 const FRAGMENT_SHADER = `
   precision highp float;
 
@@ -499,47 +490,6 @@ const FRAGMENT_SHADER = `
   }
 `;
 
-function compileShader(gl: WebGLRenderingContext, type: number, source: string) {
-  const shader = gl.createShader(type);
-  if (!shader) throw new Error("创建光场 Shader 失败");
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    const message = gl.getShaderInfoLog(shader) || "未知 Shader 错误";
-    gl.deleteShader(shader);
-    throw new Error(message);
-  }
-  return shader;
-}
-
-function createProgram(gl: WebGLRenderingContext) {
-  const vertex = compileShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
-  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
-  const program = gl.createProgram();
-  if (!program) throw new Error("创建光场 Program 失败");
-  gl.attachShader(program, vertex);
-  gl.attachShader(program, fragment);
-  gl.linkProgram(program);
-  gl.deleteShader(vertex);
-  gl.deleteShader(fragment);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    const message = gl.getProgramInfoLog(program) || "未知 Program 错误";
-    gl.deleteProgram(program);
-    throw new Error(message);
-  }
-  return program;
-}
-
-function parseCssColor(value: string, fallback: readonly [number, number, number]) {
-  const hex = value.trim().match(/^#([\da-f]{6})$/i)?.[1];
-  if (!hex) return fallback;
-  return [
-    Number.parseInt(hex.slice(0, 2), 16) / 255,
-    Number.parseInt(hex.slice(2, 4), 16) / 255,
-    Number.parseInt(hex.slice(4, 6), 16) / 255,
-  ] as const;
-}
-
 const modeValues: Record<SpectralMode, number> = {
   flow: 0,
   pulse: 1,
@@ -583,29 +533,14 @@ export function WebglSpectralDeck({ density, onAction }: WebglSpectralDeckProps)
     });
     if (!gl) return;
 
-    let program: WebGLProgram;
+    let runtime;
     try {
-      program = createProgram(gl);
+      runtime = createFullscreenWebglRuntime(gl, FRAGMENT_SHADER);
     } catch (error) {
       console.warn("bilimaku spectral deck WebGL initialization failed", error);
       return;
     }
-
-    const buffer = gl.createBuffer();
-    if (!buffer) {
-      gl.deleteProgram(program);
-      return;
-    }
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
-      gl.STATIC_DRAW,
-    );
-    gl.useProgram(program);
-    const position = gl.getAttribLocation(program, "a_position");
-    gl.enableVertexAttribArray(position);
-    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+    const { program } = runtime;
 
     const uniforms = {
       resolution: gl.getUniformLocation(program, "u_resolution"),
@@ -662,7 +597,7 @@ export function WebglSpectralDeck({ density, onAction }: WebglSpectralDeckProps)
       gl.uniform1f(uniforms.density, densityRef.current);
       gl.uniform1f(uniforms.energy, currentEnergy);
       gl.uniform1f(uniforms.mode, currentMode);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
       frame = window.requestAnimationFrame(render);
     };
 
@@ -677,8 +612,7 @@ export function WebglSpectralDeck({ density, onAction }: WebglSpectralDeckProps)
       setReady(false);
       resizeObserver.disconnect();
       window.cancelAnimationFrame(frame);
-      gl.deleteBuffer(buffer);
-      gl.deleteProgram(program);
+      runtime.dispose();
     };
   }, []);
 
