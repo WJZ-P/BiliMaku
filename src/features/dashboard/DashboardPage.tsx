@@ -754,24 +754,24 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             </FilterGroup>
             <QuickStats aria-label="直播间事件摘要">
               <StatChip data-tooltip="当前会话收到的弹幕数量">
-                <Icon name="message" size={10} />
+                <Icon name="message" size={13} />
                 <span>弹幕</span>
                 <strong>{formatCompact(messageCount)}</strong>
               </StatChip>
               <StatChip data-tooltip="礼物、醒目留言与大航海事件">
-                <Icon name="gift" size={10} />
+                <Icon name="gift" size={13} />
                 <span>高亮</span>
                 <strong>{formatCompact(highlightedCount)}</strong>
               </StatChip>
               <StatChip data-tooltip={live.room?.liveTime
                 ? `本场开播时间（北京时间）${live.room.liveTime}`
                 : "连接后读取平台返回的本场开播时间"}>
-                <Icon name="clock" size={10} />
+                <Icon name="clock" size={13} />
                 <span>时长</span>
                 <strong>{liveDuration}</strong>
               </StatChip>
               <StatChip data-tooltip="平台心跳返回的是人气指标，并非精确在线人数">
-                <Icon name="radio" size={10} />
+                <Icon name="flame" size={13} />
                 <span>人气</span>
                 <strong>{hasLiveContext ? formatCompact(live.popularity) : "--"}</strong>
               </StatChip>
@@ -780,7 +780,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 live.onlineRank?.onlineCountText,
                 live.onlineRankError,
               )}>
-                <Icon name="users" size={10} />
+                <Icon name="users" size={13} />
                 <span>在线榜</span>
                 <strong>{connected ? live.onlineRank?.onlineCountText ?? "--" : "--"}</strong>
                 {live.onlineRank?.entries.length ? (

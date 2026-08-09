@@ -279,18 +279,19 @@ export const FilterGroup = styled.div`
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 `;
 
 export const FilterButton = styled.button`
-  height: 25px;
-  padding: 0 8px;
+  height: 29px;
+  padding: 0 10px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: ${theme.colors.textMuted};
-  font-size: 9px;
-  font-weight: 720;
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1;
   transition: all ${theme.motion.fast};
 
   &:hover {
@@ -310,25 +311,51 @@ export const QuickStats = styled.div`
   min-width: 0;
   align-items: center;
   justify-content: flex-end;
-  gap: 5px;
+  gap: 0;
 `;
 
 export const StatChip = styled.span`
+  position: relative;
   display: inline-flex;
-  height: 24px;
+  min-height: 28px;
   align-items: center;
-  gap: 4px;
-  padding: 0 7px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.border} 78%, transparent);
-  border-radius: ${theme.radius.pill};
-  background: color-mix(in srgb, ${theme.colors.surface} 66%, transparent);
+  gap: 5px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: ${theme.colors.textMuted};
-  font-size: 8px;
+  font-size: 10px;
+  font-weight: 680;
   white-space: nowrap;
+
+  & + &::before {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 1px;
+    height: 14px;
+    background: color-mix(in srgb, ${theme.colors.borderStrong} 72%, transparent);
+    content: "";
+    transform: translateY(-50%);
+  }
+
+  &:first-child {
+    padding-left: 0;
+  }
+
+  &:last-child {
+    padding-right: 0;
+  }
+
+  svg {
+    color: ${theme.colors.brand};
+  }
 
   strong {
     color: ${theme.colors.textSecondary};
-    font-size: 9px;
+    font-size: 11px;
+    font-weight: 820;
     font-variant-numeric: tabular-nums;
   }
 
@@ -350,8 +377,8 @@ export const RankFaces = styled.i`
 export const RankFace = styled.i`
   position: relative;
   display: grid;
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
   overflow: visible;
   place-items: center;
   margin-left: -3px;
@@ -359,7 +386,7 @@ export const RankFace = styled.i`
   border-radius: 50%;
   background: linear-gradient(145deg, #fff7d4, #e6f2ff);
   color: ${theme.colors.brandDeep};
-  font-size: 6px;
+  font-size: 7px;
   font-style: normal;
   font-weight: 850;
   box-shadow: 0 2px 6px color-mix(in srgb, ${theme.colors.brandDeep} 12%, transparent);
