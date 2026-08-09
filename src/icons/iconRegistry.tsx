@@ -98,6 +98,12 @@ export const ICON_REGISTRY = {
     </>
   ),
   check: () => <path d="m5 12 4 4L19 6" />,
+  copy: () => (
+    <>
+      <path d="M8 8V5h11v11h-3" />
+      <rect x="5" y="8" width="11" height="11" rx="1" />
+    </>
+  ),
   arrow: () => <path d="M5 12h14M14 7l5 5-5 5" />,
   coin: () => (
     <>

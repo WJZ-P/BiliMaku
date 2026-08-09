@@ -6,10 +6,12 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type FocusEvent as ReactFocusEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import type { AccountProfile } from "../types/account";
 import { theme } from "../styles/theme";
+import { Icon } from "./Icon";
 import { LiquidGlassSurface } from "./LiquidGlassSurface";
 
 interface AccountProfileTooltipProps {
@@ -37,6 +39,10 @@ type ProfileTooltipCssVariables = CSSProperties & {
 
 const VIEWPORT_MARGIN_PX = 10;
 const TOOLTIP_GAP_PX = 8;
+const TOOLTIP_CLOSE_DELAY_MS = 140;
+const COPY_FEEDBACK_DURATION_MS = 1_200;
+
+type CopyTarget = "room" | "uid";
 
 const Trigger = styled.button`
   display: grid;
@@ -100,34 +106,15 @@ const TooltipShell = styled.div`
   left: var(--profile-tooltip-x);
   width: min(${theme.titleBar.profileTooltipWidthPx}px, calc(100vw - 20px));
   max-height: calc(100vh - var(--profile-tooltip-y) - 10px);
+  /* 透明度与位移动画不能放在这一层，否则会截断子层的背景采样。 */
   visibility: hidden;
-  opacity: 0;
   pointer-events: none;
-  transform: translate3d(0, ${theme.tooltip.entranceOffsetPx}px, 0) scale(0.985);
-  transform-origin: var(--profile-tooltip-arrow-x) top;
-  transition:
-    opacity ${theme.tooltip.exitDurationMs}ms ease,
-    transform ${theme.tooltip.exitDurationMs}ms ease,
-    visibility 0s linear ${theme.tooltip.exitDurationMs}ms;
+  transition: visibility 0s linear ${theme.tooltip.exitDurationMs}ms;
 
   &[data-visible="true"] {
     visibility: visible;
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-    transition:
-      opacity ${theme.motion.normal},
-      transform ${theme.motion.spring},
-      visibility 0s linear 0s;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    transform: none;
-    transition: opacity ${theme.motion.fast}, visibility 0s linear ${theme.tooltip.exitDurationMs}ms;
-
-    &[data-visible="true"] {
-      transform: none;
-      transition: opacity ${theme.motion.fast}, visibility 0s linear 0s;
-    }
+    pointer-events: auto;
+    transition-delay: 0s;
   }
 `;
 
@@ -148,7 +135,13 @@ const TooltipArrow = styled.span`
     transparent
   );
   backdrop-filter: blur(${theme.tooltip.blur}) saturate(${theme.tooltip.backdropSaturation});
+  opacity: 0;
   transform: translateX(-50%) rotate(45deg);
+  transition: opacity ${theme.tooltip.exitDurationMs}ms ease;
+
+  [data-visible="true"] & {
+    opacity: 0.82;
+  }
 `;
 
 const GlassCard = styled.div`
@@ -156,6 +149,13 @@ const GlassCard = styled.div`
   z-index: 1;
   isolation: isolate;
   overflow: hidden;
+  opacity: 0;
+  transform: translate3d(0, ${theme.tooltip.entranceOffsetPx}px, 0) scale(0.985);
+  transform-origin: var(--profile-tooltip-arrow-x) top;
+  transition:
+    opacity ${theme.tooltip.exitDurationMs}ms ease,
+    transform ${theme.tooltip.exitDurationMs}ms ease;
+  will-change: opacity, transform;
   border: 1px solid
     color-mix(in srgb, ${theme.colors.highlight} 42%, ${theme.colors.border});
   border-radius: ${theme.tooltip.radius};
@@ -191,6 +191,24 @@ const GlassCard = styled.div`
     saturate(${theme.tooltip.backdropSaturation})
     brightness(${theme.tooltip.backdropBrightness})
     contrast(${theme.tooltip.backdropContrast});
+
+  [data-visible="true"] & {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    transition:
+      opacity ${theme.motion.normal},
+      transform ${theme.motion.spring};
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transform: none;
+    transition: opacity ${theme.motion.fast};
+
+    [data-visible="true"] & {
+      transform: none;
+      transition: opacity ${theme.motion.fast};
+    }
+  }
 `;
 
 const GlassAccent = styled.span`
@@ -256,10 +274,11 @@ const ProfileName = styled.strong`
 `;
 
 const IdentityLine = styled.div`
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 22px;
   min-width: 0;
-  align-items: baseline;
-  gap: 5px;
+  align-items: center;
+  gap: 6px;
   margin-top: 5px;
   color: ${theme.colors.textMuted};
   font-size: 10px;
@@ -273,6 +292,47 @@ const IdentityLine = styled.div`
     font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+`;
+
+const CopyButton = styled.button`
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 58%, transparent);
+  border-radius: 2px;
+  background: color-mix(in srgb, ${theme.colors.surface} 22%, transparent);
+  color: ${theme.colors.textMuted};
+  cursor: pointer;
+  opacity: 0.76;
+  transition:
+    color ${theme.motion.fast},
+    border-color ${theme.motion.fast},
+    background ${theme.motion.fast},
+    opacity ${theme.motion.fast},
+    transform ${theme.motion.spring};
+
+  &:hover,
+  &:focus-visible {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 72%, ${theme.colors.border});
+    outline: 0;
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 46%, transparent);
+    color: ${theme.colors.brandDeep};
+    opacity: 1;
+    transform: translateY(-1px) scale(1.06);
+  }
+
+  &[data-copied="true"] {
+    border-color: color-mix(in srgb, ${theme.colors.success} 72%, ${theme.colors.border});
+    color: ${theme.colors.success};
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.28;
+    transform: none;
   }
 `;
 
@@ -397,6 +457,30 @@ function liveMetric(value: number | null) {
   return value === null ? "--" : compactNumber.format(value);
 }
 
+/** 写入系统剪贴板，并兼容未开放 Clipboard API 的 WebView 环境。 */
+async function writeClipboardText(value: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return;
+    } catch {
+      // 某些 WebView 协议会拒绝 Clipboard API，继续使用同步回退方案。
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-10000px";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("浏览器未完成剪贴板写入");
+}
+
 export function AccountProfileTooltip({
   profile,
   roomId,
@@ -405,15 +489,62 @@ export function AccountProfileTooltip({
 }: AccountProfileTooltipProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const wasVisibleRef = useRef(false);
-  const [hovered, setHovered] = useState(false);
+  const pointerCloseTimerRef = useRef<number | undefined>(undefined);
+  const copyFeedbackTimerRef = useRef<number | undefined>(undefined);
+  const [pointerOpen, setPointerOpen] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [copiedTarget, setCopiedTarget] = useState<CopyTarget | null>(null);
   const [animationKey, setAnimationKey] = useState(0);
   const [position, setPosition] = useState<ProfileTooltipPosition>({
     x: VIEWPORT_MARGIN_PX,
     y: theme.titleBar.avatarSizePx + TOOLTIP_GAP_PX,
     arrowX: theme.titleBar.avatarSizePx / 2,
   });
-  const visible = hovered || focused;
+  const visible = pointerOpen || focused;
+
+  const openFromPointer = useCallback(() => {
+    if (pointerCloseTimerRef.current !== undefined) {
+      window.clearTimeout(pointerCloseTimerRef.current);
+      pointerCloseTimerRef.current = undefined;
+    }
+    setPointerOpen(true);
+  }, []);
+
+  const closeFromPointer = useCallback(() => {
+    if (pointerCloseTimerRef.current !== undefined) {
+      window.clearTimeout(pointerCloseTimerRef.current);
+    }
+    pointerCloseTimerRef.current = window.setTimeout(() => {
+      pointerCloseTimerRef.current = undefined;
+      setPointerOpen(false);
+    }, TOOLTIP_CLOSE_DELAY_MS);
+  }, []);
+
+  const handleFocusOut = useCallback((event: ReactFocusEvent<HTMLElement>) => {
+    if (
+      event.relatedTarget instanceof Node &&
+      event.currentTarget.contains(event.relatedTarget)
+    ) {
+      return;
+    }
+    setFocused(false);
+  }, []);
+
+  const handleCopy = useCallback(async (target: CopyTarget, value: string) => {
+    try {
+      await writeClipboardText(value);
+      setCopiedTarget(target);
+      if (copyFeedbackTimerRef.current !== undefined) {
+        window.clearTimeout(copyFeedbackTimerRef.current);
+      }
+      copyFeedbackTimerRef.current = window.setTimeout(() => {
+        copyFeedbackTimerRef.current = undefined;
+        setCopiedTarget(null);
+      }, COPY_FEEDBACK_DURATION_MS);
+    } catch (error) {
+      console.warn("bilimaku profile value copy failed", error);
+    }
+  }, []);
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current;
@@ -443,12 +574,21 @@ export function AccountProfileTooltip({
     return () => window.removeEventListener("resize", onViewportChange);
   }, [updatePosition, visible]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (visible && !wasVisibleRef.current) {
       setAnimationKey((current) => current + 1);
     }
     wasVisibleRef.current = visible;
   }, [visible]);
+
+  useEffect(() => () => {
+    if (pointerCloseTimerRef.current !== undefined) {
+      window.clearTimeout(pointerCloseTimerRef.current);
+    }
+    if (copyFeedbackTimerRef.current !== undefined) {
+      window.clearTimeout(copyFeedbackTimerRef.current);
+    }
+  }, []);
 
   const style: ProfileTooltipCssVariables = {
     "--profile-tooltip-x": `${position.x}px`,
@@ -468,11 +608,13 @@ export function AccountProfileTooltip({
         type="button"
         data-no-drag="true"
         aria-label={`查看 ${profile.username} 的账号信息`}
-        aria-describedby={visible ? tooltipId : undefined}
-        onPointerEnter={() => setHovered(true)}
-        onPointerLeave={() => setHovered(false)}
+        aria-controls={tooltipId}
+        aria-expanded={visible}
+        aria-haspopup="dialog"
+        onPointerEnter={openFromPointer}
+        onPointerLeave={closeFromPointer}
         onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onBlur={handleFocusOut}
       >
         {profile.avatar ? (
           <TriggerAvatar
@@ -491,10 +633,16 @@ export function AccountProfileTooltip({
       {createPortal(
         <TooltipShell
           id={tooltipId}
-          role="tooltip"
+          role="dialog"
+          aria-label={`${profile.username} 的账号信息`}
           aria-hidden={!visible}
+          data-no-drag="true"
           data-visible={visible}
           style={style}
+          onPointerEnter={openFromPointer}
+          onPointerLeave={closeFromPointer}
+          onFocusCapture={() => setFocused(true)}
+          onBlurCapture={handleFocusOut}
         >
           <TooltipArrow aria-hidden="true" />
           <GlassCard>
@@ -523,10 +671,29 @@ export function AccountProfileTooltip({
                   <IdentityLine>
                     <span>房间 ID</span>
                     <strong>{roomId > 0 ? roomId : "--"}</strong>
+                    <CopyButton
+                      type="button"
+                      aria-label={copiedTarget === "room" ? "房间 ID 已复制" : "复制房间 ID"}
+                      data-copied={copiedTarget === "room"}
+                      data-tooltip={copiedTarget === "room" ? "已复制" : "复制房间 ID"}
+                      disabled={roomId <= 0}
+                      onClick={() => void handleCopy("room", String(roomId))}
+                    >
+                      <Icon name={copiedTarget === "room" ? "check" : "copy"} size={13} />
+                    </CopyButton>
                   </IdentityLine>
                   <IdentityLine>
                     <span>UID</span>
                     <strong>{profile.uid}</strong>
+                    <CopyButton
+                      type="button"
+                      aria-label={copiedTarget === "uid" ? "UID 已复制" : "复制 UID"}
+                      data-copied={copiedTarget === "uid"}
+                      data-tooltip={copiedTarget === "uid" ? "已复制" : "复制 UID"}
+                      onClick={() => void handleCopy("uid", String(profile.uid))}
+                    >
+                      <Icon name={copiedTarget === "uid" ? "check" : "copy"} size={13} />
+                    </CopyButton>
                   </IdentityLine>
                 </Identity>
               </ProfileHeader>
