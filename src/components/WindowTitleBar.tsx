@@ -10,6 +10,7 @@ import {
   listenToLiveRoomStats,
   listenToLiveStatus,
 } from "../services/desktop";
+import { globalLayers } from "../styles/layers";
 import { theme } from "../styles/theme";
 import type { AccountProfile } from "../types/account";
 import type { LiveRoomStatsUpdate } from "../types/events";
@@ -25,7 +26,7 @@ const Bar = styled.header`
   --window-control-size: ${theme.layout.titleBarControlSize};
 
   position: fixed;
-  z-index: 1000;
+  z-index: ${globalLayers.titleBar};
   top: 0;
   right: 0;
   left: 0;

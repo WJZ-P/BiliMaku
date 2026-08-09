@@ -7,6 +7,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { globalLayers } from "../styles/layers";
 import { theme } from "../styles/theme";
 import { LiquidGlassSurface } from "./LiquidGlassSurface";
 
@@ -37,7 +38,7 @@ type TooltipCssVariables = CSSProperties & {
 
 const TooltipShell = styled.div`
   position: fixed;
-  z-index: 12000;
+  z-index: ${globalLayers.tooltip};
   top: var(--tooltip-y);
   left: var(--tooltip-x);
   max-width: min(320px, calc(100vw - 20px));

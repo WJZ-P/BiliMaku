@@ -9,8 +9,9 @@ import {
   type FocusEvent as ReactFocusEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import type { AccountProfile } from "../types/account";
+import { globalLayers } from "../styles/layers";
 import { theme } from "../styles/theme";
+import type { AccountProfile } from "../types/account";
 import { Icon } from "./Icon";
 import { LiquidGlassSurface } from "./LiquidGlassSurface";
 
@@ -101,7 +102,7 @@ const TriggerFallback = styled.span`
 
 const TooltipShell = styled.div`
   position: fixed;
-  z-index: 12000;
+  z-index: ${globalLayers.popover};
   top: var(--profile-tooltip-y);
   left: var(--profile-tooltip-x);
   width: min(${theme.titleBar.profileTooltipWidthPx}px, calc(100vw - 20px));
@@ -275,7 +276,7 @@ const ProfileName = styled.strong`
 
 const IdentityLine = styled.div`
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 22px;
+  grid-template-columns: auto minmax(0, 1fr);
   min-width: 0;
   align-items: center;
   gap: 6px;
@@ -293,6 +294,14 @@ const IdentityLine = styled.div`
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+`;
+
+const IdentityValue = styled.span`
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-self: start;
+  gap: 3px;
 `;
 
 const CopyButton = styled.button`
@@ -670,30 +679,34 @@ export function AccountProfileTooltip({
                   <ProfileName>{profile.username}</ProfileName>
                   <IdentityLine>
                     <span>房间 ID</span>
-                    <strong>{roomId > 0 ? roomId : "--"}</strong>
-                    <CopyButton
-                      type="button"
-                      aria-label={copiedTarget === "room" ? "房间 ID 已复制" : "复制房间 ID"}
-                      data-copied={copiedTarget === "room"}
-                      data-tooltip={copiedTarget === "room" ? "已复制" : "复制房间 ID"}
-                      disabled={roomId <= 0}
-                      onClick={() => void handleCopy("room", String(roomId))}
-                    >
-                      <Icon name={copiedTarget === "room" ? "check" : "copy"} size={13} />
-                    </CopyButton>
+                    <IdentityValue>
+                      <strong>{roomId > 0 ? roomId : "--"}</strong>
+                      <CopyButton
+                        type="button"
+                        aria-label={copiedTarget === "room" ? "房间 ID 已复制" : "复制房间 ID"}
+                        data-copied={copiedTarget === "room"}
+                        data-tooltip={copiedTarget === "room" ? "已复制" : "复制房间 ID"}
+                        disabled={roomId <= 0}
+                        onClick={() => void handleCopy("room", String(roomId))}
+                      >
+                        <Icon name={copiedTarget === "room" ? "check" : "copy"} size={13} />
+                      </CopyButton>
+                    </IdentityValue>
                   </IdentityLine>
                   <IdentityLine>
                     <span>UID</span>
-                    <strong>{profile.uid}</strong>
-                    <CopyButton
-                      type="button"
-                      aria-label={copiedTarget === "uid" ? "UID 已复制" : "复制 UID"}
-                      data-copied={copiedTarget === "uid"}
-                      data-tooltip={copiedTarget === "uid" ? "已复制" : "复制 UID"}
-                      onClick={() => void handleCopy("uid", String(profile.uid))}
-                    >
-                      <Icon name={copiedTarget === "uid" ? "check" : "copy"} size={13} />
-                    </CopyButton>
+                    <IdentityValue>
+                      <strong>{profile.uid}</strong>
+                      <CopyButton
+                        type="button"
+                        aria-label={copiedTarget === "uid" ? "UID 已复制" : "复制 UID"}
+                        data-copied={copiedTarget === "uid"}
+                        data-tooltip={copiedTarget === "uid" ? "已复制" : "复制 UID"}
+                        onClick={() => void handleCopy("uid", String(profile.uid))}
+                      >
+                        <Icon name={copiedTarget === "uid" ? "check" : "copy"} size={13} />
+                      </CopyButton>
+                    </IdentityValue>
                   </IdentityLine>
                 </Identity>
               </ProfileHeader>
