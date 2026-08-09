@@ -29,6 +29,13 @@ const LiveRoomProvider = lazy(() =>
     default: module.LiveRoomProvider,
   })),
 );
+const loadWorkspaceTitleBar = () =>
+  import("./features/dashboard/WorkspaceTitleBar");
+const WorkspaceTitleBar = lazy(() =>
+  loadWorkspaceTitleBar().then((module) => ({
+    default: module.WorkspaceTitleBar,
+  })),
+);
 const DebugPage = lazy(() =>
   import("./features/debug/DebugPage").then((module) => ({
     default: module.DebugPage,
@@ -221,6 +228,7 @@ function Workspace({ accountStatus, onAccountStatusChange }: WorkspaceProps) {
       <WorkspaceFlowCanvas />
       <Suspense fallback={<ViewLoading>正在初始化直播会话…</ViewLoading>}>
         <LiveRoomProvider>
+          <WorkspaceTitleBar profile={accountStatus.profile} />
           {/* 视图仍可按需卸载，但直播长链与事件缓冲由上层 Provider 持续持有。 */}
           <AppFrame>
             <Sidebar
@@ -276,8 +284,8 @@ export default function App() {
   useEffect(() => {
     if (!checkingSession) return;
     // Overlap the small dashboard chunk request with Rust's persisted-session validation.
-    void preloadView("dashboard").catch((reason) => {
-      console.warn("bilimaku dashboard startup preload failed", reason);
+    void Promise.all([preloadView("dashboard"), loadWorkspaceTitleBar()]).catch((reason) => {
+      console.warn("bilimaku workspace startup preload failed", reason);
     });
   }, [checkingSession]);
 
@@ -288,7 +296,9 @@ export default function App() {
     const prepareAndReveal = async () => {
       markStartup("account-session-resolved", status.phase);
       const startupTasks: Promise<unknown>[] = [configureMainWindow(windowMode)];
-      if (authenticated) startupTasks.push(preloadView("dashboard"));
+      if (authenticated) {
+        startupTasks.push(Promise.all([preloadView("dashboard"), loadWorkspaceTitleBar()]));
+      }
       const [windowResult, dashboardResult] = await Promise.allSettled(startupTasks);
 
       if (windowResult.status === "rejected") {
@@ -330,14 +340,14 @@ export default function App() {
   return (
     <GlobalStyles windowMode={windowMode}>
       {checkingSession ? null : (
-        <>
-          <WindowTitleBar compact={!authenticated} profile={status.profile} />
-          {authenticated ? (
-            <Workspace accountStatus={status} onAccountStatusChange={setStatus} />
-          ) : (
+        authenticated ? (
+          <Workspace accountStatus={status} onAccountStatusChange={setStatus} />
+        ) : (
+          <>
+            <WindowTitleBar compact profile={status.profile} />
             <LoginPage status={status} startupError={error} onStatusChange={setStatus} />
-          )}
-        </>
+          </>
+        )
       )}
     </GlobalStyles>
   );

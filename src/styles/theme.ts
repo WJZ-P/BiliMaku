@@ -105,7 +105,7 @@ export const theme = {
   },
   layout: {
     /** 工作台自绘标题栏高度；可容纳账号头像经验环和数据摘要。 */
-    titleBarHeight: "70px",
+    titleBarHeight: "56px",
     /** 登录页保留的紧凑窗口控制区高度。 */
     compactTitleBarHeight: "32px",
     /** 工作台右上角窗口控制按钮的正方形边长。 */
@@ -127,9 +127,9 @@ export const theme = {
     /** 资料卡房间 ID、UID 标签与数值的统一字号。 */
     profileIdentityFontSize: "12px",
     /** 顶部实时统计格高度。 */
-    metricHeightPx: 42,
+    metricHeightPx: 34,
     /** 顶部实时统计格最小宽度。 */
-    metricMinWidthPx: 104,
+    metricMinWidthPx: 72,
     /** 顶部统计标签字号。 */
     metricLabelFontSize: "10px",
     /** 顶部统计数值字号。 */

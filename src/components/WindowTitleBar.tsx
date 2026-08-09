@@ -14,13 +14,38 @@ import { globalLayers } from "../styles/layers";
 import { theme } from "../styles/theme";
 import type { AccountProfile } from "../types/account";
 import type { LiveRoomStatsUpdate } from "../types/events";
+import type { LiveOnlineRankEntry } from "../types/liveRank";
 
+/** 工作台标题栏从共享直播会话中读取的轻量实时摘要。 */
+export interface TitleBarRoomSummary {
+  /** 当前是否已经建立直播间长链。 */
+  connected: boolean;
+  /** 当前是否处于连接、重连或已连接状态。 */
+  hasLiveContext: boolean;
+  /** 当前会话缓存中的普通弹幕数量。 */
+  messageCount: number;
+  /** 当前会话缓存中的礼物、醒目留言与大航海数量。 */
+  highlightedCount: number;
+  /** 当前直播已经持续的格式化时长。 */
+  liveDuration: string;
+  /** 平台返回的本场开播时间。 */
+  liveTime?: string;
+  /** 心跳返回的人气指标，并非精确在线人数。 */
+  popularity: number;
+  /** 在线贡献榜人数的展示文本。 */
+  onlineCountText?: string;
+  /** 在线贡献榜前三名。 */
+  onlineRankEntries: LiveOnlineRankEntry[];
+  /** 在线贡献榜最近一次读取错误。 */
+  onlineRankError: string;
+}
 interface WindowTitleBarProps {
   /** 登录窗口隐藏账号区和数据摘要，只保留可拖拽区域与窗口按钮。 */
   compact?: boolean;
   /** 当前已登录账号资料；工作台标题栏用它绘制头像经验环。 */
   profile?: AccountProfile | null;
-}
+  /** 由工作台共享直播会话提供的实时摘要；登录页不传入。 */
+  roomSummary?: TitleBarRoomSummary | null;}
 
 const Bar = styled.header`
   --window-control-size: ${theme.layout.titleBarControlSize};
@@ -34,7 +59,7 @@ const Bar = styled.header`
   height: ${theme.layout.titleBarHeight};
   align-items: center;
   justify-content: space-between;
-  padding: 0 0 0 8px;
+  padding: 0 0 0 6px;
   border-bottom: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 66%, transparent);
   background:
     linear-gradient(
@@ -76,16 +101,16 @@ const DragRegion = styled.div`
   flex: 1;
   align-items: center;
   align-self: stretch;
-  gap: 6px;
+  gap: 4px;
   overflow: hidden;
 `;
 
 const AvatarDivider = styled.span`
-  width: 2px;
-  height: 40px;
-  flex: 0 0 2px;
-  margin: 0 8px 0 6px;
-  background: ${theme.colors.borderStrong};
+  width: 1px;
+  height: 30px;
+  flex: 0 0 1px;
+  margin: 0 4px;
+  background: color-mix(in srgb, ${theme.colors.borderStrong} 78%, transparent);
 `;
 const SummaryRail = styled.div`
   display: flex;
@@ -94,32 +119,34 @@ const SummaryRail = styled.div`
   flex: 0 1 auto;
   align-items: stretch;
   gap: 0;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 76%, transparent);
-  background: color-mix(in srgb, ${theme.colors.surface} 31%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 68%, transparent);
+  overflow: hidden;
+  border: 0;
+  background: color-mix(in srgb, ${theme.colors.surface} 18%, transparent);
 
-  @media (max-width: 760px) {
-    [data-live-metric="true"] {
+  @media (max-width: 980px) {
+    [data-metric-label-text="true"] {
       display: none;
     }
   }
 
-  @media (max-width: 520px) {
-    display: none;
+  @media (max-width: 760px) {
+    [data-rank-faces="true"] {
+      display: none;
+    }
   }
 `;
 /** 标题栏实时数据轨：硬边、无浮层阴影，Hover 只保留底色扫描反馈。 */
 const SummaryMetric = styled.div`
   --metric-accent: ${theme.colors.brand};
   position: relative;
-  display: grid;
+  display: inline-flex;
   height: 100%;
   min-width: ${theme.titleBar.metricMinWidthPx}px;
-  grid-template-columns: auto minmax(0, 1fr);
+  flex: 0 1 auto;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   overflow: hidden;
-  padding: 0 11px;
+  padding: 0 8px;
   border: 0;
   border-right: 1px solid ${theme.colors.borderStrong};
   border-radius: 0;
@@ -181,6 +208,33 @@ const SummaryMetric = styled.div`
     --metric-accent: ${theme.colors.brand};
   }
 
+  &[data-kind="highlighted"] {
+    --metric-accent: ${theme.colors.gift};
+  }
+
+  &[data-kind="duration"] {
+    --metric-accent: ${theme.colors.cyan};
+    min-width: calc(${theme.titleBar.metricMinWidthPx}px + 22px);
+  }
+
+  &[data-kind="popularity"] {
+    --metric-accent: ${theme.colors.warning};
+  }
+
+  &[data-kind="online"] {
+    --metric-accent: ${theme.colors.success};
+  }
+
+  @media (max-width: 760px) {
+    min-width: 54px;
+    gap: 4px;
+    padding: 0 6px;
+
+    &[data-kind="duration"] {
+      min-width: 78px;
+    }
+  }
+
   &:hover {
     background: color-mix(in srgb, var(--metric-accent) 7%, transparent);
   }
@@ -207,6 +261,7 @@ const MetricLabel = styled.span`
     color: var(--metric-accent);
   }
 `;
+const MetricLabelText = styled.span``;
 const MetricValue = styled.strong`
   overflow: hidden;
   max-width: 96px;
@@ -216,6 +271,43 @@ const MetricValue = styled.strong`
   font-weight: 860;
   letter-spacing: -0.015em;
   text-overflow: ellipsis;
+`;
+
+const MetricRankFaces = styled.i`
+  display: inline-flex;
+  align-items: center;
+  margin-left: 1px;
+  padding-right: 1px;
+  font-style: normal;
+`;
+
+const MetricRankFace = styled.i`
+  position: relative;
+  display: grid;
+  width: 17px;
+  height: 17px;
+  overflow: hidden;
+  place-items: center;
+  margin-left: -4px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.warning} 72%, ${theme.colors.surface});
+  border-radius: 50%;
+  background: ${theme.colors.brandSubtle};
+  color: ${theme.colors.brandDeep};
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 850;
+
+  &:first-child {
+    margin-left: 0;
+  }
+`;
+
+const MetricRankAvatar = styled.img`
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 `;
 
 const Controls = styled.div`
@@ -345,9 +437,29 @@ function formatLiveCount(value: number | null) {
   return value === null ? "--" : compactNumber.format(value);
 }
 
+function normalizeBilibiliImageUrl(value: string) {
+  const url = value.trim();
+  if (url.startsWith("//")) return `https:${url}`;
+  if (url.startsWith("http://")) return `https://${url.slice(7)}`;
+  return url.startsWith("https://") ? url : "";
+}
+
+function formatOnlineRankTooltip(summary: TitleBarRoomSummary) {
+  if (!summary.connected) return "连接直播间后读取在线贡献榜";
+  if (summary.onlineRankError) {
+    return `在线贡献榜读取失败：${summary.onlineRankError}`;
+  }
+  if (!summary.onlineCountText) return "正在读取在线贡献榜";
+  const podium = summary.onlineRankEntries
+    .slice(0, 3)
+    .map((entry) => `榜${entry.rank} ${entry.name}`)
+    .join(" · ");
+  return `在线贡献榜 ${summary.onlineCountText} 人${podium ? ` · ${podium}` : ""}`;
+}
 export function WindowTitleBar({
   compact = false,
   profile = null,
+  roomSummary = null,
 }: WindowTitleBarProps) {
   const desktopRuntime = isDesktopRuntime();
   const [maximized, setMaximized] = useState(false);
@@ -464,16 +576,6 @@ export function WindowTitleBar({
   const displayedLikeCount =
     liveStats.likeCount ??
     (liveStats.observedLikeCount > 0 ? liveStats.observedLikeCount : null);
-  const watchedTooltip =
-    liveStats.watchedCount === null
-      ? "等待平台 WATCHED_CHANGE 推送本场累计看过人数"
-      : "平台长链推送的本场累计看过人数";
-  const likesTooltip =
-    liveStats.likeCount !== null
-      ? "平台长链推送的本场累计点赞次数"
-      : liveStats.observedLikeCount > 0
-        ? "累计点赞推送尚未到达，暂显示本机观察到的点赞互动"
-        : "等待平台 LIKE_INFO_V3_UPDATE 推送本场累计点赞";
 
   return (
     <Bar data-compact={compact} data-tauri-drag-region onMouseDown={drag}>
@@ -486,32 +588,97 @@ export function WindowTitleBar({
             likeCount={displayedLikeCount}
           />
         ) : null}
-        {!compact && profile ? (
-          <SummaryRail aria-label="本场直播数据摘要">
+        {!compact && profile && roomSummary ? (
+          <>
             <AvatarDivider aria-hidden="true" />
-            <SummaryMetric
-              data-live-metric="true"
-              data-kind="watched"
-              data-tooltip={watchedTooltip}
-            >
-              <MetricLabel>
-                <Icon name="users" size={theme.titleBar.metricIconSizePx} />
-                本场看过
-              </MetricLabel>
-              <MetricValue>{formatLiveCount(liveStats.watchedCount)}</MetricValue>
-            </SummaryMetric>
-            <SummaryMetric
-              data-live-metric="true"
-              data-kind="likes"
-              data-tooltip={likesTooltip}
-            >
-              <MetricLabel>
-                <Icon name="like" size={theme.titleBar.metricIconSizePx} />
-                本场点赞
-              </MetricLabel>
-              <MetricValue>{formatLiveCount(displayedLikeCount)}</MetricValue>
-            </SummaryMetric>
-          </SummaryRail>
+            <SummaryRail aria-label="直播间实时数据摘要">
+              <SummaryMetric
+                data-live-metric="true"
+                data-kind="messages"
+                data-tooltip="当前会话缓存中的弹幕数量"
+              >
+                <MetricLabel>
+                  <Icon name="message" size={theme.titleBar.metricIconSizePx} />
+                  <MetricLabelText data-metric-label-text="true">弹幕</MetricLabelText>
+                </MetricLabel>
+                <MetricValue>{formatLiveCount(roomSummary.messageCount)}</MetricValue>
+              </SummaryMetric>
+              <SummaryMetric
+                data-live-metric="true"
+                data-kind="highlighted"
+                data-tooltip="当前会话缓存中的礼物、醒目留言与大航海事件"
+              >
+                <MetricLabel>
+                  <Icon name="gift" size={theme.titleBar.metricIconSizePx} />
+                  <MetricLabelText data-metric-label-text="true">高亮</MetricLabelText>
+                </MetricLabel>
+                <MetricValue>{formatLiveCount(roomSummary.highlightedCount)}</MetricValue>
+              </SummaryMetric>
+              <SummaryMetric
+                data-live-metric="true"
+                data-kind="duration"
+                data-tooltip={roomSummary.liveTime
+                  ? `本场开播时间（北京时间）${roomSummary.liveTime}`
+                  : "连接后读取平台返回的本场开播时间"}
+              >
+                <MetricLabel>
+                  <Icon name="clock" size={theme.titleBar.metricIconSizePx} />
+                  <MetricLabelText data-metric-label-text="true">时长</MetricLabelText>
+                </MetricLabel>
+                <MetricValue>{roomSummary.liveDuration}</MetricValue>
+              </SummaryMetric>
+              <SummaryMetric
+                data-live-metric="true"
+                data-kind="popularity"
+                data-tooltip="平台心跳返回的是人气指标，并非精确在线人数"
+              >
+                <MetricLabel>
+                  <Icon name="flame" size={theme.titleBar.metricIconSizePx} />
+                  <MetricLabelText data-metric-label-text="true">人气</MetricLabelText>
+                </MetricLabel>
+                <MetricValue>
+                  {roomSummary.hasLiveContext
+                    ? formatLiveCount(roomSummary.popularity)
+                    : "--"}
+                </MetricValue>
+              </SummaryMetric>
+              <SummaryMetric
+                data-live-metric="true"
+                data-kind="online"
+                data-tooltip={formatOnlineRankTooltip(roomSummary)}
+              >
+                <MetricLabel>
+                  <Icon name="users" size={theme.titleBar.metricIconSizePx} />
+                  <MetricLabelText data-metric-label-text="true">在线榜</MetricLabelText>
+                </MetricLabel>
+                <MetricValue>
+                  {roomSummary.connected ? roomSummary.onlineCountText ?? "--" : "--"}
+                </MetricValue>
+                {roomSummary.onlineRankEntries.length > 0 ? (
+                  <MetricRankFaces data-rank-faces="true" aria-label="在线贡献榜前三名">
+                    {roomSummary.onlineRankEntries.slice(0, 3).map((entry) => {
+                      const avatarUrl = normalizeBilibiliImageUrl(entry.avatar);
+                      return (
+                        <MetricRankFace key={entry.userId} aria-label={`榜${entry.rank} ${entry.name}`}>
+                          {entry.name.slice(0, 1) || String(entry.rank)}
+                          {avatarUrl ? (
+                            <MetricRankAvatar
+                              src={avatarUrl}
+                              alt=""
+                              referrerPolicy="no-referrer"
+                              onError={(event) => {
+                                event.currentTarget.style.display = "none";
+                              }}
+                            />
+                          ) : null}
+                        </MetricRankFace>
+                      );
+                    })}
+                  </MetricRankFaces>
+                ) : null}
+              </SummaryMetric>
+            </SummaryRail>
+          </>
         ) : null}
       </DragRegion>
 

@@ -16,7 +16,6 @@ import {
 } from "../../services/startupPerformance";
 import type { LiveConnectionPhase, LiveEvent, LiveEventType } from "../../types/events";
 import { DEFAULT_MESSAGE_BUBBLE_COLOR } from "../../styles/theme";
-import type { LiveOnlineRankEntry } from "../../types/liveRank";
 import type { LiveMessageDisplayFilter } from "../../types/liveMessages";
 import { LIVE_DANMAKU_MAX_LENGTH } from "../../types/liveChat";
 import type { AppView } from "../../types/navigation";
@@ -59,10 +58,6 @@ import {
   MessageRow,
   MessageViewport,
   Page,
-  QuickStats,
-  RankAvatar,
-  RankFace,
-  RankFaces,
   RailButton,
   RailSpacer,
   RailTitle,
@@ -75,7 +70,6 @@ import {
   RoomIdentity,
   RoomInput,
   RoomTitle,
-  StatChip,
 } from "./CompactDashboardStyles";
 import { useLiveRoom } from "./LiveRoomContext";
 
@@ -141,13 +135,6 @@ function isAnchorDanmaku(event: LiveEvent, ownerUid: number | null) {
   return event.userId?.trim() === String(ownerUid);
 }
 
-function formatCompact(value: number) {
-  return new Intl.NumberFormat("zh-CN", {
-    notation: value >= 10_000 ? "compact" : "standard",
-    maximumFractionDigits: 1,
-  }).format(value);
-}
-
 /** 将一级分区与具体分区合并为紧凑的房间分类说明，并避免重名。 */
 function formatRoomArea(parentAreaName?: string, areaName?: string) {
   const areaNames = [parentAreaName, areaName]
@@ -177,45 +164,6 @@ function readCssTimeMilliseconds(
   if (value.endsWith("ms")) return numeric;
   if (value.endsWith("s")) return numeric * 1_000;
   return fallback;
-}
-
-/** 将平台返回的北京时间字符串转换为稳定的 Unix 毫秒时间戳。 */
-function parseBilibiliLiveTime(value: string | undefined) {
-  const match = value?.trim().match(
-    /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/,
-  );
-  if (!match) return null;
-  const [, year, month, day, hour, minute, second] = match.map(Number);
-  if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null;
-  // B 站 live_time 固定使用北京时间；Date.UTC 会自动处理 hour - 8 的跨日情况。
-  return Date.UTC(year, month - 1, day, hour - 8, minute, second);
-}
-
-function formatLiveDuration(startedAt: number | null, now: number) {
-  if (startedAt === null) return "--";
-  const totalSeconds = Math.max(0, Math.floor((now - startedAt) / 1_000));
-  const days = Math.floor(totalSeconds / 86_400);
-  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
-  const minutes = Math.floor((totalSeconds % 3_600) / 60);
-  const seconds = totalSeconds % 60;
-  const clock = [hours, minutes, seconds]
-    .map((part) => String(part).padStart(2, "0"))
-    .join(":");
-  return days > 0 ? `${days}天 ${clock}` : clock;
-}
-
-function rankTooltip(
-  entries: LiveOnlineRankEntry[],
-  onlineCountText: string | undefined,
-  error: string,
-) {
-  if (error) return `在线贡献榜读取失败：${error}`;
-  if (!onlineCountText) return "正在读取在线贡献榜";
-  const podium = entries
-    .slice(0, 3)
-    .map((entry) => `榜${entry.rank} ${entry.name}`)
-    .join(" · ");
-  return `在线贡献榜 ${onlineCountText} 人${podium ? ` · ${podium}` : ""}`;
 }
 
 function normalizeBilibiliImageUrl(value: string) {
@@ -370,27 +318,6 @@ function AnimatedMessageRow({
   );
 }
 
-function OnlineRankFace({ entry }: { entry: LiveOnlineRankEntry }) {
-  const avatarUrl = normalizeBilibiliImageUrl(entry.avatar);
-  const [imageFailed, setImageFailed] = useState(false);
-
-  useEffect(() => setImageFailed(false), [avatarUrl]);
-
-  return (
-    <RankFace data-rank={entry.rank} aria-label={`榜${entry.rank} ${entry.name}`}>
-      {entry.name.slice(0, 1) || String(entry.rank)}
-      {avatarUrl && !imageFailed ? (
-        <RankAvatar
-          src={avatarUrl}
-          alt=""
-          referrerPolicy="no-referrer"
-          onError={() => setImageFailed(true)}
-        />
-      ) : null}
-    </RankFace>
-  );
-}
-
 let dashboardFirstFrameReported = false;
 
 /**
@@ -408,7 +335,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const [outgoingMessage, setOutgoingMessage] = useState("");
   const [sendPhase, setSendPhase] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [sendNotice, setSendNotice] = useState("");
-  const [clockNow, setClockNow] = useState(() => Date.now());
   const [messageBubbleColor, setMessageBubbleColor] = useState(DEFAULT_MESSAGE_BUBBLE_COLOR);
   const messageViewportRef = useRef<HTMLDivElement>(null);
   const messageFeedReadyRef = useRef(false);
@@ -433,7 +359,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const connected = live.status.state === "connected";
   const connecting = live.status.state === "connecting";
   const reconnecting = live.status.state === "reconnecting";
-  const hasLiveContext = live.status.state !== "disconnected";
   const sourceEvents = live.events;
   const filter = live.messageSettings.displayFilter;
 
@@ -444,21 +369,11 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     return [...filtered].reverse();
   }, [filter, sourceEvents]);
 
-  const messageCount = live.events.filter((event) => event.type === "message").length;
-  const highlightedCount = live.events
-    .filter((event) => ["gift", "superchat", "guard"].includes(event.type)).length;
   const outgoingLength = Array.from(outgoingMessage.trim()).length;
   const roomTitle = live.status.state === "disconnected"
     ? "未连接"
     : live.room?.title
       || (live.status.roomId > 0 ? `直播间 ${live.status.roomId}` : statusLabels[live.status.state]);
-  const liveStartedAt = useMemo(
-    () => parseBilibiliLiveTime(live.room?.liveTime),
-    [live.room?.liveTime],
-  );
-  const liveDuration = connected && live.room?.liveStatus === 1
-    ? formatLiveDuration(liveStartedAt, clockNow)
-    : "--";
   const showRoomCaption = connecting || reconnecting || live.status.state === "error";
   const roomAreaLabel = formatRoomArea(
     live.room?.parentAreaName,
@@ -496,13 +411,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    setClockNow(Date.now());
-    if (!connected || liveStartedAt === null || live.room?.liveStatus !== 1) return;
-    const timer = window.setInterval(() => setClockNow(Date.now()), 1_000);
-    return () => window.clearInterval(timer);
-  }, [connected, live.room?.liveStatus, liveStartedAt]);
 
   useEffect(() => {
     if (!roomId && live.status.roomId > 0) {
@@ -752,46 +660,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 </FilterButton>
               ))}
             </FilterGroup>
-            <QuickStats aria-label="直播间事件摘要">
-              <StatChip data-tooltip="当前会话收到的弹幕数量">
-                <Icon name="message" size={13} />
-                <span>弹幕</span>
-                <strong>{formatCompact(messageCount)}</strong>
-              </StatChip>
-              <StatChip data-tooltip="礼物、醒目留言与大航海事件">
-                <Icon name="gift" size={13} />
-                <span>高亮</span>
-                <strong>{formatCompact(highlightedCount)}</strong>
-              </StatChip>
-              <StatChip data-tooltip={live.room?.liveTime
-                ? `本场开播时间（北京时间）${live.room.liveTime}`
-                : "连接后读取平台返回的本场开播时间"}>
-                <Icon name="clock" size={13} />
-                <span>时长</span>
-                <strong>{liveDuration}</strong>
-              </StatChip>
-              <StatChip data-tooltip="平台心跳返回的是人气指标，并非精确在线人数">
-                <Icon name="flame" size={13} />
-                <span>人气</span>
-                <strong>{hasLiveContext ? formatCompact(live.popularity) : "--"}</strong>
-              </StatChip>
-              <StatChip data-tooltip={rankTooltip(
-                live.onlineRank?.entries ?? [],
-                live.onlineRank?.onlineCountText,
-                live.onlineRankError,
-              )}>
-                <Icon name="users" size={13} />
-                <span>在线榜</span>
-                <strong>{connected ? live.onlineRank?.onlineCountText ?? "--" : "--"}</strong>
-                {live.onlineRank?.entries.length ? (
-                  <RankFaces aria-label="在线贡献榜前三名">
-                    {live.onlineRank.entries.slice(0, 3).map((entry) => (
-                      <OnlineRankFace key={entry.userId} entry={entry} />
-                    ))}
-                  </RankFaces>
-                ) : null}
-              </StatChip>
-            </QuickStats>
           </ChatToolbar>
 
           <MessageViewport ref={messageViewportRef}>
