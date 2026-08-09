@@ -143,7 +143,7 @@ function createDevelopmentSourceCache(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   clearScreen: false,
   cacheDir: localCacheDirectory,
   plugins: [
@@ -152,6 +152,10 @@ export default defineConfig({
     react(),
     wyw({
       include: linariaSourceFilter,
+      // DevTools 中使用“文件名 + styled 变量名”，生产构建仅保留短哈希。
+      displayName: command === "serve",
+      classNameSlug:
+        command === "serve" ? "[name]__[title]__[index]" : "[hash]",
       sourceMap: false,
       configFile: false,
       staticBindings: {
@@ -212,4 +216,4 @@ export default defineConfig({
         : "safari13",
     sourcemap: Boolean(process.env.TAURI_ENV_DEBUG),
   },
-});
+}));
