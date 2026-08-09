@@ -12,6 +12,7 @@ import { theme } from "../../styles/theme";
 import {
   createFullscreenWebglRuntime,
   createVisibilityAwareFrameLoop,
+  mountWebglWhenNearViewport,
   parseCssColor,
 } from "./webglRuntime";
 
@@ -493,92 +494,94 @@ export function WebglDanmakuFlow({
     const host = hostRef.current;
     const canvas = canvasRef.current;
     if (!host || !canvas) return;
-    const gl = canvas.getContext("webgl", {
-      alpha: false,
-      antialias: false,
-      depth: false,
-      stencil: false,
-      powerPreference: "high-performance",
-    });
-    if (!gl) return;
+    return mountWebglWhenNearViewport(host, () => {
+      const gl = canvas.getContext("webgl", {
+        alpha: false,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        powerPreference: "high-performance",
+      });
+      if (!gl) return;
 
-    let runtime;
-    try {
-      runtime = createFullscreenWebglRuntime(gl, FRAGMENT_SHADER);
-    } catch (error) {
-      console.warn("bilimaku danmaku flow WebGL initialization failed", error);
-      return;
-    }
-    const { program } = runtime;
-    const uniforms = {
-      resolution: gl.getUniformLocation(program, "u_resolution"),
-      pointer: gl.getUniformLocation(program, "u_pointer"),
-      time: gl.getUniformLocation(program, "u_time"),
-      density: gl.getUniformLocation(program, "u_density"),
-      burst: gl.getUniformLocation(program, "u_burst"),
-      alignment: gl.getUniformLocation(program, "u_alignment"),
-      brand: gl.getUniformLocation(program, "u_brand"),
-      cyan: gl.getUniformLocation(program, "u_cyan"),
-      danger: gl.getUniformLocation(program, "u_danger"),
-    };
-    const styles = getComputedStyle(host);
-    gl.uniform3fv(
-      uniforms.brand,
-      parseCssColor(styles.getPropertyValue("--bc-color-brand"), [0.26, 0.56, 0.95]),
-    );
-    gl.uniform3fv(
-      uniforms.cyan,
-      parseCssColor(styles.getPropertyValue("--bc-color-cyan"), [0.36, 0.84, 0.91]),
-    );
-    gl.uniform3fv(
-      uniforms.danger,
-      parseCssColor(styles.getPropertyValue("--bc-color-danger"), [0.91, 0.38, 0.49]),
-    );
-
-    let width = 1;
-    let height = 1;
-    let pointerX = pointerRef.current.x;
-    let pointerY = pointerRef.current.y;
-    let currentAlignment = alignmentRef.current;
-    const startedAt = performance.now();
-
-    const resize = () => {
-      const bounds = canvas.getBoundingClientRect();
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-      width = Math.max(1, Math.round(bounds.width * pixelRatio));
-      height = Math.max(1, Math.round(bounds.height * pixelRatio));
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
-        gl.viewport(0, 0, width, height);
+      let runtime;
+      try {
+        runtime = createFullscreenWebglRuntime(gl, FRAGMENT_SHADER);
+      } catch (error) {
+        console.warn("bilimaku danmaku flow WebGL initialization failed", error);
+        return;
       }
-    };
+      const { program } = runtime;
+      const uniforms = {
+        resolution: gl.getUniformLocation(program, "u_resolution"),
+        pointer: gl.getUniformLocation(program, "u_pointer"),
+        time: gl.getUniformLocation(program, "u_time"),
+        density: gl.getUniformLocation(program, "u_density"),
+        burst: gl.getUniformLocation(program, "u_burst"),
+        alignment: gl.getUniformLocation(program, "u_alignment"),
+        brand: gl.getUniformLocation(program, "u_brand"),
+        cyan: gl.getUniformLocation(program, "u_cyan"),
+        danger: gl.getUniformLocation(program, "u_danger"),
+      };
+      const styles = getComputedStyle(host);
+      gl.uniform3fv(
+        uniforms.brand,
+        parseCssColor(styles.getPropertyValue("--bc-color-brand"), [0.26, 0.56, 0.95]),
+      );
+      gl.uniform3fv(
+        uniforms.cyan,
+        parseCssColor(styles.getPropertyValue("--bc-color-cyan"), [0.36, 0.84, 0.91]),
+      );
+      gl.uniform3fv(
+        uniforms.danger,
+        parseCssColor(styles.getPropertyValue("--bc-color-danger"), [0.91, 0.38, 0.49]),
+      );
 
-    const render = (time: number) => {
-      pointerX += (pointerRef.current.x - pointerX) * 0.1;
-      pointerY += (pointerRef.current.y - pointerY) * 0.1;
-      currentAlignment += (alignmentRef.current - currentAlignment) * 0.075;
-      burstRef.current *= 0.94;
-      gl.useProgram(program);
-      gl.uniform2f(uniforms.resolution, width, height);
-      gl.uniform2f(uniforms.pointer, pointerX, 1 - pointerY);
-      gl.uniform1f(uniforms.time, (time - startedAt) / 1000);
-      gl.uniform1f(uniforms.density, densityRef.current);
-      gl.uniform1f(uniforms.burst, burstRef.current);
-      gl.uniform1f(uniforms.alignment, currentAlignment);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-    };
+      let width = 1;
+      let height = 1;
+      let pointerX = pointerRef.current.x;
+      let pointerY = pointerRef.current.y;
+      let currentAlignment = alignmentRef.current;
+      const startedAt = performance.now();
 
-    resize();
-    const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
-    const stopFrameLoop = createVisibilityAwareFrameLoop(host, render);
+      const resize = () => {
+        const bounds = canvas.getBoundingClientRect();
+        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        width = Math.max(1, Math.round(bounds.width * pixelRatio));
+        height = Math.max(1, Math.round(bounds.height * pixelRatio));
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+          gl.viewport(0, 0, width, height);
+        }
+      };
 
-    return () => {
-      stopFrameLoop();
-      observer.disconnect();
-      runtime.dispose();
-    };
+      const render = (time: number) => {
+        pointerX += (pointerRef.current.x - pointerX) * 0.1;
+        pointerY += (pointerRef.current.y - pointerY) * 0.1;
+        currentAlignment += (alignmentRef.current - currentAlignment) * 0.075;
+        burstRef.current *= 0.94;
+        gl.useProgram(program);
+        gl.uniform2f(uniforms.resolution, width, height);
+        gl.uniform2f(uniforms.pointer, pointerX, 1 - pointerY);
+        gl.uniform1f(uniforms.time, (time - startedAt) / 1000);
+        gl.uniform1f(uniforms.density, densityRef.current);
+        gl.uniform1f(uniforms.burst, burstRef.current);
+        gl.uniform1f(uniforms.alignment, currentAlignment);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      };
+
+      resize();
+      const observer = new ResizeObserver(resize);
+      observer.observe(canvas);
+      const stopFrameLoop = createVisibilityAwareFrameLoop(host, render);
+
+      return () => {
+        stopFrameLoop();
+        observer.disconnect();
+        runtime.dispose();
+      };
+    });
   }, []);
 
   const handlePointerMove = (event: PointerEvent<HTMLElement>) => {

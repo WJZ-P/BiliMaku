@@ -182,3 +182,53 @@ export function createVisibilityAwareFrameLoop(
     reducedMotion.removeEventListener("change", sync);
   };
 }
+interface DeferredWebglMountOptions {
+  /** 组件距离视口多远时开始准备 GPU 资源。 */
+  rootMargin?: string;
+}
+
+/**
+ * 只在组件接近视口时创建 WebGL Runtime。
+ *
+ * 与可见帧循环配合后，Debug 页既不会在首屏同时编译全部 Shader，
+ * 也不会让已经离开视口的 Canvas 继续占用 GPU 时间。
+ */
+export function mountWebglWhenNearViewport(
+  target: Element,
+  mount: () => void | (() => void),
+  options: DeferredWebglMountOptions = {},
+) {
+  let disposed = false;
+  let mounted = false;
+  let cleanup: void | (() => void);
+
+  const activate = () => {
+    if (disposed || mounted) return;
+    mounted = true;
+    cleanup = mount();
+  };
+
+  if (!("IntersectionObserver" in window)) {
+    activate();
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }
+
+  const observer = new IntersectionObserver(
+    ([entry]) => {
+      if (!entry?.isIntersecting) return;
+      observer.disconnect();
+      activate();
+    },
+    { rootMargin: options.rootMargin ?? "320px 0px" },
+  );
+  observer.observe(target);
+
+  return () => {
+    disposed = true;
+    observer.disconnect();
+    cleanup?.();
+  };
+}
