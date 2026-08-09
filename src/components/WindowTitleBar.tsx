@@ -213,7 +213,8 @@ const Controls = styled.div`
   display: flex;
   height: 100%;
   align-items: center;
-  gap: 0;
+  gap: ${theme.layout.titleBarControlSpacing};
+  padding: 0 ${theme.layout.titleBarControlSpacing};
   border: 0;
   box-shadow: none;
 `;
@@ -235,7 +236,7 @@ const ControlButton = styled.button`
   overflow: hidden;
   padding: 0;
   border: 0;
-  border-radius: 0;
+  border-radius: ${theme.layout.titleBarControlRadius};
   background: transparent;
   color: ${theme.colors.textSecondary};
   transition: color ${theme.motion.normal};

@@ -110,6 +110,10 @@ export const theme = {
     titleBarControlSize: "36px",
     /** 统一图标系统中窗口控制按钮的图标尺寸。 */
     titleBarControlIconSizePx: 14,
+    /** 窗口控制按钮之间以及控制区左右两侧的统一间距。 */
+    titleBarControlSpacing: "4px",
+    /** 窗口控制按钮圆角。 */
+    titleBarControlRadius: "4px",
   },
   titleBar: {
     /** 标题栏账号头像的实际宽高。 */
