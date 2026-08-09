@@ -8,12 +8,12 @@ const DanmakuCanvas = styled.canvas`
   display: block;
   width: 100%;
   height: 100%;
-  opacity: 0.9;
-  filter: saturate(1.16);
+  opacity: 1;
+  filter: blur(0.55px) saturate(1.34);
   pointer-events: none;
 
   @media (prefers-reduced-motion: reduce) {
-    opacity: 0.68;
+    opacity: 0.82;
   }
 `;
 
@@ -37,7 +37,6 @@ interface DanmakuPalette {
   brand: string;
   cyan: string;
   brandDeep: string;
-  surface: string;
 }
 
 interface CardDanmakuParticlesProps {
@@ -52,10 +51,10 @@ export const CARD_DANMAKU_TUNING = {
   /** Canvas 像素比上限，限制高分屏下的填充开销。 */
   pixelRatioCap: 1.25,
   /** 每张卡片最少和最多同时存在的弹幕粒子数。 */
-  minimumParticleCount: 8,
-  maximumParticleCount: 20,
+  minimumParticleCount: 7,
+  maximumParticleCount: 16,
   /** 数值越小粒子越密。 */
-  areaPerParticle: 14_000,
+  areaPerParticle: 18_000,
   /** 弹幕横向移动速度范围，单位为 CSS 像素/秒。 */
   minimumSpeed: 11,
   maximumSpeed: 25,
@@ -91,7 +90,6 @@ function readPalette(canvas: HTMLCanvasElement): DanmakuPalette {
     brand: read("--bc-color-brand", "#438ff1"),
     cyan: read("--bc-color-cyan", "#5dd7e8"),
     brandDeep: read("--bc-color-brand-deep", "#2369c5"),
-    surface: read("--bc-color-surface", "#ffffff"),
   };
 }
 
@@ -150,8 +148,8 @@ export function CardDanmakuParticles({ seed }: CardDanmakuParticlesProps) {
         ),
       );
       particles = Array.from({ length: count }, () => {
-        const height = 11 + random() * 6;
-        const width = 48 + random() * 82;
+        const height = 16 + random() * 8;
+        const width = 72 + random() * 100;
         return {
           x: random() * (cssWidth + width) - width,
           y: 8 + random() * Math.max(1, cssHeight - height - 16),
@@ -162,7 +160,7 @@ export function CardDanmakuParticles({ seed }: CardDanmakuParticlesProps) {
             + random()
               * (CARD_DANMAKU_TUNING.maximumSpeed - CARD_DANMAKU_TUNING.minimumSpeed),
           direction: random() < 0.86 ? -1 : 1,
-          opacity: 0.34 + random() * 0.28,
+          opacity: 0.5 + random() * 0.28,
           accent: random(),
           phase: random() * Math.PI * 2,
           phaseSpeed: 0.35 + random() * 0.58,
@@ -205,11 +203,11 @@ export function CardDanmakuParticles({ seed }: CardDanmakuParticlesProps) {
         : particle.x;
       const trail = context.createLinearGradient(trailStart, y, trailEnd, y);
       if (particle.direction < 0) {
-        trail.addColorStop(0, colorWithAlpha(color, opacity * 0.24));
+        trail.addColorStop(0, colorWithAlpha(color, opacity * 0.42));
         trail.addColorStop(1, colorWithAlpha(color, 0));
       } else {
         trail.addColorStop(0, colorWithAlpha(color, 0));
-        trail.addColorStop(1, colorWithAlpha(color, opacity * 0.24));
+        trail.addColorStop(1, colorWithAlpha(color, opacity * 0.42));
       }
       context.fillStyle = trail;
       context.fillRect(
@@ -220,14 +218,14 @@ export function CardDanmakuParticles({ seed }: CardDanmakuParticlesProps) {
       );
 
       context.save();
-      context.shadowBlur = 11;
-      context.shadowColor = colorWithAlpha(color, opacity * 0.46);
+      context.shadowBlur = 9;
+      context.shadowColor = colorWithAlpha(color, opacity * 0.64);
       roundedRect(context, particle.x, y, particle.width, particle.height, particle.height / 2);
-      context.fillStyle = colorWithAlpha(palette.surface, opacity * 0.32);
+      context.fillStyle = colorWithAlpha(color, opacity * 0.24);
       context.fill();
       context.shadowBlur = 0;
-      context.strokeStyle = colorWithAlpha(color, opacity * 0.62);
-      context.lineWidth = 0.8;
+      context.strokeStyle = colorWithAlpha(color, opacity * 0.9);
+      context.lineWidth = 1;
       context.stroke();
 
       const avatarRadius = particle.height * 0.24;
@@ -235,7 +233,7 @@ export function CardDanmakuParticles({ seed }: CardDanmakuParticlesProps) {
       const avatarY = y + particle.height / 2;
       context.beginPath();
       context.arc(avatarX, avatarY, avatarRadius, 0, Math.PI * 2);
-      context.fillStyle = colorWithAlpha(color, opacity * 0.82);
+      context.fillStyle = colorWithAlpha(color, Math.min(1, opacity));
       context.fill();
 
       const contentX = particle.x + particle.height * 0.94;
@@ -251,7 +249,7 @@ export function CardDanmakuParticles({ seed }: CardDanmakuParticlesProps) {
           Math.max(1.4, particle.height * 0.2),
           particle.height * 0.1,
         );
-        context.fillStyle = colorWithAlpha(color, opacity * 0.62);
+        context.fillStyle = colorWithAlpha(color, opacity * 0.9);
         context.fill();
         segmentX += segmentWidth + particle.height * 0.18;
       }

@@ -81,9 +81,14 @@ const SettingsPanelSurface = styled.div`
     pointer-events: none;
   }
 
-  & > * {
+  & > [data-card-danmaku-particles] {
+    position: absolute;
+    z-index: 0;
+  }
+
+  & > :not([data-card-danmaku-particles]) {
     position: relative;
-    z-index: 1;
+    z-index: 2;
   }
 
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -279,11 +284,11 @@ const ThemeOption = styled.div`
   border-radius: 5px;
   background: linear-gradient(
     122deg,
-    color-mix(in srgb, ${theme.colors.surface} 34%, transparent),
-    color-mix(in srgb, ${theme.colors.brandSubtle} 24%, transparent)
+    color-mix(in srgb, ${theme.colors.surface} 27%, transparent),
+    color-mix(in srgb, ${theme.colors.brandSubtle} 20%, transparent)
   );
-  -webkit-backdrop-filter: blur(10px) saturate(1.3) brightness(1.025);
-  backdrop-filter: blur(10px) saturate(1.3) brightness(1.025);
+  -webkit-backdrop-filter: blur(6px) saturate(1.34) brightness(1.025);
+  backdrop-filter: blur(6px) saturate(1.34) brightness(1.025);
   box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 62%, transparent);
 `;
 
@@ -295,9 +300,9 @@ const BubbleColorOption = styled.div`
   padding: 13px;
   border: 1px solid ${theme.colors.border};
   border-radius: 5px;
-  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 34%, transparent);
-  -webkit-backdrop-filter: blur(10px) saturate(1.3) brightness(1.025);
-  backdrop-filter: blur(10px) saturate(1.3) brightness(1.025);
+  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 26%, transparent);
+  -webkit-backdrop-filter: blur(6px) saturate(1.34) brightness(1.025);
+  backdrop-filter: blur(6px) saturate(1.34) brightness(1.025);
   box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 58%, transparent);
 `;
 
@@ -353,9 +358,9 @@ const MessageLimitOption = styled.div`
   padding: 13px;
   border: 1px solid ${theme.colors.border};
   border-radius: 5px;
-  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 34%, transparent);
-  -webkit-backdrop-filter: blur(10px) saturate(1.3) brightness(1.025);
-  backdrop-filter: blur(10px) saturate(1.3) brightness(1.025);
+  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 26%, transparent);
+  -webkit-backdrop-filter: blur(6px) saturate(1.34) brightness(1.025);
+  backdrop-filter: blur(6px) saturate(1.34) brightness(1.025);
   box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 58%, transparent);
 `;
 
@@ -443,9 +448,9 @@ const Detail = styled.div`
   padding: 11px 12px;
   border: 1px solid ${theme.colors.border};
   border-radius: 4px;
-  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 30%, transparent);
-  -webkit-backdrop-filter: blur(10px) saturate(1.28) brightness(1.025);
-  backdrop-filter: blur(10px) saturate(1.28) brightness(1.025);
+  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 24%, transparent);
+  -webkit-backdrop-filter: blur(6px) saturate(1.32) brightness(1.025);
+  backdrop-filter: blur(6px) saturate(1.32) brightness(1.025);
   box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 52%, transparent);
   color: ${theme.colors.textMuted};
   font-size: 9px;
@@ -599,8 +604,8 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
     <Page>
       <Grid>
         <SettingsPanel>
-          <CardDanmakuParticles seed={0x41434354} />
           <SettingsPanelSurface>
+            <CardDanmakuParticles seed={0x41434354} />
             <PanelHeader>
             <PanelHeading>
               <PanelTitle>账号与记录</PanelTitle>
@@ -655,8 +660,8 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
         </SettingsPanel>
 
         <SettingsPanel>
-          <CardDanmakuParticles seed={0x53455454} />
           <SettingsPanelSurface>
+            <CardDanmakuParticles seed={0x53455454} />
             <PanelHeader>
             <PanelHeading>
               <PanelTitle>界面与消息</PanelTitle>
