@@ -15,6 +15,7 @@ export const lightTheme = {
     surface: "#ffffff",
     surfaceElevated: "#ffffff",
     surfaceMuted: "#f7faff",
+    popoverSurface: "#edf1f5",
     surfacePressed: "#edf5ff",
     brand: "#438ff1",
     brandHover: "#2f79de",
@@ -52,6 +53,7 @@ export const theme = {
     surface: "var(--bc-color-surface)",
     surfaceElevated: "var(--bc-color-surface-elevated)",
     surfaceMuted: "var(--bc-color-surface-muted)",
+    popoverSurface: "var(--bc-color-popover-surface)",
     surfacePressed: "var(--bc-color-surface-pressed)",
     brand: "var(--bc-color-brand)",
     brandHover: "var(--bc-color-brand-hover)",
@@ -122,6 +124,10 @@ export const theme = {
     profileTooltipWidthPx: 360,
     /** 头像悬浮资料卡内的大头像宽高。 */
     profileTooltipAvatarSizePx: 68,
+    /** 资料卡房间 ID、UID 标签与数值的统一字号。 */
+    profileIdentityFontSize: "12px",
+    /** 浅灰色资料卡底色的不透明混合比例。 */
+    profileBackgroundMix: "88%",
     /** 顶部实时统计格高度。 */
     metricHeightPx: 42,
     /** 顶部实时统计格最小宽度。 */

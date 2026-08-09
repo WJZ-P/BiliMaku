@@ -12,6 +12,42 @@ const globalStyles = css`
       box-sizing: border-box;
     }
 
+    :root {
+      --bc-color-canvas: ${lightTheme.colors.canvas};
+      --bc-color-canvas-accent: ${lightTheme.colors.canvasAccent};
+      --bc-color-surface: ${lightTheme.colors.surface};
+      --bc-color-surface-elevated: ${lightTheme.colors.surfaceElevated};
+      --bc-color-surface-muted: ${lightTheme.colors.surfaceMuted};
+      --bc-color-popover-surface: ${lightTheme.colors.popoverSurface};
+      --bc-color-surface-pressed: ${lightTheme.colors.surfacePressed};
+      --bc-color-brand: ${lightTheme.colors.brand};
+      --bc-color-brand-hover: ${lightTheme.colors.brandHover};
+      --bc-color-brand-deep: ${lightTheme.colors.brandDeep};
+      --bc-color-brand-soft: ${lightTheme.colors.brandSoft};
+      --bc-color-brand-subtle: ${lightTheme.colors.brandSubtle};
+      --bc-color-message-bubble: ${lightTheme.colors.messageBubble};
+      --bc-color-cyan: ${lightTheme.colors.cyan};
+      --bc-color-cyan-soft: ${lightTheme.colors.cyanSoft};
+      --bc-color-text-primary: ${lightTheme.colors.textPrimary};
+      --bc-color-text-secondary: ${lightTheme.colors.textSecondary};
+      --bc-color-text-muted: ${lightTheme.colors.textMuted};
+      --bc-color-text-on-brand: ${lightTheme.colors.textOnBrand};
+      --bc-color-border: ${lightTheme.colors.border};
+      --bc-color-border-strong: ${lightTheme.colors.borderStrong};
+      --bc-color-success: ${lightTheme.colors.success};
+      --bc-color-success-soft: ${lightTheme.colors.successSoft};
+      --bc-color-warning: ${lightTheme.colors.warning};
+      --bc-color-warning-soft: ${lightTheme.colors.warningSoft};
+      --bc-color-danger: ${lightTheme.colors.danger};
+      --bc-color-danger-soft: ${lightTheme.colors.dangerSoft};
+      --bc-color-gift: ${lightTheme.colors.gift};
+      --bc-color-gift-soft: ${lightTheme.colors.giftSoft};
+      --bc-color-scrim: ${lightTheme.colors.scrim};
+      --bc-color-shadow: ${lightTheme.colors.shadow};
+      --bc-color-shadow-strong: ${lightTheme.colors.shadowStrong};
+      --bc-color-highlight: ${lightTheme.colors.highlight};
+    }
+
     html,
     body,
     #root {
@@ -75,39 +111,6 @@ const globalStyles = css`
 `;
 
 const ThemeCanvas = styled.div`
-  --bc-color-canvas: ${lightTheme.colors.canvas};
-  --bc-color-canvas-accent: ${lightTheme.colors.canvasAccent};
-  --bc-color-surface: ${lightTheme.colors.surface};
-  --bc-color-surface-elevated: ${lightTheme.colors.surfaceElevated};
-  --bc-color-surface-muted: ${lightTheme.colors.surfaceMuted};
-  --bc-color-surface-pressed: ${lightTheme.colors.surfacePressed};
-  --bc-color-brand: ${lightTheme.colors.brand};
-  --bc-color-brand-hover: ${lightTheme.colors.brandHover};
-  --bc-color-brand-deep: ${lightTheme.colors.brandDeep};
-  --bc-color-brand-soft: ${lightTheme.colors.brandSoft};
-  --bc-color-brand-subtle: ${lightTheme.colors.brandSubtle};
-  --bc-color-message-bubble: ${lightTheme.colors.messageBubble};
-  --bc-color-cyan: ${lightTheme.colors.cyan};
-  --bc-color-cyan-soft: ${lightTheme.colors.cyanSoft};
-  --bc-color-text-primary: ${lightTheme.colors.textPrimary};
-  --bc-color-text-secondary: ${lightTheme.colors.textSecondary};
-  --bc-color-text-muted: ${lightTheme.colors.textMuted};
-  --bc-color-text-on-brand: ${lightTheme.colors.textOnBrand};
-  --bc-color-border: ${lightTheme.colors.border};
-  --bc-color-border-strong: ${lightTheme.colors.borderStrong};
-  --bc-color-success: ${lightTheme.colors.success};
-  --bc-color-success-soft: ${lightTheme.colors.successSoft};
-  --bc-color-warning: ${lightTheme.colors.warning};
-  --bc-color-warning-soft: ${lightTheme.colors.warningSoft};
-  --bc-color-danger: ${lightTheme.colors.danger};
-  --bc-color-danger-soft: ${lightTheme.colors.dangerSoft};
-  --bc-color-gift: ${lightTheme.colors.gift};
-  --bc-color-gift-soft: ${lightTheme.colors.giftSoft};
-  --bc-color-scrim: ${lightTheme.colors.scrim};
-  --bc-color-shadow: ${lightTheme.colors.shadow};
-  --bc-color-shadow-strong: ${lightTheme.colors.shadowStrong};
-  --bc-color-highlight: ${lightTheme.colors.highlight};
-
   width: 100%;
   height: 100vh;
   min-height: 100vh;

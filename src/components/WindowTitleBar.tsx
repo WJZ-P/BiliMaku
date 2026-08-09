@@ -160,11 +160,6 @@ const SummaryMetric = styled.div`
     border-right: 0;
   }
 
-  &[data-kind="coins"] {
-    --metric-accent: ${theme.colors.warning};
-    min-width: 94px;
-  }
-
   &[data-kind="watched"] {
     --metric-accent: ${theme.colors.cyan};
   }
@@ -332,10 +327,6 @@ const compactNumber = new Intl.NumberFormat("zh-CN", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
-const coinNumber = new Intl.NumberFormat("zh-CN", {
-  maximumFractionDigits: 1,
-});
-
 
 function formatLiveCount(value: number | null) {
   return value === null ? "--" : compactNumber.format(value);
@@ -483,15 +474,8 @@ export function WindowTitleBar({
           />
         ) : null}
         {!compact && profile ? (
-          <SummaryRail aria-label="账号与本场直播数据摘要">
+          <SummaryRail aria-label="本场直播数据摘要">
             <AvatarDivider aria-hidden="true" />
-            <SummaryMetric data-kind="coins" data-tooltip="主站账号硬币余额">
-              <MetricLabel>
-                <Icon name="coin" size={theme.titleBar.metricIconSizePx} />
-                硬币
-              </MetricLabel>
-              <MetricValue>{coinNumber.format(profile.coins)}</MetricValue>
-            </SummaryMetric>
             <SummaryMetric
               data-live-metric="true"
               data-kind="watched"

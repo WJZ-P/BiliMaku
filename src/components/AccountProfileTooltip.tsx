@@ -132,7 +132,7 @@ const TooltipArrow = styled.span`
     color-mix(in srgb, ${theme.colors.highlight} 38%, ${theme.colors.border});
   background: color-mix(
     in srgb,
-    ${theme.colors.surface} ${theme.tooltip.surfaceMix},
+    ${theme.colors.popoverSurface} ${theme.titleBar.profileBackgroundMix},
     transparent
   );
   backdrop-filter: blur(${theme.tooltip.blur}) saturate(${theme.tooltip.backdropSaturation});
@@ -179,6 +179,11 @@ const GlassCard = styled.div`
         transparent
       )
     );
+  background-color: color-mix(
+    in srgb,
+    ${theme.colors.popoverSurface} ${theme.titleBar.profileBackgroundMix},
+    transparent
+  );
   box-shadow:
     0 18px 42px color-mix(in srgb, ${theme.colors.brandDeep} 15%, transparent),
     0 4px 14px color-mix(in srgb, ${theme.colors.shadowStrong} 32%, transparent),
@@ -282,15 +287,15 @@ const IdentityLine = styled.div`
   gap: 6px;
   margin-top: 5px;
   color: ${theme.colors.textMuted};
-  font-size: 10px;
-  line-height: 1.2;
+  font-size: ${theme.titleBar.profileIdentityFontSize};
+  line-height: 1.35;
 
   strong {
     overflow: hidden;
     color: ${theme.colors.textSecondary};
     font-family: ${theme.typography.mono};
-    font-size: 10px;
-    font-weight: 700;
+    font-size: ${theme.titleBar.profileIdentityFontSize};
+    font-weight: 760;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
