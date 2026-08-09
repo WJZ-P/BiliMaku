@@ -373,18 +373,6 @@ const SidebarFooter = styled.div`
   padding-top: 8px;
 `;
 
-const Version = styled.div`
-  padding: 2px 4px;
-  color: ${theme.colors.textMuted};
-  font-family: ${theme.typography.mono};
-  font-size: 8px;
-  text-align: center;
-
-  [data-collapsed="true"] & {
-    display: none;
-  }
-`;
-
 const CollapseButton = styled.button`
   position: relative;
   z-index: 1;
@@ -532,7 +520,6 @@ export function Sidebar({ activeView, onNavigate, onPreload }: SidebarProps) {
       </Nav>
 
       <SidebarFooter>
-        <Version>BILIMAKU · V0.1.0</Version>
         <ParticleGlowHover>
           <CollapseButton
             type="button"

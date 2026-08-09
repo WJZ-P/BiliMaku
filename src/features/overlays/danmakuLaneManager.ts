@@ -72,6 +72,9 @@ export function selectTopPriorityLane(
     }
   }
 
+  const firstFreeLane = occupancy.findIndex((count) => count === 0);
+  if (firstFreeLane >= 0) return firstFreeLane;
+
   let selectedLane = 0;
   for (let lane = 1; lane < occupancy.length; lane += 1) {
     if (occupancy[lane] < occupancy[selectedLane]) {

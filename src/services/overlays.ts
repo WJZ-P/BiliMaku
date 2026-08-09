@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { LiveEvent } from "../types/events";
 import type {
+  DanmakuOverlaySettings,
   OverlayAutoOpenState,
   OverlayKind,
   OverlaySettings,
@@ -17,6 +18,8 @@ const PREVIEW_EVENT = "overlay://preview";
 const WINDOW_STATE_EVENT = "overlay://window-state";
 
 const DEFAULT_USERNAME_COLOR = "#66CCFF";
+const DANMAKU_LANE_LAYOUT_VERSION = 2;
+const LEGACY_DANMAKU_VERTICAL_START_PERCENT = 7;
 
 const defaultColors = {
   message: "#ffffff",
@@ -48,7 +51,8 @@ export const defaultOverlaySettings: OverlaySettings = {
     durationSeconds: 10,
     enterDurationMs: 180,
     exitDurationMs: 420,
-    verticalStartPercent: 7,
+    laneLayoutVersion: DANMAKU_LANE_LAYOUT_VERSION,
+    verticalStartPercent: 0,
     verticalEndPercent: 68,
     laneGap: 12,
     maxVisible: 32,
@@ -81,10 +85,32 @@ export const defaultOverlaySettings: OverlaySettings = {
   },
 };
 
+type LegacyDanmakuSettings = Partial<DanmakuOverlaySettings>;
+
 type LegacySidebarSettings = Partial<SidebarOverlaySettings> & {
   backgroundOpacity?: number;
   showUserId?: boolean;
 };
+
+/** 补齐全屏弹幕设置，并把旧版默认的 7% 顶部留白一次性迁移为第一行。 */
+function mergeDanmakuSettings(stored?: LegacyDanmakuSettings): DanmakuOverlaySettings {
+  if (!stored) return defaultOverlaySettings.danmaku;
+  const storedLayoutVersion = stored.laneLayoutVersion ?? 1;
+  const migrateLegacyTop = storedLayoutVersion < DANMAKU_LANE_LAYOUT_VERSION
+    && stored.verticalStartPercent === LEGACY_DANMAKU_VERTICAL_START_PERCENT;
+  return {
+    ...defaultOverlaySettings.danmaku,
+    ...stored,
+    laneLayoutVersion: Math.max(storedLayoutVersion, DANMAKU_LANE_LAYOUT_VERSION),
+    verticalStartPercent: migrateLegacyTop
+      ? defaultOverlaySettings.danmaku.verticalStartPercent
+      : stored.verticalStartPercent ?? defaultOverlaySettings.danmaku.verticalStartPercent,
+    colors: {
+      ...defaultOverlaySettings.danmaku.colors,
+      ...stored.colors,
+    },
+  };
+}
 
 function mergeSidebarSettings(stored?: LegacySidebarSettings): SidebarOverlaySettings {
   if (!stored) return defaultOverlaySettings.sidebar;
@@ -132,14 +158,9 @@ function mergeSidebarSettings(stored?: LegacySidebarSettings): SidebarOverlaySet
 
 function normalizeOverlaySettings(parsed: Partial<OverlaySettings>): OverlaySettings {
   return {
-    danmaku: {
-      ...defaultOverlaySettings.danmaku,
-      ...parsed.danmaku,
-      colors: {
-        ...defaultOverlaySettings.danmaku.colors,
-        ...parsed.danmaku?.colors,
-      },
-    },
+    danmaku: mergeDanmakuSettings(
+      parsed.danmaku as LegacyDanmakuSettings | undefined,
+    ),
     sidebar: mergeSidebarSettings(parsed.sidebar as LegacySidebarSettings | undefined),
   };
 }

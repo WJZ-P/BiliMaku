@@ -79,7 +79,9 @@ export interface DanmakuOverlaySettings {
   enterDurationMs: number;
   /** 离场动画时长，单位为毫秒。 */
   exitDurationMs: number;
-  /** 可用轨道区域顶部百分比。 */
+  /** 轨道布局配置版本，仅用于迁移历史默认值。 */
+  laneLayoutVersion: number;
+  /** 可用轨道区域顶部百分比；0 表示第一行贴近屏幕顶部。 */
   verticalStartPercent: number;
   /** 可用轨道区域底部百分比。 */
   verticalEndPercent: number;
