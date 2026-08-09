@@ -109,3 +109,76 @@ export function parseCssColor(
     Number.parseInt(hex.slice(4, 6), 16) / 255,
   ] as const;
 }
+interface VisibilityAwareFrameLoopOptions {
+  /** 在系统启用“减少动态”时使用的最高帧率。 */
+  reducedMotionFps?: number;
+}
+
+/**
+ * 只在组件可见且文档位于前台时驱动 requestAnimationFrame。
+ *
+ * Debug 页会同时挂载多个 Shader 实验；统一调度可避免离屏 Canvas 持续占用 GPU。
+ */
+export function createVisibilityAwareFrameLoop(
+  target: Element,
+  renderFrame: (time: number) => void,
+  options: VisibilityAwareFrameLoopOptions = {},
+) {
+  let disposed = false;
+  let frame = 0;
+  let lastRenderedAt = 0;
+  let intersecting = false;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const reducedMotionInterval = 1000 / Math.max(1, options.reducedMotionFps ?? 8);
+
+  const isDocumentVisible = () => document.visibilityState !== "hidden";
+  const isActive = () => intersecting && isDocumentVisible() && !disposed;
+
+  const stopFrame = () => {
+    if (frame !== 0) window.cancelAnimationFrame(frame);
+    frame = 0;
+  };
+
+  const tick = (time: number) => {
+    frame = 0;
+    if (!isActive()) return;
+    if (!reducedMotion.matches || time - lastRenderedAt >= reducedMotionInterval) {
+      lastRenderedAt = time;
+      renderFrame(time);
+    }
+    frame = window.requestAnimationFrame(tick);
+  };
+
+  const sync = () => {
+    if (isActive()) {
+      if (frame === 0) frame = window.requestAnimationFrame(tick);
+    } else {
+      stopFrame();
+    }
+  };
+
+  const bounds = target.getBoundingClientRect();
+  intersecting = bounds.width > 0
+    && bounds.height > 0
+    && bounds.bottom > 0
+    && bounds.right > 0
+    && bounds.top < window.innerHeight
+    && bounds.left < window.innerWidth;
+
+  const intersectionObserver = new IntersectionObserver(([entry]) => {
+    intersecting = entry?.isIntersecting ?? false;
+    sync();
+  });
+  intersectionObserver.observe(target);
+  document.addEventListener("visibilitychange", sync);
+  reducedMotion.addEventListener("change", sync);
+  sync();
+
+  return () => {
+    disposed = true;
+    stopFrame();
+    intersectionObserver.disconnect();
+    document.removeEventListener("visibilitychange", sync);
+    reducedMotion.removeEventListener("change", sync);
+  };
+}

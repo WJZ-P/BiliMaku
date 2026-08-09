@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { Icon } from "../../components/Icon";
 import { WebglParticleButton } from "../../components/WebglParticleButton";
 import { WebglDanmakuFlow } from "./WebglDanmakuFlow";
+import { WebglPrismWorkbench } from "./WebglPrismWorkbench";
 import { WebglSpectralDeck } from "./WebglSpectralDeck";
 import {
   Avatar,
@@ -73,7 +74,13 @@ type MotionProfile = "reactive" | "elastic" | "precise";
 type EventChannel = "message" | "interaction" | "gift";
 
 
-type LabSectionId = "controls" | "metrics" | "signals" | "spectral" | "danmaku-flow";
+type LabSectionId =
+  | "controls"
+  | "metrics"
+  | "signals"
+  | "spectral"
+  | "danmaku-flow"
+  | "prism";
 
 const labSections: ReadonlyArray<{ id: LabSectionId; index: string; label: string }> = [
   { id: "controls", index: "01", label: "操作控件" },
@@ -81,6 +88,7 @@ const labSections: ReadonlyArray<{ id: LabSectionId; index: string; label: strin
   { id: "signals", index: "03", label: "消息反馈" },
   { id: "spectral", index: "04", label: "光场界面" },
   { id: "danmaku-flow", index: "05", label: "弹幕流场" },
+  { id: "prism", index: "06", label: "棱镜玻璃" },
 ];
 const motionNames: Record<MotionProfile, string> = {
   reactive: "实时追踪",
@@ -430,6 +438,16 @@ overlay: ${overlayEnabled ? "enabled" : "disabled"}`}</SignalCode>
         />
       </Section>
 
+      <Section id="prism">
+        <SectionHeader>
+          <SectionIndex>06</SectionIndex>
+          <SectionCopy>
+            <SectionTitle>棱镜玻璃工作台</SectionTitle>
+            <SectionCaption>在浅色程序化折射底图上测试真实毛玻璃采样和信息可读性。</SectionCaption>
+          </SectionCopy>
+        </SectionHeader>
+        <WebglPrismWorkbench density={particleDensity} onAction={setLastAction} />
+      </Section>
       <FooterNote>
         当前调试参数只存在 React 内存中，不会覆盖正式主题配置。基础控件与光场实验都保持组件化，可按最终选择逐步迁移到直播间、悬浮组件和设置页。
       </FooterNote>
