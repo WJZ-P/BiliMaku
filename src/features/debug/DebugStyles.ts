@@ -3,8 +3,10 @@ import { theme } from "../../styles/theme";
 
 export const Page = styled.section`
   display: grid;
-  gap: 18px;
-  padding: 16px 18px 28px;
+  width: min(100%, 1240px);
+  gap: 22px;
+  margin: 0 auto;
+  padding: 18px 20px 40px;
   background:
     linear-gradient(
       color-mix(in srgb, ${theme.colors.brand} 3%, transparent) 1px,
@@ -27,11 +29,9 @@ export const LabHeader = styled.header`
   gap: 24px;
   overflow: hidden;
   padding: 20px 22px 18px;
-  border-top: 2px solid ${theme.colors.borderStrong};
-  border-right: 2px solid ${theme.colors.borderStrong};
-  border-bottom: 2px solid ${theme.colors.borderStrong};
-  border-left: 5px solid ${theme.colors.brand};
-  border-radius: 0;
+  border: 1px solid color-mix(in srgb, ${theme.colors.brand} 20%, ${theme.colors.borderStrong});
+  border-left: 3px solid ${theme.colors.brand};
+  border-radius: 10px;
   background:
     linear-gradient(
       115deg,
@@ -39,7 +39,10 @@ export const LabHeader = styled.header`
       transparent 42%
     ),
     color-mix(in srgb, ${theme.colors.surface} 76%, transparent);
-  box-shadow: none;
+  box-shadow:
+    0 16px 38px color-mix(in srgb, ${theme.colors.textPrimary} 7%, transparent),
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 72%, transparent);
+  backdrop-filter: blur(18px) saturate(1.16);
 
   &::before {
     position: absolute;
@@ -99,9 +102,9 @@ export const HeaderEyebrow = styled.div`
   gap: 9px;
   color: ${theme.colors.brand};
   font-family: ${theme.typography.mono};
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 850;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
 
   &::before {
     width: 18px;
@@ -123,7 +126,7 @@ export const Description = styled.p`
   max-width: 670px;
   margin: 0;
   color: ${theme.colors.textMuted};
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
 `;
 
@@ -133,8 +136,12 @@ export const HeaderTelemetry = styled.div`
   display: grid;
   min-width: 208px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  border: 2px solid ${theme.colors.borderStrong};
-  background: color-mix(in srgb, ${theme.colors.surface} 62%, transparent);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, ${theme.colors.brand} 16%, ${theme.colors.borderStrong});
+  border-radius: 7px;
+  background: color-mix(in srgb, ${theme.colors.surface} 58%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 64%, transparent);
+  backdrop-filter: blur(14px);
 `;
 
 export const TelemetryCell = styled.div`
@@ -155,7 +162,7 @@ export const TelemetryCell = styled.div`
   span {
     color: ${theme.colors.textMuted};
     font-family: ${theme.typography.mono};
-    font-size: 7px;
+    font-size: 8px;
     font-weight: 720;
     letter-spacing: 0.08em;
   }
@@ -163,28 +170,50 @@ export const TelemetryCell = styled.div`
   strong {
     color: ${theme.colors.textPrimary};
     font-family: ${theme.typography.mono};
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 850;
   }
 `;
 
 export const Section = styled.section`
   display: grid;
-  gap: 10px;
+  gap: 12px;
+
+  @supports (animation-timeline: view()) {
+    animation: bilimaku-debug-section-enter both;
+    animation-range: entry 0% entry 18%;
+    animation-timeline: view();
+  }
+
+  @keyframes bilimaku-debug-section-enter {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 `;
 
 export const SectionHeader = styled.header`
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 38px minmax(0, 1fr);
   align-items: stretch;
-  border-bottom: 2px solid ${theme.colors.borderStrong};
+  border-bottom: 1px solid ${theme.colors.borderStrong};
 `;
 
 export const SectionIndex = styled.span`
   display: grid;
   min-height: 38px;
   place-items: center;
-  background: ${theme.colors.brandDeep};
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(145deg, ${theme.colors.brandDeep}, ${theme.colors.brand});
   color: ${theme.colors.textOnBrand};
   font-family: ${theme.typography.mono};
   font-size: 10px;
@@ -203,7 +232,7 @@ export const SectionCopy = styled.div`
 export const SectionTitle = styled.h2`
   margin: 0;
   color: ${theme.colors.textPrimary};
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 860;
   letter-spacing: -0.015em;
 `;
@@ -211,7 +240,7 @@ export const SectionTitle = styled.h2`
 export const SectionCaption = styled.p`
   margin: 0;
   color: ${theme.colors.textMuted};
-  font-size: 8px;
+  font-size: 10px;
   text-align: right;
 `;
 
@@ -230,40 +259,50 @@ export const Panel = styled.article`
   display: grid;
   min-width: 0;
   align-content: start;
-  gap: 13px;
-  padding: 14px;
-  border: 2px solid ${theme.colors.borderStrong};
-  border-radius: 0;
+  gap: 14px;
+  overflow: hidden;
+  padding: 15px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.brand} 15%, ${theme.colors.borderStrong});
+  border-radius: 8px;
   background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, ${theme.colors.brand} 4%, transparent),
-      transparent 46%
+    radial-gradient(
+      circle at 100% 0%,
+      color-mix(in srgb, ${theme.colors.cyan} 8%, transparent),
+      transparent 34%
     ),
-    color-mix(in srgb, ${theme.colors.surface} 78%, transparent);
-  box-shadow: none;
+    color-mix(in srgb, ${theme.colors.surface} 76%, transparent);
+  box-shadow:
+    0 10px 26px color-mix(in srgb, ${theme.colors.textPrimary} 6%, transparent),
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 74%, transparent);
+  backdrop-filter: blur(16px) saturate(1.12);
 
-  &::before,
-  &::after {
+  &::before {
     position: absolute;
-    width: 9px;
-    height: 9px;
+    top: 0;
+    right: 16px;
+    left: 16px;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, ${theme.colors.highlight} 82%, transparent),
+      transparent
+    );
     content: "";
     pointer-events: none;
   }
 
-  &::before {
-    top: -2px;
-    left: -2px;
-    border-top: 3px solid ${theme.colors.brand};
-    border-left: 3px solid ${theme.colors.brand};
-  }
-
   &::after {
-    right: -2px;
-    bottom: -2px;
-    border-right: 3px solid ${theme.colors.cyan};
-    border-bottom: 3px solid ${theme.colors.cyan};
+    position: absolute;
+    right: -52px;
+    bottom: -70px;
+    width: 128px;
+    height: 128px;
+    border-radius: 50%;
+    background: color-mix(in srgb, ${theme.colors.brand} 8%, transparent);
+    filter: blur(22px);
+    content: "";
+    pointer-events: none;
   }
 `;
 
@@ -279,14 +318,14 @@ export const PanelHeader = styled.header`
 export const PanelTitle = styled.h3`
   margin: 0;
   color: ${theme.colors.textPrimary};
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 850;
 `;
 
 export const PanelMeta = styled.span`
   color: ${theme.colors.textMuted};
   font-family: ${theme.typography.mono};
-  font-size: 7px;
+  font-size: 8px;
   letter-spacing: 0.08em;
 `;
 
@@ -341,7 +380,7 @@ export const Range = styled.input`
   &::-webkit-slider-runnable-track {
     height: 6px;
     border: 1px solid ${theme.colors.borderStrong};
-    border-radius: 0;
+    border-radius: 999px;
     background:
       linear-gradient(90deg, ${theme.colors.brand}, ${theme.colors.cyan})
         0 / var(--range-progress, 50%) 100% no-repeat,
@@ -349,15 +388,15 @@ export const Range = styled.input`
   }
 
   &::-webkit-slider-thumb {
-    width: 14px;
-    height: 14px;
-    margin-top: -5px;
+    width: 15px;
+    height: 15px;
+    margin-top: -5.5px;
     appearance: none;
     border: 2px solid ${theme.colors.brandDeep};
-    border-radius: 0;
+    border-radius: 50%;
     background: ${theme.colors.surface};
-    box-shadow: none;
-    transform: rotate(45deg);
+    box-shadow: 0 3px 8px color-mix(in srgb, ${theme.colors.brandDeep} 18%, transparent);
+    transform: scale(1);
     transition:
       background ${theme.motion.fast},
       transform ${theme.motion.spring};
@@ -366,7 +405,7 @@ export const Range = styled.input`
   &:hover::-webkit-slider-thumb,
   &:focus-visible::-webkit-slider-thumb {
     background: ${theme.colors.cyanSoft};
-    transform: rotate(45deg) scale(1.18);
+    transform: scale(1.16);
   }
 
   &:focus-visible {
@@ -382,15 +421,15 @@ export const SelectShell = styled.span`
 
 export const Select = styled.select`
   width: 100%;
-  height: 40px;
+  height: 42px;
   appearance: none;
-  padding: 0 38px 0 11px;
-  border: 2px solid ${theme.colors.borderStrong};
-  border-radius: 0;
+  padding: 0 38px 0 12px;
+  border: 1px solid ${theme.colors.borderStrong};
+  border-radius: 5px;
   background: color-mix(in srgb, ${theme.colors.surface} 74%, transparent);
   color: ${theme.colors.textPrimary};
   font-family: ${theme.typography.family};
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 720;
   transition:
     border-color ${theme.motion.fast},
@@ -423,15 +462,15 @@ export const SelectArrow = styled.span`
 
 export const TextInput = styled.input`
   width: 100%;
-  height: 40px;
-  padding: 0 11px;
-  border: 2px solid ${theme.colors.borderStrong};
-  border-radius: 0;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid ${theme.colors.borderStrong};
+  border-radius: 5px;
   outline: 0;
   background: color-mix(in srgb, ${theme.colors.surface} 74%, transparent);
   color: ${theme.colors.textPrimary};
   font-family: ${theme.typography.family};
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 650;
   transition:
     border-color ${theme.motion.fast},
@@ -570,7 +609,9 @@ export const SwitchThumb = styled.span`
 export const MetricsStrip = styled.div`
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  border: 2px solid ${theme.colors.borderStrong};
+  overflow: hidden;
+  border: 1px solid ${theme.colors.borderStrong};
+  border-radius: 8px;
   background: color-mix(in srgb, ${theme.colors.surface} 66%, transparent);
 
   @media (max-width: 680px) {
@@ -604,7 +645,7 @@ export const MetricLabel = styled.span`
   display: block;
   color: ${theme.colors.textMuted};
   font-family: ${theme.typography.mono};
-  font-size: 8px;
+  font-size: 9px;
   letter-spacing: 0.06em;
 `;
 
@@ -613,7 +654,7 @@ export const MetricValue = styled.strong`
   margin-top: 7px;
   color: ${theme.colors.textPrimary};
   font-family: ${theme.typography.mono};
-  font-size: 19px;
+  font-size: 21px;
   font-weight: 900;
 `;
 
@@ -621,7 +662,7 @@ export const MetricDelta = styled.span`
   display: block;
   margin-top: 5px;
   color: ${theme.colors.success};
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 720;
 `;
 
@@ -641,7 +682,8 @@ export const ChatConsole = styled.div`
   gap: 10px;
   min-height: 188px;
   padding: 13px;
-  border: 2px solid ${theme.colors.borderStrong};
+  border: 1px solid ${theme.colors.borderStrong};
+  border-radius: 8px;
   background:
     linear-gradient(
       90deg,
@@ -708,7 +750,8 @@ export const SignalPanel = styled.div`
   align-content: space-between;
   gap: 14px;
   padding: 13px;
-  border: 2px solid ${theme.colors.borderStrong};
+  border: 1px solid ${theme.colors.borderStrong};
+  border-radius: 8px;
   background: color-mix(in srgb, ${theme.colors.surface} 68%, transparent);
 `;
 
@@ -767,8 +810,9 @@ export const FooterNote = styled.footer`
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border: 2px solid ${theme.colors.borderStrong};
-  border-left: 5px solid ${theme.colors.cyan};
+  border: 1px solid ${theme.colors.borderStrong};
+  border-left: 3px solid ${theme.colors.cyan};
+  border-radius: 6px;
   background: color-mix(in srgb, ${theme.colors.surface} 62%, transparent);
   color: ${theme.colors.textMuted};
   font-size: 8px;
