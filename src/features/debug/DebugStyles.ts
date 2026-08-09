@@ -2,12 +2,21 @@ import { styled } from "@linaria/react";
 import { theme } from "../../styles/theme";
 
 export const Page = styled.section`
+  --debug-pointer-x: 50%;
+  --debug-pointer-y: 18%;
+
+  position: relative;
   display: grid;
   width: min(100%, 1240px);
   gap: 22px;
   margin: 0 auto;
   padding: 18px 20px 40px;
-  background:
+  background-image:
+    radial-gradient(
+      circle 280px at var(--debug-pointer-x) var(--debug-pointer-y),
+      color-mix(in srgb, ${theme.colors.brand} 8%, transparent),
+      transparent 72%
+    ),
     linear-gradient(
       color-mix(in srgb, ${theme.colors.brand} 3%, transparent) 1px,
       transparent 1px
@@ -17,7 +26,7 @@ export const Page = styled.section`
       color-mix(in srgb, ${theme.colors.brand} 3%, transparent) 1px,
       transparent 1px
     );
-  background-size: 20px 20px;
+  background-size: auto, 20px 20px, 20px 20px;
 
   @media (max-width: 600px) {
     gap: 18px;

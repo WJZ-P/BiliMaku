@@ -1,6 +1,12 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { Icon } from "../../components/Icon";
 import { WebglParticleButton } from "../../components/WebglParticleButton";
+import { DesignDecisionBoard } from "./DesignDecisionBoard";
 import { WebglDanmakuFlow } from "./WebglDanmakuFlow";
 import { WebglPrismWorkbench } from "./WebglPrismWorkbench";
 import { WebglSpectralDeck } from "./WebglSpectralDeck";
@@ -80,7 +86,8 @@ type LabSectionId =
   | "signals"
   | "spectral"
   | "danmaku-flow"
-  | "prism";
+  | "prism"
+  | "decision";
 
 const labSections: ReadonlyArray<{ id: LabSectionId; index: string; label: string }> = [
   { id: "controls", index: "01", label: "操作控件" },
@@ -89,6 +96,7 @@ const labSections: ReadonlyArray<{ id: LabSectionId; index: string; label: strin
   { id: "spectral", index: "04", label: "光场界面" },
   { id: "danmaku-flow", index: "05", label: "弹幕流场" },
   { id: "prism", index: "06", label: "棱镜玻璃" },
+  { id: "decision", index: "07", label: "设计选型" },
 ];
 const motionNames: Record<MotionProfile, string> = {
   reactive: "实时追踪",
@@ -104,6 +112,7 @@ const channelNames: Record<EventChannel, string> = {
 
 /** 动态 UI 与 WebGL 交互的组件实验页，不会写入正式应用配置。 */
 export function DebugPage() {
+  const pageRef = useRef<HTMLElement>(null);
   const [particleDensity, setParticleDensity] = useState(62);
   const [motionProfile, setMotionProfile] = useState<MotionProfile>("reactive");
   const [eventChannel, setEventChannel] = useState<EventChannel>("message");
@@ -137,8 +146,37 @@ export function DebugPage() {
     targets.forEach((target) => observer.observe(target));
     return () => observer.disconnect();
   }, []);
+  useEffect(() => {
+    const page = pageRef.current;
+    const supportsAmbientPointer = window.matchMedia(
+      "(pointer: fine) and (prefers-reduced-motion: no-preference)",
+    ).matches;
+    if (!page || !supportsAmbientPointer) return;
+
+    let frameId = 0;
+    let pointerX = 0;
+    let pointerY = 0;
+    const flushPointer = () => {
+      frameId = 0;
+      const bounds = page.getBoundingClientRect();
+      page.style.setProperty("--debug-pointer-x", `${pointerX - bounds.left}px`);
+      page.style.setProperty("--debug-pointer-y", `${pointerY - bounds.top}px`);
+    };
+    const handlePointerMove = (event: PointerEvent) => {
+      pointerX = event.clientX;
+      pointerY = event.clientY;
+      if (frameId === 0) frameId = window.requestAnimationFrame(flushPointer);
+    };
+
+    page.addEventListener("pointermove", handlePointerMove, { passive: true });
+    return () => {
+      page.removeEventListener("pointermove", handlePointerMove);
+      if (frameId !== 0) window.cancelAnimationFrame(frameId);
+    };
+  }, []);
+
   return (
-    <Page>
+    <Page ref={pageRef}>
       <LabHeader>
         <HeaderCopy>
           <HeaderEyebrow>INTERACTION FORGE / BILIMAKU</HeaderEyebrow>
@@ -447,6 +485,17 @@ overlay: ${overlayEnabled ? "enabled" : "disabled"}`}</SignalCode>
           </SectionCopy>
         </SectionHeader>
         <WebglPrismWorkbench density={particleDensity} onAction={setLastAction} />
+      </Section>
+
+      <Section id="decision">
+        <SectionHeader>
+          <SectionIndex>07</SectionIndex>
+          <SectionCopy>
+            <SectionTitle>设计决策矩阵</SectionTitle>
+            <SectionCaption>比较三套实验的可读性、辨识度与运行效率，把视觉尝试沉淀为可执行的界面选型。</SectionCaption>
+          </SectionCopy>
+        </SectionHeader>
+        <DesignDecisionBoard onAction={setLastAction} />
       </Section>
       <FooterNote>
         当前调试参数只存在 React 内存中，不会覆盖正式主题配置。基础控件与光场实验都保持组件化，可按最终选择逐步迁移到直播间、悬浮组件和设置页。
