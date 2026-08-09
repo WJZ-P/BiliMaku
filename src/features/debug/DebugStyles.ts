@@ -91,6 +91,110 @@ export const LabHeader = styled.header`
   }
 `;
 
+export const LabNavigator = styled.nav`
+  position: sticky;
+  z-index: 12;
+  top: 8px;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  overflow-x: auto;
+  padding: 5px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.brand} 16%, ${theme.colors.borderStrong});
+  border-radius: 8px;
+  background: color-mix(in srgb, ${theme.colors.popoverSurface} 72%, transparent);
+  box-shadow:
+    0 10px 28px color-mix(in srgb, ${theme.colors.textPrimary} 9%, transparent),
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 78%, transparent);
+  backdrop-filter: blur(24px) saturate(1.18);
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`;
+
+export const LabNavLink = styled.button`
+  position: relative;
+  display: inline-flex;
+  min-width: max-content;
+  height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: ${theme.colors.textMuted};
+  font-size: 10px;
+  font-weight: 760;
+  transition:
+    border-color ${theme.motion.fast},
+    background ${theme.motion.normal},
+    color ${theme.motion.fast},
+    transform ${theme.motion.spring};
+
+  &::after {
+    position: absolute;
+    right: 10px;
+    bottom: 3px;
+    left: 10px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, ${theme.colors.brand}, transparent);
+    content: "";
+    opacity: 0;
+    transform: scaleX(0.4);
+    transition:
+      opacity ${theme.motion.fast},
+      transform ${theme.motion.spring};
+  }
+
+  &:hover,
+  &:focus-visible {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 20%, transparent);
+    background: color-mix(in srgb, ${theme.colors.surface} 42%, transparent);
+    color: ${theme.colors.textPrimary};
+    outline: 0;
+  }
+
+  &[data-active="true"] {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 28%, ${theme.colors.border});
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, ${theme.colors.brandSoft} 58%, transparent),
+      color-mix(in srgb, ${theme.colors.cyanSoft} 36%, transparent)
+    );
+    color: ${theme.colors.brandDeep};
+  }
+
+  &[data-active="true"]::after {
+    opacity: 0.78;
+    transform: scaleX(1);
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
+`;
+
+export const LabNavIndex = styled.span`
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 4px;
+  background: color-mix(in srgb, ${theme.colors.brand} 10%, transparent);
+  color: ${theme.colors.brand};
+  font-family: ${theme.typography.mono};
+  font-size: 8px;
+  font-weight: 860;
+
+  [data-active="true"] & {
+    background: ${theme.colors.brand};
+    color: ${theme.colors.textOnBrand};
+  }
+`;
 export const HeaderCopy = styled.div`
   position: relative;
   z-index: 1;
@@ -177,6 +281,7 @@ export const TelemetryCell = styled.div`
 
 export const Section = styled.section`
   display: grid;
+  scroll-margin-top: 58px;
   gap: 12px;
 
   @supports (animation-timeline: view()) {
@@ -359,14 +464,14 @@ export const FieldHeader = styled.span`
 
 export const FieldLabel = styled.span`
   color: ${theme.colors.textSecondary};
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 760;
 `;
 
 export const FieldValue = styled.strong`
   color: ${theme.colors.brandDeep};
   font-family: ${theme.typography.mono};
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 850;
 `;
 

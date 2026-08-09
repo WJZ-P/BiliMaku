@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Icon } from "../../components/Icon";
 import { WebglParticleButton } from "../../components/WebglParticleButton";
 import { WebglDanmakuFlow } from "./WebglDanmakuFlow";
@@ -23,6 +23,9 @@ import {
   HeaderEyebrow,
   HeaderTelemetry,
   LabHeader,
+  LabNavIndex,
+  LabNavLink,
+  LabNavigator,
   Metric,
   MetricDelta,
   MetricLabel,
@@ -69,6 +72,16 @@ type SignalStyle = CSSProperties & {
 type MotionProfile = "reactive" | "elastic" | "precise";
 type EventChannel = "message" | "interaction" | "gift";
 
+
+type LabSectionId = "controls" | "metrics" | "signals" | "spectral" | "danmaku-flow";
+
+const labSections: ReadonlyArray<{ id: LabSectionId; index: string; label: string }> = [
+  { id: "controls", index: "01", label: "操作控件" },
+  { id: "metrics", index: "02", label: "连续数据" },
+  { id: "signals", index: "03", label: "消息反馈" },
+  { id: "spectral", index: "04", label: "光场界面" },
+  { id: "danmaku-flow", index: "05", label: "弹幕流场" },
+];
 const motionNames: Record<MotionProfile, string> = {
   reactive: "实时追踪",
   elastic: "弹簧反馈",
@@ -81,7 +94,7 @@ const channelNames: Record<EventChannel, string> = {
   gift: "礼物事件",
 };
 
-/** 硬朗 UI 与 WebGL 交互的组件实验页，不会写入正式应用配置。 */
+/** 动态 UI 与 WebGL 交互的组件实验页，不会写入正式应用配置。 */
 export function DebugPage() {
   const [particleDensity, setParticleDensity] = useState(62);
   const [motionProfile, setMotionProfile] = useState<MotionProfile>("reactive");
@@ -89,6 +102,7 @@ export function DebugPage() {
   const [overlayEnabled, setOverlayEnabled] = useState(true);
   const [sampleText, setSampleText] = useState("今晚也要把弹幕播报做得更灵动");
   const [lastAction, setLastAction] = useState("等待交互");
+  const [activeLabSection, setActiveLabSection] = useState<LabSectionId>("controls");
 
   const rangeStyle: RangeStyle = {
     "--range-progress": `${particleDensity}%`,
@@ -97,14 +111,32 @@ export function DebugPage() {
     "--signal-level": `${particleDensity}%`,
   };
 
+  useEffect(() => {
+    const targets = labSections
+      .map((item) => document.getElementById(item.id))
+      .filter((item): item is HTMLElement => item !== null);
+    if (targets.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
+        if (visible) setActiveLabSection(visible.target.id as LabSectionId);
+      },
+      { rootMargin: "-18% 0px -64%", threshold: [0.08, 0.28, 0.55] },
+    );
+    targets.forEach((target) => observer.observe(target));
+    return () => observer.disconnect();
+  }, []);
   return (
     <Page>
       <LabHeader>
         <HeaderCopy>
           <HeaderEyebrow>INTERACTION FORGE / BILIMAKU</HeaderEyebrow>
-          <Title>硬边界面与动态粒子实验场</Title>
+          <Title>实时界面与动态光场实验室</Title>
           <Description>
-            用明确边界、连续数据轨和 WebGL 粒子建立 BiliMaku 的视觉语言。这里的控件强调结构、响应和直播弹幕的运动感，不依赖大圆角与彩色投影制造层级。
+            在同一页面比较柔和控件、实时数据、玻璃消息和 WebGL 光场，让 BiliMaku 的界面既保持信息清晰，也具备直播弹幕特有的流动感。
           </Description>
         </HeaderCopy>
         <HeaderTelemetry aria-label="调试页实时参数">
@@ -114,7 +146,7 @@ export function DebugPage() {
           </TelemetryCell>
           <TelemetryCell>
             <span>GEOMETRY</span>
-            <strong>HARD / 02</strong>
+            <strong>SOFT / 06</strong>
           </TelemetryCell>
           <TelemetryCell>
             <span>PARTICLES</span>
@@ -127,12 +159,34 @@ export function DebugPage() {
         </HeaderTelemetry>
       </LabHeader>
 
-      <Section>
+      <LabNavigator aria-label="UI 实验区导航">
+        {labSections.map((item) => (
+          <LabNavLink
+            key={item.id}
+            type="button"
+            data-active={activeLabSection === item.id}
+            aria-current={activeLabSection === item.id ? "location" : undefined}
+            onClick={() => {
+              document.getElementById(item.id)?.scrollIntoView({
+                behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                  ? "auto"
+                  : "smooth",
+                block: "start",
+              });
+            }}
+          >
+            <LabNavIndex>{item.index}</LabNavIndex>
+            {item.label}
+          </LabNavLink>
+        ))}
+      </LabNavigator>
+
+      <Section id="controls">
         <SectionHeader>
           <SectionIndex>01</SectionIndex>
           <SectionCopy>
             <SectionTitle>操作控件</SectionTitle>
-            <SectionCaption>按钮粒子从四周涌向鼠标；表单控件保持硬边和清晰焦点。</SectionCaption>
+            <SectionCaption>粒子从四周涌向鼠标；按钮、表单与开关使用柔和边界和清晰焦点。</SectionCaption>
           </SectionCopy>
         </SectionHeader>
 
@@ -269,12 +323,12 @@ export function DebugPage() {
         </ControlGrid>
       </Section>
 
-      <Section>
+      <Section id="metrics">
         <SectionHeader>
           <SectionIndex>02</SectionIndex>
           <SectionCopy>
             <SectionTitle>连续数据轨</SectionTitle>
-            <SectionCaption>取消独立圆角卡片，用共同边框、分隔线和角标建立节奏。</SectionCaption>
+            <SectionCaption>用连续数据轨、细分隔线和轻量状态变化建立信息节奏。</SectionCaption>
           </SectionCopy>
         </SectionHeader>
         <MetricsStrip>
@@ -301,12 +355,12 @@ export function DebugPage() {
         </MetricsStrip>
       </Section>
 
-      <Section>
+      <Section id="signals">
         <SectionHeader>
           <SectionIndex>03</SectionIndex>
           <SectionCopy>
             <SectionTitle>消息与信号反馈</SectionTitle>
-            <SectionCaption>聊天保留必要的轻磨砂，结构边界仍以直线和小倒角为主。</SectionCaption>
+            <SectionCaption>聊天内容使用清晰文字和轻磨砂气泡，信号面板保留明确的数据层级。</SectionCaption>
           </SectionCopy>
         </SectionHeader>
         <PreviewGrid>
@@ -349,7 +403,7 @@ overlay: ${overlayEnabled ? "enabled" : "disabled"}`}</SignalCode>
         </PreviewGrid>
       </Section>
 
-      <Section>
+      <Section id="spectral">
         <SectionHeader>
           <SectionIndex>04</SectionIndex>
           <SectionCopy>
@@ -360,7 +414,7 @@ overlay: ${overlayEnabled ? "enabled" : "disabled"}`}</SignalCode>
         <WebglSpectralDeck density={particleDensity} onAction={setLastAction} />
       </Section>
 
-      <Section>
+      <Section id="danmaku-flow">
         <SectionHeader>
           <SectionIndex>05</SectionIndex>
           <SectionCopy>
