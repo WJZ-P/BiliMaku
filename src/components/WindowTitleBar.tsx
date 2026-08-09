@@ -36,7 +36,7 @@ const Bar = styled.header`
   padding: 0 0 0 8px;
   border-bottom: 1px solid color-mix(in srgb, ${theme.colors.border} 78%, transparent);
   background: color-mix(in srgb, ${theme.colors.surface} 72%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 82%, transparent);
+  box-shadow: none;
   user-select: none;
   backdrop-filter: blur(26px) saturate(1.42);
   -webkit-backdrop-filter: blur(26px) saturate(1.42);
@@ -68,25 +68,21 @@ const DragRegion = styled.div`
 `;
 
 const AvatarDivider = styled.span`
-  width: 1px;
-  height: 44px;
-  flex: 0 0 1px;
-  margin: 0 6px;
-  background: linear-gradient(
-    180deg,
-    transparent,
-    color-mix(in srgb, ${theme.colors.brand} 30%, ${theme.colors.borderStrong}) 22%,
-    color-mix(in srgb, ${theme.colors.cyan} 38%, ${theme.colors.borderStrong}) 72%,
-    transparent
-  );
-  box-shadow: 1px 0 0 color-mix(in srgb, ${theme.colors.highlight} 70%, transparent);
+  width: 2px;
+  height: 40px;
+  flex: 0 0 2px;
+  margin: 0 8px 0 6px;
+  background: ${theme.colors.borderStrong};
 `;
 const SummaryRail = styled.div`
   display: flex;
   min-width: 0;
+  height: ${theme.titleBar.metricHeightPx}px;
   flex: 0 1 auto;
-  align-items: center;
-  gap: 7px;
+  align-items: stretch;
+  gap: 0;
+  border: 2px solid ${theme.colors.borderStrong};
+  background: color-mix(in srgb, ${theme.colors.surface} 38%, transparent);
 
   @media (max-width: 760px) {
     [data-live-metric="true"] {
@@ -98,63 +94,74 @@ const SummaryRail = styled.div`
     display: none;
   }
 `;
-/** 标题栏实时数据格：放大字号，并保留轻量弹幕流光反馈。 */
+/** 标题栏实时数据轨：硬边、无浮层阴影，Hover 只保留底色扫描反馈。 */
 const SummaryMetric = styled.div`
   --metric-accent: ${theme.colors.brand};
   position: relative;
   display: grid;
-  height: ${theme.titleBar.metricHeightPx}px;
+  height: 100%;
   min-width: ${theme.titleBar.metricMinWidthPx}px;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 7px;
   overflow: hidden;
-  padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--metric-accent) 20%, ${theme.colors.border});
-  border-radius: 10px;
-  background:
-    linear-gradient(155deg, color-mix(in srgb, ${theme.colors.highlight} 54%, transparent), transparent 48%),
-    color-mix(in srgb, ${theme.colors.surface} 74%, transparent);
-  box-shadow:
-    0 5px 15px color-mix(in srgb, var(--metric-accent) 8%, transparent),
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 82%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, var(--metric-accent) 8%, transparent);
+  padding: 0 11px;
+  border: 0;
+  border-right: 1px solid ${theme.colors.borderStrong};
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   white-space: nowrap;
   transition:
-    transform ${theme.motion.spring},
-    border-color ${theme.motion.fast},
-    box-shadow ${theme.motion.fast},
-    background ${theme.motion.fast};
+    background ${theme.motion.normal},
+    color ${theme.motion.fast};
 
   &::before {
     position: absolute;
-    top: 0;
-    right: 10px;
-    left: 10px;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--metric-accent) 48%, transparent), transparent);
+    z-index: 0;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--metric-accent) 13%, transparent),
+      transparent
+    );
     content: "";
-    opacity: 0.76;
+    opacity: 0;
+    transform: translateX(-74%);
+    transition:
+      opacity ${theme.motion.normal},
+      transform ${theme.motion.normal};
   }
 
   &::after {
     position: absolute;
-    top: 10px;
-    right: -26px;
-    width: 20px;
-    height: 2px;
-    border-radius: ${theme.radius.pill};
-    background: linear-gradient(90deg, transparent, var(--metric-accent));
-    box-shadow:
-      -8px 7px 0 -0.5px color-mix(in srgb, var(--metric-accent) 44%, transparent),
-      4px 15px 0 -0.5px color-mix(in srgb, ${theme.colors.cyan} 34%, transparent);
+    z-index: 1;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 2px;
+    background: var(--metric-accent);
     content: "";
-    opacity: 0;
+    opacity: 0.34;
+    transform: scaleY(0.48);
+    transition:
+      opacity ${theme.motion.fast},
+      transform ${theme.motion.spring};
+  }
+
+  & > * {
+    position: relative;
+    z-index: 2;
+  }
+
+  &:last-child {
+    border-right: 0;
   }
 
   &[data-kind="coins"] {
     --metric-accent: ${theme.colors.warning};
-    min-width: 92px;
+    min-width: 94px;
   }
 
   &[data-kind="watched"] {
@@ -166,32 +173,17 @@ const SummaryMetric = styled.div`
   }
 
   &:hover {
-    border-color: color-mix(in srgb, var(--metric-accent) 38%, ${theme.colors.border});
-    background:
-      linear-gradient(155deg, color-mix(in srgb, ${theme.colors.highlight} 66%, transparent), transparent 48%),
-      color-mix(in srgb, ${theme.colors.surface} 86%, transparent);
-    box-shadow:
-      0 8px 20px color-mix(in srgb, var(--metric-accent) 13%, transparent),
-      inset 0 1px 0 ${theme.colors.highlight};
-    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--metric-accent) 7%, transparent);
+  }
+
+  &:hover::before {
+    opacity: 1;
+    transform: translateX(74%);
   }
 
   &:hover::after {
-    animation: bilimaku-title-metric-danmaku 820ms ease-out both;
-  }
-
-  @keyframes bilimaku-title-metric-danmaku {
-    0% {
-      opacity: 0;
-      transform: translateX(0) skewX(-14deg);
-    }
-    18% {
-      opacity: 0.78;
-    }
-    100% {
-      opacity: 0;
-      transform: translateX(-132px) skewX(-14deg);
-    }
+    opacity: 0.92;
+    transform: scaleY(1);
   }
 `;
 const MetricLabel = styled.span`
@@ -204,7 +196,6 @@ const MetricLabel = styled.span`
 
   svg {
     color: var(--metric-accent);
-    filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--metric-accent) 22%, transparent));
   }
 `;
 const MetricValue = styled.strong`
