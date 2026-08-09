@@ -1,6 +1,7 @@
 import { lazy, startTransition, Suspense, useEffect, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { WindowTitleBar } from "./components/WindowTitleBar";
+import { WorkspaceFlowCanvas } from "./components/WorkspaceFlowCanvas";
 import { LoginPage } from "./features/auth/LoginPage";
 import { useAccountSession } from "./features/auth/useAccountSession";
 import {
@@ -223,36 +224,39 @@ function Workspace({ accountStatus, onAccountStatusChange }: WorkspaceProps) {
   };
 
   return (
-    <Suspense fallback={<ViewLoading>正在初始化直播会话…</ViewLoading>}>
-      <LiveRoomProvider>
-        {/* 视图仍可按需卸载，但直播长链与事件缓冲由上层 Provider 持续持有。 */}
-        <AppFrame>
-          <Sidebar
-            activeView={activeView}
-            onNavigate={navigate}
-            onPreload={(view) => void preloadView(view)}
-          />
-          <Main data-view={activeView}>
-            <Suspense fallback={<ViewLoading>正在加载功能模块…</ViewLoading>}>
-              {activeView === "dashboard" && <DashboardPage onNavigate={navigate} />}
-              {activeView === "debug" && <DebugPage />}
-              {activeView === "rules" && <FeaturePage view="rules" />}
-              {activeView === "voices" && <VoiceStudioPage />}
-              {activeView === "overlays" && <OverlaySettingsPage />}
-              {activeView === "connection" && (
-                <ConnectionPage onNavigateDashboard={() => navigate("dashboard")} />
-              )}
-              {activeView === "settings" && (
-                <SettingsPage
-                  accountStatus={accountStatus}
-                  onAccountStatusChange={onAccountStatusChange}
-                />
-              )}
-            </Suspense>
-          </Main>
-        </AppFrame>
-      </LiveRoomProvider>
-    </Suspense>
+    <>
+      <WorkspaceFlowCanvas />
+      <Suspense fallback={<ViewLoading>正在初始化直播会话…</ViewLoading>}>
+        <LiveRoomProvider>
+          {/* 视图仍可按需卸载，但直播长链与事件缓冲由上层 Provider 持续持有。 */}
+          <AppFrame>
+            <Sidebar
+              activeView={activeView}
+              onNavigate={navigate}
+              onPreload={(view) => void preloadView(view)}
+            />
+            <Main data-view={activeView}>
+              <Suspense fallback={<ViewLoading>正在加载功能模块…</ViewLoading>}>
+                {activeView === "dashboard" && <DashboardPage onNavigate={navigate} />}
+                {activeView === "debug" && <DebugPage />}
+                {activeView === "rules" && <FeaturePage view="rules" />}
+                {activeView === "voices" && <VoiceStudioPage />}
+                {activeView === "overlays" && <OverlaySettingsPage />}
+                {activeView === "connection" && (
+                  <ConnectionPage onNavigateDashboard={() => navigate("dashboard")} />
+                )}
+                {activeView === "settings" && (
+                  <SettingsPage
+                    accountStatus={accountStatus}
+                    onAccountStatusChange={onAccountStatusChange}
+                  />
+                )}
+              </Suspense>
+            </Main>
+          </AppFrame>
+        </LiveRoomProvider>
+      </Suspense>
+    </>
   );
 }
 

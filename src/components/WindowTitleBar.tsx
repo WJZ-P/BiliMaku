@@ -35,12 +35,24 @@ const Bar = styled.header`
   align-items: center;
   justify-content: space-between;
   padding: 0 0 0 8px;
-  border-bottom: 1px solid color-mix(in srgb, ${theme.colors.border} 78%, transparent);
-  background: color-mix(in srgb, ${theme.colors.surface} 72%, transparent);
-  box-shadow: none;
+  border-bottom: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 66%, transparent);
+  background:
+    linear-gradient(
+      105deg,
+      color-mix(in srgb, ${theme.colors.surface} 57%, transparent),
+      color-mix(in srgb, ${theme.colors.brandSubtle} 29%, transparent) 56%,
+      color-mix(in srgb, ${theme.colors.surface} 45%, transparent)
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 82%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.brandSoft} 18%, transparent);
   user-select: none;
-  backdrop-filter: blur(26px) saturate(1.42);
-  -webkit-backdrop-filter: blur(26px) saturate(1.42);
+  backdrop-filter: blur(32px) saturate(1.44) brightness(1.035);
+  -webkit-backdrop-filter: blur(32px) saturate(1.44) brightness(1.035);
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background: color-mix(in srgb, ${theme.colors.surface} 91%, ${theme.colors.canvasAccent});
+  }
 
   &[data-compact="true"] {
     --window-control-size: ${theme.layout.compactTitleBarHeight};
@@ -82,8 +94,9 @@ const SummaryRail = styled.div`
   flex: 0 1 auto;
   align-items: stretch;
   gap: 0;
-  border: 2px solid ${theme.colors.borderStrong};
-  background: color-mix(in srgb, ${theme.colors.surface} 38%, transparent);
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 76%, transparent);
+  background: color-mix(in srgb, ${theme.colors.surface} 31%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 68%, transparent);
 
   @media (max-width: 760px) {
     [data-live-metric="true"] {

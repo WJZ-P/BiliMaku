@@ -69,14 +69,23 @@ const Aside = styled.aside`
   overflow-x: hidden;
   overflow-y: auto;
   padding: 12px 8px 8px;
-  border-right: 1px solid ${theme.colors.borderStrong};
+  border-right: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 72%, transparent);
   border-radius: 0;
   background:
-    linear-gradient(180deg, color-mix(in srgb, ${theme.colors.surface} 96%, transparent), color-mix(in srgb, ${theme.colors.canvasAccent} 88%, transparent));
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, ${theme.colors.surface} 54%, transparent),
+      color-mix(in srgb, ${theme.colors.canvasAccent} 39%, transparent)
+    );
   box-shadow:
-    inset -1px 0 0 color-mix(in srgb, ${theme.colors.highlight} 65%, transparent),
-    ${theme.shadows.inset};
-  backdrop-filter: blur(18px);
+    inset -1px 0 0 color-mix(in srgb, ${theme.colors.highlight} 58%, transparent),
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 72%, transparent);
+  -webkit-backdrop-filter: blur(${theme.frostedGlass.blur}) saturate(1.38) brightness(1.035);
+  backdrop-filter: blur(${theme.frostedGlass.blur}) saturate(1.38) brightness(1.035);
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background: color-mix(in srgb, ${theme.colors.surface} 90%, ${theme.colors.canvasAccent});
+  }
   transition:
     width ${theme.motion.sidebarSpring},
     flex-basis ${theme.motion.sidebarSpring},
@@ -188,9 +197,19 @@ const NavButton = styled.button`
   overflow: hidden;
   isolation: isolate;
   padding: 5px 6px;
-  border: 1px solid ${theme.colors.border};
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 70%, transparent);
   border-radius: 2px;
-  background: color-mix(in srgb, ${theme.colors.surface} 42%, transparent);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, ${theme.colors.surface} 54%, transparent),
+      color-mix(in srgb, ${theme.colors.surface} 25%, transparent)
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 74%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.brandSoft} 24%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.34) brightness(1.025);
+  backdrop-filter: blur(16px) saturate(1.34) brightness(1.025);
   color: ${theme.colors.textSecondary};
   text-align: left;
   transition:
@@ -241,9 +260,16 @@ const NavButton = styled.button`
   }
 
   &[data-active="true"] {
-    border-color: color-mix(in srgb, ${theme.colors.brand} 34%, ${theme.colors.border});
-    background: ${theme.colors.brandSubtle};
-    box-shadow: ${theme.shadows.inset};
+    border-color: color-mix(in srgb, ${theme.colors.brand} 42%, ${theme.colors.border});
+    background:
+      linear-gradient(
+        120deg,
+        color-mix(in srgb, ${theme.colors.brandSoft} 66%, transparent),
+        color-mix(in srgb, ${theme.colors.surface} 31%, transparent)
+      );
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 84%, transparent),
+      0 5px 14px color-mix(in srgb, ${theme.colors.brandDeep} 8%, transparent);
     color: ${theme.colors.brandDeep};
   }
 
@@ -384,9 +410,17 @@ const CollapseButton = styled.button`
   overflow: hidden;
   isolation: isolate;
   padding: 5px 8px;
-  border: 1px solid ${theme.colors.border};
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 70%, transparent);
   border-radius: 2px;
-  background: color-mix(in srgb, ${theme.colors.surface} 58%, transparent);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, ${theme.colors.surface} 56%, transparent),
+      color-mix(in srgb, ${theme.colors.surface} 27%, transparent)
+    );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 76%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.34) brightness(1.025);
+  backdrop-filter: blur(16px) saturate(1.34) brightness(1.025);
   color: ${theme.colors.textSecondary};
   text-align: left;
   transition:
