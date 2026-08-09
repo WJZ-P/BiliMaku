@@ -147,6 +147,14 @@ function formatCompact(value: number) {
   }).format(value);
 }
 
+/** 将一级分区与具体分区合并为紧凑的房间分类说明，并避免重名。 */
+function formatRoomArea(parentAreaName?: string, areaName?: string) {
+  const areaNames = [parentAreaName, areaName]
+    .map((value) => value?.trim() ?? "")
+    .filter(Boolean);
+  return [...new Set(areaNames)].join(" · ");
+}
+
 function formatEventTime(event: LiveEvent) {
   if (event.time) return event.time;
   if (!event.emittedAt) return "刚刚";
@@ -451,6 +459,15 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     ? formatLiveDuration(liveStartedAt, clockNow)
     : "--";
   const showRoomCaption = connecting || reconnecting || live.status.state === "error";
+  const roomAreaLabel = formatRoomArea(
+    live.room?.parentAreaName,
+    live.room?.areaName,
+  );
+  const roomCaption = showRoomCaption
+    ? live.status.message
+    : connected
+      ? roomAreaLabel
+      : "";
   const latestEventId = events.at(-1)?.id;
   const animateLatestEvent = messageFeedReadyRef.current
     && renderedFeedRef.current.filter === filter
@@ -679,9 +696,9 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               />
               <RoomCopy>
                 <RoomTitle>{roomTitle}</RoomTitle>
-                {showRoomCaption ? (
+                {roomCaption ? (
                   <RoomCaption data-error={live.status.state === "error"}>
-                    {live.status.message}
+                    {roomCaption}
                   </RoomCaption>
                 ) : null}
               </RoomCopy>

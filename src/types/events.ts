@@ -82,6 +82,14 @@ export interface RoomConnectionInfo {
   ownerUid: number;
   /** 直播间标题。 */
   title: string;
+  /** 平台一级分区 ID，例如网游、单机游戏或虚拟主播。 */
+  parentAreaId: number;
+  /** 平台一级分区名称。 */
+  parentAreaName: string;
+  /** 当前直播间具体分区 ID。 */
+  areaId: number;
+  /** 当前直播间具体分区名称，供标题下方直接展示。 */
+  areaName: string;
   /** 平台返回的直播状态码。 */
   liveStatus: number;
   /** 平台返回的本场开播时间，格式为北京时间 YYYY-MM-DD HH:mm:ss。 */

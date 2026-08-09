@@ -39,6 +39,14 @@ pub struct RoomConnectionInfo {
     pub owner_uid: u64,
     /// 直播间标题。
     pub title: String,
+    /// 平台一级分区 ID，例如网游、单机游戏或虚拟主播。
+    pub parent_area_id: u64,
+    /// 平台一级分区名称。
+    pub parent_area_name: String,
+    /// 当前直播间具体分区 ID。
+    pub area_id: u64,
+    /// 当前直播间具体分区名称，供标题下方直接展示。
+    pub area_name: String,
     /// 平台返回的直播状态码。
     pub live_status: u8,
     /// 平台返回的本场开播时间，格式为北京时间 YYYY-MM-DD HH:mm:ss。

@@ -45,6 +45,10 @@ pub struct RoomConfig {
     pub room_id: u64,
     pub owner_uid: u64,
     pub title: String,
+    pub parent_area_id: u64,
+    pub parent_area_name: String,
+    pub area_id: u64,
+    pub area_name: String,
     pub live_status: u8,
     pub live_time: String,
     pub cover_url: String,
@@ -66,6 +70,10 @@ impl RoomConfig {
             room_id: self.room_id,
             owner_uid: self.owner_uid,
             title: self.title.clone(),
+            parent_area_id: self.parent_area_id,
+            parent_area_name: self.parent_area_name.clone(),
+            area_id: self.area_id,
+            area_name: self.area_name.clone(),
             live_status: self.live_status,
             live_time: self.live_time.clone(),
             cover_url: self.cover_url.clone(),
@@ -98,6 +106,14 @@ struct RoomInfoData {
     uid: u64,
     #[serde(default)]
     title: String,
+    #[serde(default)]
+    parent_area_id: u64,
+    #[serde(default)]
+    parent_area_name: String,
+    #[serde(default)]
+    area_id: u64,
+    #[serde(default)]
+    area_name: String,
     #[serde(default)]
     live_status: u8,
     #[serde(default)]
@@ -337,6 +353,10 @@ pub async fn prepare_room(
         room_id: room.room_id,
         owner_uid: room.uid,
         title: room.title,
+        parent_area_id: room.parent_area_id,
+        parent_area_name: room.parent_area_name,
+        area_id: room.area_id,
+        area_name: room.area_name,
         live_status: room.live_status,
         live_time: room.live_time,
         cover_url,
@@ -783,6 +803,10 @@ mod tests {
             room_id: 1,
             uid: 2,
             title: "测试直播间".to_string(),
+            parent_area_id: 11,
+            parent_area_name: "游戏".to_string(),
+            area_id: 372,
+            area_name: "原神".to_string(),
             live_status: 1,
             live_time: "2026-08-08 20:00:00".to_string(),
             cover: Some("https://example.com/cover.jpg".to_string()),
@@ -805,6 +829,26 @@ mod tests {
             "https://example.com/keyframe.jpg"
         );
     }
+
+    #[test]
+    fn decodes_room_area_metadata() {
+        let room: RoomInfoData = serde_json::from_value(json!({
+            "room_id": 4457340,
+            "uid": 39684091,
+            "title": "测试直播间",
+            "parent_area_id": 11,
+            "parent_area_name": "游戏",
+            "area_id": 372,
+            "area_name": "原神"
+        }))
+        .expect("deserialize room area metadata");
+
+        assert_eq!(room.parent_area_id, 11);
+        assert_eq!(room.parent_area_name, "游戏");
+        assert_eq!(room.area_id, 372);
+        assert_eq!(room.area_name, "原神");
+    }
+
     #[test]
     fn creates_32_character_mixin_key() {
         let wbi = WbiImage {

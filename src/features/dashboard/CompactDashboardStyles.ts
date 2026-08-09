@@ -136,7 +136,10 @@ export const RoomCoverImage = styled.img`
   }
 `;
 export const RoomCopy = styled.div`
+  display: grid;
   min-width: 0;
+  align-content: center;
+  gap: 3px;
 `;
 
 export const RoomTitle = styled.h2`
@@ -153,10 +156,11 @@ export const RoomTitle = styled.h2`
 
 export const RoomCaption = styled.p`
   overflow: hidden;
-  margin: 3px 0 0;
+  margin: 0;
   color: ${theme.colors.textMuted};
-  font-size: 9px;
-  line-height: 1.25;
+  font-size: 10px;
+  font-weight: 620;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 
