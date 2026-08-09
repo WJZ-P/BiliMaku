@@ -149,16 +149,6 @@ const AccountUid = styled.div`
   font-size: 10px;
 `;
 
-const SessionState = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-  color: ${theme.colors.success};
-  font-size: 10px;
-  font-weight: 750;
-`;
-
 const PanelMeta = styled.span`
   color: ${theme.colors.textMuted};
   font-size: 10px;
@@ -591,7 +581,6 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
               <div>
                 <AccountName>{profile?.username || "已登录账号"}</AccountName>
                 <AccountUid>UID {profile?.uid || "--"}</AccountUid>
-                <SessionState><Icon name="check" size={13} />本地登录态已启用</SessionState>
               </div>
             </AccountIdentity>
             <AccountStats aria-label="BiliMaku 当前会话记录">
