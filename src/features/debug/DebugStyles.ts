@@ -18,6 +18,11 @@ export const Page = styled.section`
       transparent 1px
     );
   background-size: 20px 20px;
+
+  @media (max-width: 600px) {
+    gap: 18px;
+    padding: 12px 11px 32px;
+  }
 `;
 
 export const LabHeader = styled.header`
@@ -88,6 +93,14 @@ export const LabHeader = styled.header`
 
   @media (max-width: 760px) {
     grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 17px 16px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      animation: none;
+    }
   }
 `;
 
@@ -332,6 +345,12 @@ export const SectionCopy = styled.div`
   justify-content: space-between;
   gap: 12px;
   padding: 5px 8px 5px 12px;
+
+  @media (max-width: 620px) {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
 `;
 
 export const SectionTitle = styled.h2`
@@ -347,6 +366,10 @@ export const SectionCaption = styled.p`
   color: ${theme.colors.textMuted};
   font-size: 10px;
   text-align: right;
+
+  @media (max-width: 620px) {
+    text-align: left;
+  }
 `;
 
 export const ControlGrid = styled.div`
@@ -935,6 +958,12 @@ export const FooterNote = styled.footer`
   @keyframes bilimaku-debug-status {
     50% {
       opacity: 0.3;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before {
+      animation: none;
     }
   }
 `;

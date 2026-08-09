@@ -2,7 +2,11 @@ import { styled } from "@linaria/react";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { Icon } from "../../components/Icon";
 import { theme } from "../../styles/theme";
-import { createFullscreenWebglRuntime, parseCssColor } from "./webglRuntime";
+import {
+  createFullscreenWebglRuntime,
+  createVisibilityAwareFrameLoop,
+  parseCssColor,
+} from "./webglRuntime";
 
 type SpectralMode = "flow" | "pulse" | "warp";
 
@@ -156,6 +160,12 @@ const LiveBadge = styled.span`
       transform: scale(0.72);
     }
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before {
+      animation: none;
+    }
+  }
 `;
 
 const DeckBody = styled.div`
@@ -265,6 +275,13 @@ const CoreButton = styled.button`
       transform: rotate(360deg);
     }
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before,
+    &::after {
+      animation: none;
+    }
+  }
 `;
 
 const CoreGlyph = styled.span`
@@ -339,6 +356,11 @@ const ModeRail = styled.div`
   gap: 12px;
   padding-top: 13px;
   border-top: 1px solid var(--spectral-line);
+
+  @media (max-width: 540px) {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 `;
 
 const ModeGroup = styled.div`
@@ -564,8 +586,6 @@ export function WebglSpectralDeck({ density, onAction }: WebglSpectralDeckProps)
 
     let width = 1;
     let height = 1;
-    let frame = 0;
-    let disposed = false;
     let currentX = 0.5;
     let currentY = 0.5;
     let currentEnergy = energyRef.current;
@@ -585,7 +605,6 @@ export function WebglSpectralDeck({ density, onAction }: WebglSpectralDeckProps)
     };
 
     const render = (time: number) => {
-      if (disposed) return;
       currentX += (pointerTargetRef.current.x - currentX) * 0.08;
       currentY += (pointerTargetRef.current.y - currentY) * 0.08;
       currentEnergy += (energyRef.current - currentEnergy) * 0.065;
@@ -598,20 +617,18 @@ export function WebglSpectralDeck({ density, onAction }: WebglSpectralDeckProps)
       gl.uniform1f(uniforms.energy, currentEnergy);
       gl.uniform1f(uniforms.mode, currentMode);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
-      frame = window.requestAnimationFrame(render);
     };
 
     resize();
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(canvas);
     setReady(true);
-    frame = window.requestAnimationFrame(render);
+    const stopFrameLoop = createVisibilityAwareFrameLoop(host, render);
 
     return () => {
-      disposed = true;
       setReady(false);
+      stopFrameLoop();
       resizeObserver.disconnect();
-      window.cancelAnimationFrame(frame);
       runtime.dispose();
     };
   }, []);
@@ -681,6 +698,7 @@ export function WebglSpectralDeck({ density, onAction }: WebglSpectralDeckProps)
                 key={item}
                 type="button"
                 data-active={mode === item}
+                aria-pressed={mode === item}
                 onClick={() => {
                   setMode(item);
                   onAction?.(`光场模式：${modeNames[item]}`);

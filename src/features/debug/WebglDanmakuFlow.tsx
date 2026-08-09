@@ -9,7 +9,11 @@ import {
 } from "react";
 import { Icon } from "../../components/Icon";
 import { theme } from "../../styles/theme";
-import { createFullscreenWebglRuntime, parseCssColor } from "./webglRuntime";
+import {
+  createFullscreenWebglRuntime,
+  createVisibilityAwareFrameLoop,
+  parseCssColor,
+} from "./webglRuntime";
 
 type FlowAlignment = "top" | "bottom";
 
@@ -86,6 +90,11 @@ const StageHeader = styled.header`
   border-bottom: 1px solid var(--flow-line);
   background: linear-gradient(180deg, rgba(9, 31, 51, 0.72), rgba(8, 25, 42, 0.36));
   backdrop-filter: blur(18px) saturate(1.2);
+
+  @media (max-width: 620px) {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 `;
 
 const StageIdentity = styled.div`
@@ -143,6 +152,11 @@ const StageReadout = styled.div`
     margin-left: 4px;
     color: var(--flow-white);
     font-size: 9px;
+  }
+
+  @media (max-width: 620px) {
+    width: 100%;
+    justify-content: space-between;
   }
 `;
 
@@ -210,6 +224,12 @@ const AlignmentBeacon = styled.span`
   @keyframes flow-beacon-spin {
     to {
       transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before {
+      animation: none;
     }
   }
 `;
@@ -294,6 +314,11 @@ const StageFooter = styled.footer`
   border-top: 1px solid var(--flow-line);
   background: rgba(7, 23, 38, 0.58);
   backdrop-filter: blur(18px) saturate(1.18);
+
+  @media (max-width: 520px) {
+    align-items: stretch;
+    flex-direction: column;
+  }
 `;
 
 const AlignmentGroup = styled.div`
@@ -512,8 +537,6 @@ export function WebglDanmakuFlow({
 
     let width = 1;
     let height = 1;
-    let frame = 0;
-    let disposed = false;
     let pointerX = pointerRef.current.x;
     let pointerY = pointerRef.current.y;
     let currentAlignment = alignmentRef.current;
@@ -532,7 +555,6 @@ export function WebglDanmakuFlow({
     };
 
     const render = (time: number) => {
-      if (disposed) return;
       pointerX += (pointerRef.current.x - pointerX) * 0.1;
       pointerY += (pointerRef.current.y - pointerY) * 0.1;
       currentAlignment += (alignmentRef.current - currentAlignment) * 0.075;
@@ -545,18 +567,16 @@ export function WebglDanmakuFlow({
       gl.uniform1f(uniforms.burst, burstRef.current);
       gl.uniform1f(uniforms.alignment, currentAlignment);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
-      frame = window.requestAnimationFrame(render);
     };
 
     resize();
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
-    frame = window.requestAnimationFrame(render);
+    const stopFrameLoop = createVisibilityAwareFrameLoop(host, render);
 
     return () => {
-      disposed = true;
+      stopFrameLoop();
       observer.disconnect();
-      window.cancelAnimationFrame(frame);
       runtime.dispose();
     };
   }, []);
@@ -626,6 +646,7 @@ export function WebglDanmakuFlow({
             <AlignmentButton
               type="button"
               data-active={alignment === "top"}
+              aria-pressed={alignment === "top"}
               onClick={() => {
                 setAlignment("top");
                 onAction?.("弹幕流场：顶部轨道");
@@ -636,6 +657,7 @@ export function WebglDanmakuFlow({
             <AlignmentButton
               type="button"
               data-active={alignment === "bottom"}
+              aria-pressed={alignment === "bottom"}
               onClick={() => {
                 setAlignment("bottom");
                 onAction?.("弹幕流场：底部轨道");
