@@ -456,6 +456,7 @@ export const SwitchRow = styled.div`
   min-height: 40px;
   padding: 0 10px;
   border: 2px solid ${theme.colors.borderStrong};
+  border-radius: 2px;
   background: color-mix(in srgb, ${theme.colors.surface} 62%, transparent);
 `;
 
@@ -481,11 +482,22 @@ export const Switch = styled.button`
   flex: 0 0 42px;
   padding: 0;
   border: 2px solid ${theme.colors.borderStrong};
-  border-radius: 0;
+  border-radius: 2px;
   background: ${theme.colors.surfacePressed};
+  box-shadow: inset 0 1px 3px color-mix(in srgb, ${theme.colors.shadowStrong} 14%, transparent);
   transition:
     border-color ${theme.motion.fast},
-    background ${theme.motion.normal};
+    background ${theme.motion.normal},
+    box-shadow ${theme.motion.normal};
+
+  &:hover,
+  &:focus-visible {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 68%, ${theme.colors.borderStrong});
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, ${theme.colors.brand} 10%, transparent),
+      inset 0 1px 3px color-mix(in srgb, ${theme.colors.shadowStrong} 14%, transparent);
+    outline: 0;
+  }
 
   &[data-active="true"] {
     border-color: ${theme.colors.brand};
@@ -499,14 +511,59 @@ export const SwitchThumb = styled.span`
   left: 3px;
   width: 12px;
   height: 12px;
+  border-radius: 2px;
   background: ${theme.colors.textMuted};
-  transition:
-    background ${theme.motion.fast},
-    transform ${theme.motion.spring};
+  box-shadow: 0 2px 5px color-mix(in srgb, ${theme.colors.shadowStrong} 24%, transparent);
+  transform-origin: center;
+  transition: background ${theme.motion.fast};
+
+  &::after {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 50%;
+    width: 2px;
+    border-radius: 1px;
+    background: color-mix(in srgb, ${theme.colors.surface} 82%, transparent);
+    content: "";
+    transform: translateX(-50%);
+  }
 
   [data-active="true"] & {
     background: ${theme.colors.brand};
-    transform: translateX(20px) rotate(90deg);
+    animation: bilimaku-switch-roll-on 520ms cubic-bezier(0.2, 0.82, 0.22, 1) both;
+  }
+
+  [data-active="false"] & {
+    animation: bilimaku-switch-roll-off 520ms cubic-bezier(0.2, 0.82, 0.22, 1) both;
+  }
+
+  @keyframes bilimaku-switch-roll-on {
+    0% {
+      transform: translateX(0) rotate(0deg);
+    }
+    68% {
+      transform: translateX(20px) rotate(100deg);
+    }
+    100% {
+      transform: translateX(20px) rotate(90deg);
+    }
+  }
+
+  @keyframes bilimaku-switch-roll-off {
+    0% {
+      transform: translateX(20px) rotate(90deg);
+    }
+    68% {
+      transform: translateX(0) rotate(-10deg);
+    }
+    100% {
+      transform: translateX(0) rotate(0deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-duration: 1ms !important;
   }
 `;
 

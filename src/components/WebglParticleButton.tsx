@@ -44,20 +44,26 @@ const Root = styled.button`
   position: relative;
   display: inline-grid;
   min-width: 0;
-  min-height: 40px;
+  min-height: 42px;
   grid-template-columns: 1fr;
   place-items: center;
   isolation: isolate;
   overflow: hidden;
   padding: 0 16px;
-  border: 2px solid color-mix(
+  border: 1px solid color-mix(
     in srgb,
     var(--particle-button-accent) 52%,
     ${theme.colors.borderStrong}
   );
-  border-radius: 0;
-  background: color-mix(in srgb, ${theme.colors.surface} 52%, transparent);
-  box-shadow: none;
+  border-radius: 6px;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, ${theme.colors.surface} 84%, transparent),
+    color-mix(in srgb, var(--particle-button-accent) 5%, ${theme.colors.surface})
+  );
+  box-shadow:
+    0 3px 9px color-mix(in srgb, ${theme.colors.shadowStrong} 16%, transparent),
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 72%, transparent);
   color: ${theme.colors.textPrimary};
   font-family: ${theme.typography.family};
   font-size: 11px;
@@ -95,14 +101,15 @@ const Root = styled.button`
   &::after {
     position: absolute;
     z-index: 4;
-    right: 3px;
-    bottom: 3px;
-    width: 6px;
-    height: 6px;
-    border-right: 2px solid var(--particle-button-accent);
-    border-bottom: 2px solid var(--particle-button-accent);
+    right: 6px;
+    bottom: 6px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--particle-button-accent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--particle-button-accent) 52%, transparent);
     content: "";
-    opacity: 0.58;
+    opacity: 0.46;
     pointer-events: none;
     transition:
       opacity ${theme.motion.fast},
@@ -111,7 +118,11 @@ const Root = styled.button`
 
   &[data-kind="primary"] {
     --particle-button-fill: color-mix(in srgb, ${theme.colors.brand} 76%, transparent);
-    background: ${theme.colors.brandDeep};
+    background: linear-gradient(
+      135deg,
+      ${theme.colors.brandDeep},
+      color-mix(in srgb, ${theme.colors.brand} 84%, ${theme.colors.cyan})
+    );
     color: ${theme.colors.textOnBrand};
   }
 
@@ -133,6 +144,9 @@ const Root = styled.button`
       var(--particle-button-accent) 10%,
       ${theme.colors.surface}
     );
+    box-shadow:
+      0 8px 22px color-mix(in srgb, var(--particle-button-accent) 17%, transparent),
+      inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 82%, transparent);
     outline: 0;
   }
 
@@ -151,7 +165,7 @@ const Root = styled.button`
   &:hover:not(:disabled)::after,
   &:focus-visible:not(:disabled)::after {
     opacity: 1;
-    transform: translate(-2px, -2px);
+    transform: translate(-1px, -1px) scale(1.18);
   }
 
   &:active:not(:disabled) {
