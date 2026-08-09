@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import { Icon } from "../../components/Icon";
 import { WebglParticleButton } from "../../components/WebglParticleButton";
+import { WebglSpectralDeck } from "./WebglSpectralDeck";
 import {
   Avatar,
   ButtonMatrix,
@@ -347,8 +348,19 @@ overlay: ${overlayEnabled ? "enabled" : "disabled"}`}</SignalCode>
         </PreviewGrid>
       </Section>
 
+      <Section>
+        <SectionHeader>
+          <SectionIndex>04</SectionIndex>
+          <SectionCopy>
+            <SectionTitle>WebGL 光场界面</SectionTitle>
+            <SectionCaption>程序化极光、星尘、网格和指针辉光共同组成可交互的视觉层。</SectionCaption>
+          </SectionCopy>
+        </SectionHeader>
+        <WebglSpectralDeck density={particleDensity} onAction={setLastAction} />
+      </Section>
+
       <FooterNote>
-        当前调试参数只存在 React 内存中，不会覆盖正式主题配置。确认这套硬朗语言后，可以逐步迁移到直播间、悬浮组件和设置页。
+        当前调试参数只存在 React 内存中，不会覆盖正式主题配置。基础控件与光场实验都保持组件化，可按最终选择逐步迁移到直播间、悬浮组件和设置页。
       </FooterNote>
     </Page>
   );
