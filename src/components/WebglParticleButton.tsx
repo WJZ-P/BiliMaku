@@ -63,11 +63,13 @@ const Root = styled.button`
   font-size: 11px;
   font-weight: 780;
   letter-spacing: 0.015em;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
   transition:
     border-color ${theme.motion.fast},
     background ${theme.motion.normal},
     color ${theme.motion.fast},
-    transform ${theme.motion.spring};
+    transform 90ms ease;
 
   &::before {
     position: absolute;
@@ -132,7 +134,6 @@ const Root = styled.button`
       ${theme.colors.surface}
     );
     outline: 0;
-    transform: translateY(-1px);
   }
 
   &[data-kind="primary"]:hover:not(:disabled),
@@ -196,14 +197,37 @@ const Content = styled.span`
   align-items: center;
   justify-content: center;
   gap: 8px;
+  font-size: 11px;
+  line-height: 1;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
   pointer-events: none;
   transition:
-    letter-spacing ${theme.motion.normal},
-    transform ${theme.motion.spring};
+    font-size ${theme.motion.normal},
+    letter-spacing ${theme.motion.normal};
 
-  [data-rendering="true"] & {
-    letter-spacing: 0.035em;
-    transform: translateX(1px);
+  & > svg {
+    flex: 0 0 auto;
+    transform-origin: center;
+    shape-rendering: geometricPrecision;
+    transition: transform ${theme.motion.normal};
+  }
+
+  [data-focused="true"] & {
+    font-size: 12px;
+    letter-spacing: 0.03em;
+  }
+
+  [data-focused="true"] & > svg {
+    transform: scale(1.1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    & > svg {
+      transition: none;
+    }
   }
 `;
 
@@ -249,7 +273,10 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function parseColor(value: string): readonly [number, number, number] {
+function parseColor(
+  value: string,
+  fallback: readonly [number, number, number] = [0.26, 0.56, 0.95],
+): readonly [number, number, number] {
   const normalized = value.trim();
   const hex = normalized.match(/^#([0-9a-f]{6})$/i)?.[1];
   if (hex) {
@@ -263,7 +290,20 @@ function parseColor(value: string): readonly [number, number, number] {
   if (rgb) {
     return [Number(rgb[1]) / 255, Number(rgb[2]) / 255, Number(rgb[3]) / 255];
   }
-  return [0.26, 0.56, 0.95];
+  return fallback;
+}
+
+/** 以按钮语义强调色生成同色系亮暗粒子，避免危险按钮继续出现蓝色粒子。 */
+function mixColor(
+  source: readonly [number, number, number],
+  target: readonly [number, number, number],
+  amount: number,
+): readonly [number, number, number] {
+  return [
+    source[0] + (target[0] - source[0]) * amount,
+    source[1] + (target[1] - source[1]) * amount,
+    source[2] + (target[2] - source[2]) * amount,
+  ];
 }
 
 function createShader(
@@ -321,6 +361,7 @@ export function WebglParticleButton({
   const rootRef = useRef<HTMLButtonElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointerRef = useRef<PointerSnapshot>({ x: 0, y: 0, active: false });
+  const [focused, setFocused] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [session, setSession] = useState(0);
 
@@ -377,12 +418,22 @@ export function WebglParticleButton({
     const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
     const pixelRatioLocation = gl.getUniformLocation(program, "u_pixel_ratio");
     const stride = 7 * Float32Array.BYTES_PER_ELEMENT;
-    const rootStyle = getComputedStyle(document.documentElement);
+    const documentStyle = getComputedStyle(document.documentElement);
+    const fallbackAccent = parseColor(
+      documentStyle.getPropertyValue(
+        kind === "danger" ? "--bc-color-danger" : "--bc-color-brand",
+      ),
+    );
+    const buttonStyle = getComputedStyle(root);
+    const accent = parseColor(
+      buttonStyle.getPropertyValue("--particle-button-accent"),
+      fallbackAccent,
+    );
     const palette = [
-      parseColor(rootStyle.getPropertyValue("--bc-color-brand")),
-      parseColor(rootStyle.getPropertyValue("--bc-color-cyan")),
-      parseColor(rootStyle.getPropertyValue("--bc-color-brand-deep")),
-      parseColor(rootStyle.getPropertyValue("--bc-color-highlight")),
+      accent,
+      mixColor(accent, [1, 1, 1], 0.28),
+      mixColor(accent, [1, 1, 1], 0.54),
+      mixColor(accent, [0.08, 0.12, 0.18], 0.16),
     ];
 
     let width = 1;
@@ -567,7 +618,7 @@ export function WebglParticleButton({
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
     };
-  }, [rendering, session]);
+  }, [kind, rendering, session]);
 
   return (
     <Root
@@ -577,11 +628,13 @@ export function WebglParticleButton({
       disabled={disabled}
       data-kind={kind}
       data-block={block}
+      data-focused={focused}
       data-rendering={rendering}
       onPointerEnter={(event) => {
         onPointerEnter?.(event);
         if (disabled) return;
         samplePointer(event);
+        setFocused(true);
         setSession((current) => current + 1);
         setRendering(true);
       }}
@@ -592,10 +645,12 @@ export function WebglParticleButton({
       onPointerLeave={(event) => {
         onPointerLeave?.(event);
         pointerRef.current.active = false;
+        setFocused(false);
       }}
       onPointerCancel={(event) => {
         onPointerCancel?.(event);
         pointerRef.current.active = false;
+        setFocused(false);
       }}
     >
       <ParticleCanvas ref={canvasRef} aria-hidden="true" />
