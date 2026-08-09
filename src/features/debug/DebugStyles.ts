@@ -508,46 +508,115 @@ export const FieldValue = styled.strong`
 `;
 
 export const Range = styled.input`
+  --range-track-height: 5px;
+  --range-thumb-size: 16px;
+
   width: 100%;
-  height: 24px;
+  height: 30px;
   margin: 0;
   appearance: none;
   background: transparent;
+  cursor: grab;
 
   &::-webkit-slider-runnable-track {
-    height: 6px;
-    border: 1px solid ${theme.colors.borderStrong};
-    border-radius: 999px;
+    height: var(--range-track-height);
+    border: 0;
+    border-radius: 4px;
     background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, ${theme.colors.highlight} 48%, transparent),
+        transparent 52%
+      ),
       linear-gradient(90deg, ${theme.colors.brand}, ${theme.colors.cyan})
         0 / var(--range-progress, 50%) 100% no-repeat,
-      ${theme.colors.surfacePressed};
+      color-mix(in srgb, ${theme.colors.surfacePressed} 78%, transparent);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, ${theme.colors.borderStrong} 82%, transparent),
+      0 2px 8px color-mix(in srgb, ${theme.colors.brandDeep} 9%, transparent);
+    transition:
+      height 220ms cubic-bezier(0.18, 1.35, 0.35, 1),
+      box-shadow ${theme.motion.normal},
+      filter ${theme.motion.normal};
   }
 
   &::-webkit-slider-thumb {
-    width: 15px;
-    height: 15px;
-    margin-top: -5.5px;
+    width: var(--range-thumb-size);
+    height: var(--range-thumb-size);
+    margin-top: calc((var(--range-track-height) - var(--range-thumb-size)) / 2);
     appearance: none;
     border: 2px solid ${theme.colors.brandDeep};
-    border-radius: 50%;
-    background: ${theme.colors.surface};
-    box-shadow: 0 3px 8px color-mix(in srgb, ${theme.colors.brandDeep} 18%, transparent);
+    border-radius: 4px;
+    background: linear-gradient(
+      145deg,
+      ${theme.colors.surface},
+      color-mix(in srgb, ${theme.colors.cyanSoft} 68%, ${theme.colors.surface})
+    );
+    box-shadow:
+      0 4px 10px color-mix(in srgb, ${theme.colors.brandDeep} 19%, transparent),
+      inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 88%, transparent);
     transform: scale(1);
     transition:
+      margin-top 220ms cubic-bezier(0.18, 1.35, 0.35, 1),
       background ${theme.motion.fast},
+      border-color ${theme.motion.fast},
+      box-shadow ${theme.motion.normal},
       transform ${theme.motion.spring};
+  }
+
+  &:hover,
+  &:focus-visible {
+    --range-track-height: 7px;
+  }
+
+  &:hover::-webkit-slider-runnable-track,
+  &:focus-visible::-webkit-slider-runnable-track {
+    filter: saturate(1.12);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, ${theme.colors.brand} 31%, ${theme.colors.borderStrong}),
+      0 3px 11px color-mix(in srgb, ${theme.colors.brand} 13%, transparent);
   }
 
   &:hover::-webkit-slider-thumb,
   &:focus-visible::-webkit-slider-thumb {
-    background: ${theme.colors.cyanSoft};
+    border-color: ${theme.colors.brand};
+    background: linear-gradient(145deg, ${theme.colors.surface}, ${theme.colors.cyanSoft});
+    transform: scale(1.08);
+  }
+
+  &:active {
+    --range-track-height: 10px;
+    cursor: grabbing;
+  }
+
+  &:active::-webkit-slider-runnable-track {
+    filter: saturate(1.24) brightness(1.035);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, ${theme.colors.brandDeep} 36%, transparent),
+      inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 64%, transparent),
+      0 0 0 3px color-mix(in srgb, ${theme.colors.brand} 8%, transparent),
+      0 6px 16px color-mix(in srgb, ${theme.colors.brandDeep} 18%, transparent);
+  }
+
+  &:active::-webkit-slider-thumb {
+    border-color: ${theme.colors.brandDeep};
+    background: linear-gradient(145deg, ${theme.colors.surface}, ${theme.colors.brandSoft});
+    box-shadow:
+      0 6px 15px color-mix(in srgb, ${theme.colors.brandDeep} 26%, transparent),
+      inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 94%, transparent);
     transform: scale(1.16);
   }
 
   &:focus-visible {
     outline: 1px solid ${theme.colors.brand};
     outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::-webkit-slider-runnable-track,
+    &::-webkit-slider-thumb {
+      transition: none;
+    }
   }
 `;
 
