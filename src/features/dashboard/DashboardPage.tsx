@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Icon, type IconName } from "../../components/Icon";
 import { LiquidGlassSurface } from "../../components/LiquidGlassSurface";
@@ -245,41 +245,63 @@ function EventAvatarView({ event }: { event: LiveEvent }) {
   );
 }
 
+type MessageFilterPhase = "visible" | "exiting" | "hidden";
+
 interface AnimatedMessageRowProps {
-  /** 已归一化的直播消息。 */
+  /** 已归一化的直播消息；同一消息在筛选切换时保持对象引用稳定。 */
   event: LiveEvent;
   /** 当前直播间主播 UID；用来识别主播本人发送的普通弹幕。 */
   ownerUid: number | null;
-  /** 仅新收到的消息在首次挂载时播放入场动画。 */
+  /** 仅真正新收到并首次挂载的消息播放入场动画。 */
   enterOnMount: boolean;
-  /** 当前是否为消息流最末尾的一条；据此保证 WebGL 上下文最多只有一个。 */
-  isLatest: boolean;
+  /** 当前消息在分类筛选状态机中的显示阶段。 */
+  filterPhase: MessageFilterPhase;
+  /** 退场动画结束后把当前行切换为隐藏状态。 */
+  onFilterExitComplete: (eventId: string) => void;
 }
 
 /**
  * 单条聊天消息的动效边界。
  *
- * 外层负责从 0 高度展开并推动旧消息上移，内层负责左下到右上的弹簧入场；
- * 动画结束后移除裁剪，避免头像和气泡阴影被长期截断。
+ * 组件在分类切换时保持挂载；只有 visible/exiting/hidden 阶段发生变化的行会重渲染。
+ * 这样头像、磨砂气泡与内部状态都可以复用，同时允许被过滤的可见行完整播放退场动画。
  */
-function AnimatedMessageRow({
+const AnimatedMessageRow = memo(function AnimatedMessageRow({
   event,
   ownerUid,
   enterOnMount,
-  isLatest,
+  filterPhase,
+  onFilterExitComplete,
 }: AnimatedMessageRowProps) {
   const anchorDanmaku = isAnchorDanmaku(event, ownerUid);
   const eventTag = anchorDanmaku
     ? "主播"
     : event.meta || eventTypeLabels[event.type];
   const [entering, setEntering] = useState(
-    () => enterOnMount && !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    () => filterPhase === "visible"
+      && enterOnMount
+      && !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
 
   return (
-    <MessageEntry data-entering={entering} data-message-entry={event.id}>
+    <MessageEntry
+      data-entering={entering}
+      data-filter-phase={filterPhase}
+      data-message-entry={event.id}
+      aria-hidden={filterPhase === "hidden"}
+      onAnimationEnd={(animationEvent) => {
+        if (
+          animationEvent.target === animationEvent.currentTarget
+          && filterPhase === "exiting"
+          && animationEvent.animationName.startsWith("bilimaku-message-filter-layout-out")
+        ) {
+          onFilterExitComplete(event.id);
+        }
+      }}
+    >
       <MessageEntryContent
         data-entering={entering}
+        data-filter-phase={filterPhase}
         onAnimationEnd={(animationEvent) => {
           if (animationEvent.target === animationEvent.currentTarget) {
             setEntering(false);
@@ -302,7 +324,7 @@ function AnimatedMessageRow({
               <EventTime>{formatEventTime(event)}</EventTime>
             </MessageMeta>
             <MessageBubble data-type={event.type} data-liquid-glass="true">
-              {entering && isLatest ? (
+              {entering && filterPhase === "visible" ? (
                 <LiquidGlassSurface
                   active
                   animationKey={event.emittedAt ?? 0}
@@ -316,7 +338,150 @@ function AnimatedMessageRow({
       </MessageEntryContent>
     </MessageEntry>
   );
+}, (previous, next) => (
+  previous.event === next.event
+  && previous.ownerUid === next.ownerUid
+  && previous.filterPhase === next.filterPhase
+));
+
+interface MessageFeedListProps {
+  /** 当前缓存中的全部消息，始终保持同一套稳定 key 节点。 */
+  allEvents: LiveEvent[];
+  /** 当前分类应当显示的消息 ID。 */
+  visibleEventIds: ReadonlySet<string>;
+  /** 当前持久化的消息分类，用来识别一次真正的筛选切换。 */
+  filter: LiveMessageDisplayFilter;
+  /** 当前主播 UID；变化时重新判断主播标签。 */
+  ownerUid: number | null;
+  /** 本轮真正新增的消息 ID；筛选切换不会设置该值。 */
+  enteringEventId: string | undefined;
+  /** 通过消息流根节点 CSS 变量统一下发的气泡颜色。 */
+  messageBubbleColor: string;
+  /** 空状态需要区分未连接和直播间暂时安静。 */
+  connected: boolean;
 }
+
+/**
+ * 常驻消息列表与筛选退场状态机。
+ *
+ * 所有缓存消息始终使用稳定 key 挂载，分类变化时只修改发生差异的行。当前视口内被
+ * 过滤的行先执行退场与高度收拢，屏幕外的行直接隐藏，避免同时调度数百个动画。
+ */
+const MessageFeedList = memo(function MessageFeedList({
+  allEvents,
+  visibleEventIds,
+  filter,
+  ownerUid,
+  enteringEventId,
+  messageBubbleColor,
+  connected,
+}: MessageFeedListProps) {
+  const feedRef = useRef<HTMLDivElement>(null);
+  const previousFilterRef = useRef(filter);
+  const [rowPhases, setRowPhases] = useState<Map<string, MessageFilterPhase>>(() => (
+    new Map(allEvents.map((event) => [
+      event.id,
+      visibleEventIds.has(event.id) ? "visible" : "hidden",
+    ]))
+  ));
+  const feedStyle = useMemo(() => ({
+    "--message-bubble-color": messageBubbleColor,
+  }) as CSSProperties, [messageBubbleColor]);
+
+  useLayoutEffect(() => {
+    const filterChanged = previousFilterRef.current !== filter;
+    previousFilterRef.current = filter;
+    const animatedExitIds = new Set<string>();
+
+    if (filterChanged && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const feed = feedRef.current;
+      const viewport = feed?.parentElement;
+      if (feed && viewport) {
+        const viewportRect = viewport.getBoundingClientRect();
+        for (const node of feed.querySelectorAll<HTMLElement>("[data-message-entry]")) {
+          if (visibleEventIds.has(node.dataset.messageEntry ?? "")) continue;
+          const rowRect = node.getBoundingClientRect();
+          if (rowRect.bottom > viewportRect.top && rowRect.top < viewportRect.bottom) {
+            animatedExitIds.add(node.dataset.messageEntry ?? "");
+          }
+        }
+      }
+    }
+
+    setRowPhases((current) => {
+      let changed = current.size !== allEvents.length;
+      const next = new Map<string, MessageFilterPhase>();
+
+      for (const event of allEvents) {
+        const currentPhase = current.get(event.id);
+        let nextPhase: MessageFilterPhase;
+        if (visibleEventIds.has(event.id)) {
+          nextPhase = "visible";
+        } else if (
+          filterChanged
+          && currentPhase !== undefined
+          && currentPhase !== "hidden"
+          && animatedExitIds.has(event.id)
+        ) {
+          nextPhase = "exiting";
+        } else {
+          nextPhase = "hidden";
+        }
+        next.set(event.id, nextPhase);
+        if (currentPhase !== nextPhase) changed = true;
+      }
+
+      return changed ? next : current;
+    });
+  }, [allEvents, filter, visibleEventIds]);
+
+  const finishFilterExit = useCallback((eventId: string) => {
+    setRowPhases((current) => {
+      if (current.get(eventId) !== "exiting") return current;
+      const next = new Map(current);
+      next.set(eventId, "hidden");
+      return next;
+    });
+  }, []);
+
+  const hasExitingRows = Array.from(rowPhases.values()).some(
+    (phase) => phase === "exiting",
+  );
+  const showEmptyState = visibleEventIds.size === 0 && !hasExitingRows;
+
+  return (
+    <MessageFeed ref={feedRef} style={feedStyle}>
+      {allEvents.map((event) => (
+        <AnimatedMessageRow
+          key={event.id}
+          event={event}
+          ownerUid={ownerUid}
+          enterOnMount={event.id === enteringEventId}
+          filterPhase={rowPhases.get(event.id)
+            ?? (visibleEventIds.has(event.id) ? "visible" : "hidden")}
+          onFilterExitComplete={finishFilterExit}
+        />
+      ))}
+      {showEmptyState ? (
+        <EmptyFeed>
+          <div>
+            <strong>{connected ? "直播间很安静" : "等待直播间连接"}</strong>
+            {filter === "all"
+              ? "新的弹幕和互动会像聊天消息一样出现在这里。"
+              : "当前筛选下还没有消息。"}
+          </div>
+        </EmptyFeed>
+      ) : null}
+    </MessageFeed>
+  );
+}, (previous, next) => (
+  previous.allEvents === next.allEvents
+  && previous.visibleEventIds === next.visibleEventIds
+  && previous.filter === next.filter
+  && previous.ownerUid === next.ownerUid
+  && previous.messageBubbleColor === next.messageBubbleColor
+  && previous.connected === next.connected
+));
 
 let dashboardFirstFrameReported = false;
 
@@ -362,13 +527,35 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const sourceEvents = live.events;
   const filter = live.messageSettings.displayFilter;
 
-  const events = useMemo(() => {
-    const filtered = filter === "all"
-      ? sourceEvents
-      : sourceEvents.filter((event) => event.type === filter);
-    return [...filtered].reverse();
-  }, [filter, sourceEvents]);
+  const eventBuckets = useMemo<Record<LiveMessageDisplayFilter, LiveEvent[]>>(() => {
+    const chronologicalEvents = [...sourceEvents].reverse();
+    const buckets: Record<LiveMessageDisplayFilter, LiveEvent[]> = {
+      all: chronologicalEvents,
+      message: [],
+      interaction: [],
+      gift: [],
+      superchat: [],
+    };
 
+    for (const event of chronologicalEvents) {
+      switch (event.type) {
+        case "message":
+        case "interaction":
+        case "gift":
+        case "superchat":
+          buckets[event.type].push(event);
+          break;
+        default:
+          break;
+      }
+    }
+    return buckets;
+  }, [sourceEvents]);
+  const events = eventBuckets[filter];
+  const visibleEventIds = useMemo(
+    () => new Set(events.map((event) => event.id)),
+    [events],
+  );
   const outgoingLength = Array.from(outgoingMessage.trim()).length;
   const roomTitle = live.status.state === "disconnected"
     ? "未连接"
@@ -396,10 +583,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const composerAssist = sendNotice || (connected
     ? "Enter 发送 · 使用当前扫码登录账号"
     : "连接直播间后即可使用当前账号发弹幕");
-  const messageFeedStyle = {
-    "--message-bubble-color": messageBubbleColor,
-  } as CSSProperties;
-
   useEffect(() => {
     let active = true;
     void getLiveAppearanceSettings().then((settings) => {
@@ -649,6 +832,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                   type="button"
                   data-active={filter === item.value}
                   onClick={() => {
+                    if (filter === item.value) return;
                     void live.updateMessageSettings({
                       displayFilter: item.value,
                     }).catch((error) => {
@@ -662,27 +846,16 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             </FilterGroup>
           </ChatToolbar>
 
-          <MessageViewport ref={messageViewportRef}>
-            {events.length > 0 ? (
-              <MessageFeed style={messageFeedStyle}>
-                {events.map((event) => (
-                  <AnimatedMessageRow
-                    key={event.id}
-                    event={event}
-                    ownerUid={live.room?.ownerUid ?? null}
-                    enterOnMount={animateLatestEvent && event.id === latestEventId}
-                    isLatest={event.id === latestEventId}
-                  />
-                ))}
-              </MessageFeed>
-            ) : (
-              <EmptyFeed>
-                <div>
-                  <strong>{connected ? "直播间很安静" : "等待直播间连接"}</strong>
-                  {filter === "all" ? "新的弹幕和互动会像聊天消息一样出现在这里。" : "当前筛选下还没有消息。"}
-                </div>
-              </EmptyFeed>
-            )}
+          <MessageViewport ref={messageViewportRef} data-message-viewport="true">
+            <MessageFeedList
+              allEvents={eventBuckets.all}
+              visibleEventIds={visibleEventIds}
+              filter={filter}
+              ownerUid={live.room?.ownerUid ?? null}
+              enteringEventId={animateLatestEvent ? latestEventId : undefined}
+              messageBubbleColor={messageBubbleColor}
+              connected={connected}
+            />
           </MessageViewport>
 
           <Composer

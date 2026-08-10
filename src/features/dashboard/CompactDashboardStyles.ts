@@ -437,6 +437,10 @@ export const MessageViewport = styled.div`
   --message-enter-duration: 820ms;
   --message-enter-offset-x: -20px;
   --message-enter-offset-y: 13px;
+  /* 分类切换退场调参：仅当前视口内被过滤的消息会执行这组动画。 */
+  --message-filter-exit-duration: 300ms;
+  --message-filter-exit-offset-x: -16px;
+  --message-filter-exit-offset-y: -4px;
   /* 消息元信息字号调参区：昵称、UID、事件标签和时间戳统一从这里调整。 */
   --message-user-font-size: 13px;
   --message-uid-font-size: 10px;
@@ -492,6 +496,26 @@ export const MessageEntry = styled.div`
       cubic-bezier(0.22, 0.72, 0.26, 1) both;
   }
 
+  &[data-filter-phase="hidden"] {
+    display: none;
+  }
+
+  &[data-filter-phase="exiting"] {
+    overflow: clip;
+    pointer-events: none;
+    animation: bilimaku-message-filter-layout-out var(--message-filter-exit-duration)
+      cubic-bezier(0.4, 0, 0.65, 1) both;
+  }
+
+  @keyframes bilimaku-message-filter-layout-out {
+    from {
+      grid-template-rows: minmax(0, 1fr);
+    }
+    to {
+      grid-template-rows: minmax(0, 0fr);
+    }
+  }
+
   @keyframes bilimaku-message-layout-in {
     from {
       grid-template-rows: minmax(0, 0fr);
@@ -519,6 +543,29 @@ export const MessageEntryContent = styled.div`
     transform-origin: left bottom;
     will-change: transform, opacity, filter;
     animation: bilimaku-message-spring-in var(--message-enter-duration) linear both;
+  }
+
+  &[data-filter-phase="exiting"] {
+    transform-origin: left center;
+    will-change: transform, opacity;
+    animation: bilimaku-message-filter-content-out var(--message-filter-exit-duration)
+      cubic-bezier(0.4, 0, 0.65, 1) both;
+  }
+
+  @keyframes bilimaku-message-filter-content-out {
+    from {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translate3d(
+          var(--message-filter-exit-offset-x),
+          var(--message-filter-exit-offset-y),
+          0
+        )
+        scale(0.985);
+    }
   }
 
   @keyframes bilimaku-message-spring-in {

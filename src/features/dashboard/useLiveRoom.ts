@@ -77,7 +77,11 @@ export function useLiveRoomController() {
   const applyMessageSettings = useCallback((next: LiveMessageSettings) => {
     messageSettingsRef.current = next;
     setMessageSettings(next);
-    setEvents((current) => current.slice(0, next.maxStoredMessages));
+    setEvents((current) => (
+      current.length > next.maxStoredMessages
+        ? current.slice(0, next.maxStoredMessages)
+        : current
+    ));
   }, []);
 
   /** 更新共享消息偏好，先即时反映到 UI，再按顺序写入 Rust Store。 */
