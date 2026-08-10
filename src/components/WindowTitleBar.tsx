@@ -594,6 +594,19 @@ export function WindowTitleBar({
             <SummaryRail aria-label="直播间实时数据摘要">
               <SummaryMetric
                 data-live-metric="true"
+                data-kind="watched"
+                data-tooltip={liveStats.watchedCount === null
+                  ? "等待平台推送本场累计看过人数"
+                  : "平台 WATCHED_CHANGE 推送的本场累计看过人数"}
+              >
+                <MetricLabel>
+                  <Icon name="eye" size={theme.titleBar.metricIconSizePx} />
+                  <MetricLabelText data-metric-label-text="true">看过</MetricLabelText>
+                </MetricLabel>
+                <MetricValue>{formatLiveCount(liveStats.watchedCount)}</MetricValue>
+              </SummaryMetric>
+              <SummaryMetric
+                data-live-metric="true"
                 data-kind="messages"
                 data-tooltip="当前会话缓存中的弹幕数量"
               >
