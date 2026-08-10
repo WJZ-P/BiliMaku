@@ -139,7 +139,7 @@ export const RoomCopy = styled.div`
   display: grid;
   min-width: 0;
   align-content: center;
-  gap: 3px;
+  gap: 8px;
 `;
 
 export const RoomTitle = styled.h2`
@@ -158,7 +158,7 @@ export const RoomCaption = styled.p`
   overflow: hidden;
   margin: 0;
   color: ${theme.colors.textMuted};
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 620;
   line-height: 1.2;
   text-overflow: ellipsis;

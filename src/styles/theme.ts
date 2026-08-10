@@ -113,7 +113,7 @@ export const theme = {
     /** 统一图标系统中窗口控制按钮的图标尺寸。 */
     titleBarControlIconSizePx: 14,
     /** 窗口控制按钮之间以及控制区左右两侧的统一间距。 */
-    titleBarControlSpacing: "4px",
+    titleBarControlSpacing: "12px",
     /** 窗口控制按钮圆角。 */
     titleBarControlRadius: "4px",
   },
@@ -139,9 +139,9 @@ export const theme = {
   },
   frostedGlass: {
     /** 中性玻璃表层占比；降低会更通透，提高会更接近实体面板。 */
-    surfaceMix: "74%",
+    surfaceMix: "30%",
     /** 背景高斯模糊半径；OpenAI 风格的主要材质来源。 */
-    blur: "28px",
+    blur: "14px",
     /** 模糊背景的色彩、亮度与对比度校正。 */
     saturation: 1.24,
     brightness: 1.035,
