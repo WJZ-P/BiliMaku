@@ -1,5 +1,6 @@
+import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/react-virtual";
 import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, RefObject } from "react";
 import { Icon, type IconName } from "../../components/Icon";
 import { LiquidGlassSurface } from "../../components/LiquidGlassSurface";
 import { getLiveAppearanceSettings, saveLiveRoomId } from "../../services/desktop";
@@ -55,6 +56,7 @@ import {
   MessageEntryContent,
   MessageFeed,
   MessageMeta,
+  MessageVirtualCanvas,
   MessageRow,
   MessageViewport,
   Page,
@@ -126,6 +128,10 @@ const eventTypeLabels: Record<LiveEventType, string> = {
   guard: "大航海",
   system: "系统",
 };
+
+/** 未测量消息行的保守高度；真实高度会由 ResizeObserver 写回虚拟列表。 */
+const MESSAGE_ROW_ESTIMATE_PX = 76;
+const MESSAGE_VIRTUAL_OVERSCAN = 8;
 
 /** 仅普通弹幕需要根据发送者 UID 提升为主播消息。 */
 function isAnchorDanmaku(event: LiveEvent, ownerUid: number | null) {
@@ -245,7 +251,7 @@ function EventAvatarView({ event }: { event: LiveEvent }) {
   );
 }
 
-type MessageFilterPhase = "visible" | "exiting" | "hidden";
+type MessageFilterPhase = "visible" | "exiting";
 
 interface AnimatedMessageRowProps {
   /** 已归一化的直播消息；同一消息在筛选切换时保持对象引用稳定。 */
@@ -256,8 +262,12 @@ interface AnimatedMessageRowProps {
   enterOnMount: boolean;
   /** 当前消息在分类筛选状态机中的显示阶段。 */
   filterPhase: MessageFilterPhase;
-  /** 退场动画结束后把当前行切换为隐藏状态。 */
+  /** 退场动画结束后把当前行移出虚拟数据源。 */
   onFilterExitComplete: (eventId: string) => void;
+  /** 当前行在虚拟列表中的索引，供动态高度测量器识别。 */
+  virtualIndex: number;
+  /** TanStack Virtual 的动态行高测量回调。 */
+  measureElement: (node: HTMLDivElement | null) => void;
 }
 
 /**
@@ -272,6 +282,8 @@ const AnimatedMessageRow = memo(function AnimatedMessageRow({
   enterOnMount,
   filterPhase,
   onFilterExitComplete,
+  virtualIndex,
+  measureElement,
 }: AnimatedMessageRowProps) {
   const anchorDanmaku = isAnchorDanmaku(event, ownerUid);
   const eventTag = anchorDanmaku
@@ -285,10 +297,14 @@ const AnimatedMessageRow = memo(function AnimatedMessageRow({
 
   return (
     <MessageEntry
+      ref={(node) => measureElement(node)}
+      data-index={virtualIndex}
+      data-virtual-index={virtualIndex}
       data-entering={entering}
       data-filter-phase={filterPhase}
       data-message-entry={event.id}
-      aria-hidden={filterPhase === "hidden"}
+      role="listitem"
+      aria-hidden={filterPhase === "exiting"}
       onAnimationEnd={(animationEvent) => {
         if (
           animationEvent.target === animationEvent.currentTarget
@@ -342,10 +358,18 @@ const AnimatedMessageRow = memo(function AnimatedMessageRow({
   previous.event === next.event
   && previous.ownerUid === next.ownerUid
   && previous.filterPhase === next.filterPhase
+  && previous.virtualIndex === next.virtualIndex
 ));
 
+interface MessageFilterTransitionState {
+  /** 已经提交到 DOM 的筛选类型。 */
+  filter: LiveMessageDisplayFilter;
+  /** 仍需留在虚拟窗口中播放退场动画的消息 ID。 */
+  exitingEventIds: ReadonlySet<string>;
+}
+
 interface MessageFeedListProps {
-  /** 当前缓存中的全部消息，始终保持同一套稳定 key 节点。 */
+  /** 当前缓存中的全部消息；虚拟列表只会挂载视口附近的少量节点。 */
   allEvents: LiveEvent[];
   /** 当前分类应当显示的消息 ID。 */
   visibleEventIds: ReadonlySet<string>;
@@ -359,13 +383,15 @@ interface MessageFeedListProps {
   messageBubbleColor: string;
   /** 空状态需要区分未连接和直播间暂时安静。 */
   connected: boolean;
+  /** 实际承担滚动的聊天视口。 */
+  viewportRef: RefObject<HTMLDivElement | null>;
 }
 
 /**
- * 常驻消息列表与筛选退场状态机。
+ * 动态高度虚拟消息列表与筛选退场状态机。
  *
- * 所有缓存消息始终使用稳定 key 挂载，分类变化时只修改发生差异的行。当前视口内被
- * 过滤的行先执行退场与高度收拢，屏幕外的行直接隐藏，避免同时调度数百个动画。
+ * 缓存可以保留数百条消息，但 DOM 只挂载视口与 overscan 附近的行。切换分类时，
+ * 当前视口内被过滤的行会被临时钉在虚拟范围中完成退场，屏幕外节点则直接释放。
  */
 const MessageFeedList = memo(function MessageFeedList({
   allEvents,
@@ -375,27 +401,95 @@ const MessageFeedList = memo(function MessageFeedList({
   enteringEventId,
   messageBubbleColor,
   connected,
+  viewportRef,
 }: MessageFeedListProps) {
   const feedRef = useRef<HTMLDivElement>(null);
-  const previousFilterRef = useRef(filter);
-  const [rowPhases, setRowPhases] = useState<Map<string, MessageFilterPhase>>(() => (
-    new Map(allEvents.map((event) => [
-      event.id,
-      visibleEventIds.has(event.id) ? "visible" : "hidden",
-    ]))
-  ));
+  const previousVisibleEventIdsRef = useRef(visibleEventIds);
+  const initialScrollPendingRef = useRef(true);
+  const scrolledFilterRef = useRef(filter);
+  const followedEventRef = useRef<string | undefined>(undefined);
+  const animatedEntryEventIdRef = useRef<string | undefined>(undefined);
+  const [transitionState, setTransitionState] = useState<MessageFilterTransitionState>(() => ({
+    filter,
+    exitingEventIds: new Set(),
+  }));
   const feedStyle = useMemo(() => ({
     "--message-bubble-color": messageBubbleColor,
   }) as CSSProperties, [messageBubbleColor]);
+  const filterChanging = transitionState.filter !== filter;
+  const renderedEventIds = useMemo(() => {
+    const next = new Set(visibleEventIds);
+    for (const eventId of transitionState.exitingEventIds) {
+      next.add(eventId);
+    }
+    if (filterChanging) {
+      for (const eventId of previousVisibleEventIdsRef.current) {
+        next.add(eventId);
+      }
+    }
+    return next;
+  }, [filterChanging, transitionState.exitingEventIds, visibleEventIds]);
+  const renderedEvents = useMemo(
+    () => allEvents.filter((event) => renderedEventIds.has(event.id)),
+    [allEvents, renderedEventIds],
+  );
+  const renderedEventsRef = useRef(renderedEvents);
+  renderedEventsRef.current = renderedEvents;
+  const getEventKey = useCallback(
+    (index: number) => renderedEventsRef.current[index]?.id ?? index,
+    [],
+  );
+  const pinnedExitIndices = useMemo(() => {
+    const indices: number[] = [];
+    renderedEvents.forEach((event, index) => {
+      if (transitionState.exitingEventIds.has(event.id)) indices.push(index);
+    });
+    return indices;
+  }, [renderedEvents, transitionState.exitingEventIds]);
+  const extractVirtualRange = useCallback((range: Range) => {
+    if (pinnedExitIndices.length === 0) return defaultRangeExtractor(range);
+    const indices = new Set(defaultRangeExtractor(range));
+    for (const index of pinnedExitIndices) indices.add(index);
+    return Array.from(indices).sort((left, right) => left - right);
+  }, [pinnedExitIndices]);
+  const rowVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
+    count: renderedEvents.length,
+    getScrollElement: () => viewportRef.current,
+    estimateSize: () => MESSAGE_ROW_ESTIMATE_PX,
+    getItemKey: getEventKey,
+    overscan: MESSAGE_VIRTUAL_OVERSCAN,
+    rangeExtractor: extractVirtualRange,
+    anchorTo: "end",
+    followOnAppend: true,
+    scrollEndThreshold: 48,
+    useFlushSync: false,
+    directDomUpdates: true,
+    directDomUpdatesMode: "position",
+    useAnimationFrameWithResizeObserver: true,
+  });
 
   useLayoutEffect(() => {
-    const filterChanged = previousFilterRef.current !== filter;
-    previousFilterRef.current = filter;
+    const filterChanged = transitionState.filter !== filter;
+    const allEventIds = new Set(allEvents.map((event) => event.id));
+
+    if (!filterChanged) {
+      previousVisibleEventIdsRef.current = visibleEventIds;
+      setTransitionState((current) => {
+        const nextExitingIds = new Set(
+          Array.from(current.exitingEventIds).filter((eventId) => allEventIds.has(eventId)),
+        );
+        return nextExitingIds.size === current.exitingEventIds.size
+          ? current
+          : { ...current, exitingEventIds: nextExitingIds };
+      });
+      return;
+    }
+
     const animatedExitIds = new Set<string>();
 
-    if (filterChanged && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       const feed = feedRef.current;
-      const viewport = feed?.parentElement;
+      const viewport = viewportRef.current;
       if (feed && viewport) {
         const viewportRect = viewport.getBoundingClientRect();
         for (const node of feed.querySelectorAll<HTMLElement>("[data-message-entry]")) {
@@ -408,60 +502,114 @@ const MessageFeedList = memo(function MessageFeedList({
       }
     }
 
-    setRowPhases((current) => {
-      let changed = current.size !== allEvents.length;
-      const next = new Map<string, MessageFilterPhase>();
-
-      for (const event of allEvents) {
-        const currentPhase = current.get(event.id);
-        let nextPhase: MessageFilterPhase;
-        if (visibleEventIds.has(event.id)) {
-          nextPhase = "visible";
-        } else if (
-          filterChanged
-          && currentPhase !== undefined
-          && currentPhase !== "hidden"
-          && animatedExitIds.has(event.id)
-        ) {
-          nextPhase = "exiting";
-        } else {
-          nextPhase = "hidden";
+    previousVisibleEventIdsRef.current = visibleEventIds;
+    setTransitionState((current) => {
+      const nextExitingIds = new Set<string>();
+      for (const eventId of current.exitingEventIds) {
+        if (allEventIds.has(eventId) && !visibleEventIds.has(eventId)) {
+          nextExitingIds.add(eventId);
         }
-        next.set(event.id, nextPhase);
-        if (currentPhase !== nextPhase) changed = true;
       }
-
-      return changed ? next : current;
+      for (const eventId of animatedExitIds) {
+        nextExitingIds.add(eventId);
+      }
+      return {
+        filter,
+        exitingEventIds: nextExitingIds,
+      };
     });
-  }, [allEvents, filter, visibleEventIds]);
+  }, [
+    allEvents,
+    filter,
+    transitionState.filter,
+    viewportRef,
+    visibleEventIds,
+  ]);
 
   const finishFilterExit = useCallback((eventId: string) => {
-    setRowPhases((current) => {
-      if (current.get(eventId) !== "exiting") return current;
-      const next = new Map(current);
-      next.set(eventId, "hidden");
-      return next;
+    setTransitionState((current) => {
+      if (!current.exitingEventIds.has(eventId)) return current;
+      const nextExitingIds = new Set(current.exitingEventIds);
+      nextExitingIds.delete(eventId);
+      return { ...current, exitingEventIds: nextExitingIds };
     });
   }, []);
 
-  const hasExitingRows = Array.from(rowPhases.values()).some(
-    (phase) => phase === "exiting",
-  );
-  const showEmptyState = visibleEventIds.size === 0 && !hasExitingRows;
+  useEffect(() => {
+    if (transitionState.exitingEventIds.size === 0) return;
+    const viewport = viewportRef.current;
+    const duration = viewport
+      ? readCssTimeMilliseconds(viewport, "--message-filter-exit-duration", 300)
+      : 300;
+    const exitingSnapshot = new Set(transitionState.exitingEventIds);
+    const timer = window.setTimeout(() => {
+      setTransitionState((current) => {
+        const nextExitingIds = new Set(current.exitingEventIds);
+        for (const eventId of exitingSnapshot) nextExitingIds.delete(eventId);
+        return nextExitingIds.size === current.exitingEventIds.size
+          ? current
+          : { ...current, exitingEventIds: nextExitingIds };
+      });
+    }, duration + 80);
+    return () => window.clearTimeout(timer);
+  }, [transitionState.exitingEventIds, viewportRef]);
+
+  useLayoutEffect(() => {
+    const filterChanged = scrolledFilterRef.current !== filter;
+    if (!initialScrollPendingRef.current && !filterChanged) return;
+    if (renderedEvents.length === 0) return;
+    scrolledFilterRef.current = filter;
+    initialScrollPendingRef.current = false;
+    const frame = window.requestAnimationFrame(() => {
+      rowVirtualizer.scrollToEnd({ behavior: "auto" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [filter, renderedEvents.length, rowVirtualizer]);
+
+  useLayoutEffect(() => {
+    if (!enteringEventId || followedEventRef.current === enteringEventId) return;
+    followedEventRef.current = enteringEventId;
+    const frame = window.requestAnimationFrame(() => {
+      rowVirtualizer.scrollToEnd({ behavior: "auto" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [enteringEventId, rowVirtualizer]);
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const showEmptyState = visibleEventIds.size === 0
+    && transitionState.exitingEventIds.size === 0;
 
   return (
-    <MessageFeed ref={feedRef} style={feedStyle}>
-      {allEvents.map((event) => (
-        <AnimatedMessageRow
-          key={event.id}
-          event={event}
-          ownerUid={ownerUid}
-          enterOnMount={event.id === enteringEventId}
-          filterPhase={rowPhases.get(event.id)
-            ?? (visibleEventIds.has(event.id) ? "visible" : "hidden")}
-          onFilterExitComplete={finishFilterExit}
-        />
-      ))}
+    <MessageFeed ref={feedRef} style={feedStyle} data-virtualized="true">
+      <MessageVirtualCanvas
+        ref={rowVirtualizer.containerRef}
+        role="list"
+        aria-label="直播间消息"
+        data-total-count={renderedEvents.length}
+        data-mounted-count={virtualItems.length}
+      >
+        {virtualItems.map((virtualItem) => {
+          const event = renderedEvents[virtualItem.index];
+          if (!event) return null;
+          const enterOnMount = event.id === enteringEventId
+            && animatedEntryEventIdRef.current !== event.id;
+          if (enterOnMount) animatedEntryEventIdRef.current = event.id;
+          return (
+            <AnimatedMessageRow
+              key={virtualItem.key}
+              event={event}
+              ownerUid={ownerUid}
+              enterOnMount={enterOnMount}
+              filterPhase={transitionState.exitingEventIds.has(event.id)
+                ? "exiting"
+                : "visible"}
+              onFilterExitComplete={finishFilterExit}
+              virtualIndex={virtualItem.index}
+              measureElement={rowVirtualizer.measureElement}
+            />
+          );
+        })}
+      </MessageVirtualCanvas>
       {showEmptyState ? (
         <EmptyFeed>
           <div>
@@ -481,6 +629,7 @@ const MessageFeedList = memo(function MessageFeedList({
   && previous.ownerUid === next.ownerUid
   && previous.messageBubbleColor === next.messageBubbleColor
   && previous.connected === next.connected
+  && previous.viewportRef === next.viewportRef
 ));
 
 let dashboardFirstFrameReported = false;
@@ -507,7 +656,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     filter: "all" | LiveEventType;
     latestEventId: string | undefined;
   }>({ filter: "all", latestEventId: undefined });
-  const messageScrollFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (dashboardFirstFrameReported) return;
@@ -646,60 +794,8 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   }, [roomId]);
 
   useLayoutEffect(() => {
-    const viewport = messageViewportRef.current;
-    const previous = renderedFeedRef.current;
-    const feedWasReady = messageFeedReadyRef.current;
-    const filterChanged = previous.filter !== filter;
-    const eventChanged = previous.latestEventId !== latestEventId;
-
     renderedFeedRef.current = { filter, latestEventId };
     messageFeedReadyRef.current = true;
-
-    if (!viewport) return;
-    if (messageScrollFrameRef.current !== null) {
-      window.cancelAnimationFrame(messageScrollFrameRef.current);
-      messageScrollFrameRef.current = null;
-    }
-
-    const followBottom = () => {
-      viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-    };
-
-    if (!feedWasReady || filterChanged || !eventChanged) {
-      followBottom();
-      return;
-    }
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      followBottom();
-      return;
-    }
-
-    // 新行的高度会在 CSS 动画期间逐帧增加；持续贴住底部即可让旧消息平滑上移，
-    // 同时避免原生 smooth scroll 在连续弹幕到来时反复重启动画产生顿挫。
-    const motionDuration = readCssTimeMilliseconds(
-      viewport,
-      "--message-enter-duration",
-      820,
-    ) + 80;
-    const startedAt = window.performance.now();
-    const tick = (now: number) => {
-      followBottom();
-      if (now - startedAt < motionDuration) {
-        messageScrollFrameRef.current = window.requestAnimationFrame(tick);
-      } else {
-        messageScrollFrameRef.current = null;
-        followBottom();
-      }
-    };
-    messageScrollFrameRef.current = window.requestAnimationFrame(tick);
-
-    return () => {
-      if (messageScrollFrameRef.current !== null) {
-        window.cancelAnimationFrame(messageScrollFrameRef.current);
-        messageScrollFrameRef.current = null;
-      }
-    };
   }, [filter, latestEventId]);
 
   const handleConnection = async () => {
@@ -855,6 +951,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               enteringEventId={animateLatestEvent ? latestEventId : undefined}
               messageBubbleColor={messageBubbleColor}
               connected={connected}
+              viewportRef={messageViewportRef}
             />
           </MessageViewport>
 

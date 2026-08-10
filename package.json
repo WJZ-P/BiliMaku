@@ -16,6 +16,7 @@
   "dependencies": {
     "@linaria/core": "^8.1.1",
     "@linaria/react": "^8.1.1",
+    "@tanstack/react-virtual": "^3.14.9",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "react": "^19.2.8",

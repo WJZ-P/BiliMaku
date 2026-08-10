@@ -477,16 +477,28 @@ export const MessageFeed = styled.div`
   gap: 0;
 `;
 
+/** TanStack Virtual 维护高度的画布；消息行只会挂载在当前视口附近。 */
+export const MessageVirtualCanvas = styled.div`
+  position: relative;
+  width: 100%;
+  flex: 0 0 auto;
+  contain: layout style;
+`;
+
 /**
  * 新消息从 0 高度展开，布局会自然推动所有旧消息向上移动。
  * 时长由 MessageViewport 的 --message-layout-duration 统一控制。
  */
 export const MessageEntry = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
   display: grid;
   min-width: 0;
   grid-template-rows: minmax(0, 1fr);
 
-  &:first-child > div {
+  &[data-index="0"] > div {
     padding-top: 0;
   }
 
@@ -494,10 +506,6 @@ export const MessageEntry = styled.div`
     overflow: clip;
     animation: bilimaku-message-layout-in var(--message-layout-duration)
       cubic-bezier(0.22, 0.72, 0.26, 1) both;
-  }
-
-  &[data-filter-phase="hidden"] {
-    display: none;
   }
 
   &[data-filter-phase="exiting"] {
