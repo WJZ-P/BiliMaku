@@ -273,7 +273,7 @@ interface AnimatedMessageRowProps {
 /**
  * 单条聊天消息的动效边界。
  *
- * 组件在分类切换时保持挂载；只有 visible/exiting/hidden 阶段发生变化的行会重渲染。
+ * 组件在分类切换时保持挂载；只有 visible/exiting 阶段发生变化的行会重渲染。
  * 这样头像、磨砂气泡与内部状态都可以复用，同时允许被过滤的可见行完整播放退场动画。
  */
 const AnimatedMessageRow = memo(function AnimatedMessageRow({
@@ -300,26 +300,25 @@ const AnimatedMessageRow = memo(function AnimatedMessageRow({
       ref={(node) => measureElement(node)}
       data-index={virtualIndex}
       data-virtual-index={virtualIndex}
-      data-entering={entering}
+      data-entering={entering && filterPhase === "visible"}
       data-filter-phase={filterPhase}
       data-message-entry={event.id}
       role="listitem"
       aria-hidden={filterPhase === "exiting"}
-      onAnimationEnd={(animationEvent) => {
-        if (
-          animationEvent.target === animationEvent.currentTarget
-          && filterPhase === "exiting"
-          && animationEvent.animationName.startsWith("bilimaku-message-filter-layout-out")
-        ) {
-          onFilterExitComplete(event.id);
-        }
-      }}
     >
       <MessageEntryContent
-        data-entering={entering}
+        data-entering={entering && filterPhase === "visible"}
         data-filter-phase={filterPhase}
         onAnimationEnd={(animationEvent) => {
-          if (animationEvent.target === animationEvent.currentTarget) {
+          if (animationEvent.target !== animationEvent.currentTarget) return;
+          if (
+            filterPhase === "exiting"
+            && animationEvent.animationName.startsWith("bilimaku-message-filter-content-out")
+          ) {
+            onFilterExitComplete(event.id);
+            return;
+          }
+          if (animationEvent.animationName.startsWith("bilimaku-message-spring-in")) {
             setEntering(false);
           }
         }}
@@ -362,12 +361,15 @@ const AnimatedMessageRow = memo(function AnimatedMessageRow({
 ));
 
 interface MessageFilterTransitionState {
-  /** 已经提交到 DOM 的筛选类型。 */
-  filter: LiveMessageDisplayFilter;
-  /** 仍需留在虚拟窗口中播放退场动画的消息 ID。 */
+  /** 当前仍然占据虚拟列表布局的筛选类型。 */
+  committedFilter: LiveMessageDisplayFilter;
+  /** 正在等待退场动画结束的目标筛选类型。 */
+  pendingFilter: LiveMessageDisplayFilter | null;
+  /** 退场期间冻结的原筛选消息 ID，避免目标数据提前插入并改变行位置。 */
+  sourceEventIds: ReadonlySet<string>;
+  /** 当前可见区域中正在播放反向入场动画的消息 ID。 */
   exitingEventIds: ReadonlySet<string>;
 }
-
 interface MessageFeedListProps {
   /** 当前缓存中的全部消息；虚拟列表只会挂载视口附近的少量节点。 */
   allEvents: LiveEvent[];
@@ -404,31 +406,35 @@ const MessageFeedList = memo(function MessageFeedList({
   viewportRef,
 }: MessageFeedListProps) {
   const feedRef = useRef<HTMLDivElement>(null);
-  const previousVisibleEventIdsRef = useRef(visibleEventIds);
+  const previousVisibleEventIdsRef = useRef<ReadonlySet<string>>(new Set(visibleEventIds));
+  const requestedFilterRef = useRef(filter);
+  const requestedVisibleEventIdsRef = useRef(visibleEventIds);
   const initialScrollPendingRef = useRef(true);
-  const scrolledFilterRef = useRef(filter);
   const followedEventRef = useRef<string | undefined>(undefined);
   const animatedEntryEventIdRef = useRef<string | undefined>(undefined);
+  requestedFilterRef.current = filter;
+  requestedVisibleEventIdsRef.current = visibleEventIds;
   const [transitionState, setTransitionState] = useState<MessageFilterTransitionState>(() => ({
-    filter,
+    committedFilter: filter,
+    pendingFilter: null,
+    sourceEventIds: new Set(visibleEventIds),
     exitingEventIds: new Set(),
   }));
   const feedStyle = useMemo(() => ({
     "--message-bubble-color": messageBubbleColor,
   }) as CSSProperties, [messageBubbleColor]);
-  const filterChanging = transitionState.filter !== filter;
+  const transitionActive = transitionState.pendingFilter !== null;
+  const transitionRequested = transitionState.committedFilter !== filter;
   const renderedEventIds = useMemo(() => {
-    const next = new Set(visibleEventIds);
-    for (const eventId of transitionState.exitingEventIds) {
-      next.add(eventId);
-    }
-    if (filterChanging) {
-      for (const eventId of previousVisibleEventIdsRef.current) {
-        next.add(eventId);
-      }
-    }
-    return next;
-  }, [filterChanging, transitionState.exitingEventIds, visibleEventIds]);
+    if (transitionActive) return transitionState.sourceEventIds;
+    if (transitionRequested) return previousVisibleEventIdsRef.current;
+    return visibleEventIds;
+  }, [
+    transitionActive,
+    transitionRequested,
+    transitionState.sourceEventIds,
+    visibleEventIds,
+  ]);
   const renderedEvents = useMemo(
     () => allEvents.filter((event) => renderedEventIds.has(event.id)),
     [allEvents, renderedEventIds],
@@ -469,22 +475,52 @@ const MessageFeedList = memo(function MessageFeedList({
   });
 
   useLayoutEffect(() => {
-    const filterChanged = transitionState.filter !== filter;
     const allEventIds = new Set(allEvents.map((event) => event.id));
 
-    if (!filterChanged) {
+    if (filter === transitionState.committedFilter) {
       previousVisibleEventIdsRef.current = visibleEventIds;
-      setTransitionState((current) => {
-        const nextExitingIds = new Set(
-          Array.from(current.exitingEventIds).filter((eventId) => allEventIds.has(eventId)),
-        );
-        return nextExitingIds.size === current.exitingEventIds.size
-          ? current
-          : { ...current, exitingEventIds: nextExitingIds };
+      if (transitionState.pendingFilter === null && transitionState.exitingEventIds.size === 0) {
+        return;
+      }
+      setTransitionState({
+        committedFilter: filter,
+        pendingFilter: null,
+        sourceEventIds: new Set(visibleEventIds),
+        exitingEventIds: new Set(),
       });
       return;
     }
 
+    if (transitionState.pendingFilter === filter) {
+      setTransitionState((current) => {
+        const nextSourceEventIds = new Set(
+          Array.from(current.sourceEventIds).filter((eventId) => allEventIds.has(eventId)),
+        );
+        const nextExitingEventIds = new Set(
+          Array.from(current.exitingEventIds).filter((eventId) => allEventIds.has(eventId)),
+        );
+        if (
+          nextSourceEventIds.size === current.sourceEventIds.size
+          && nextExitingEventIds.size === current.exitingEventIds.size
+        ) {
+          return current;
+        }
+        return {
+          ...current,
+          sourceEventIds: nextSourceEventIds,
+          exitingEventIds: nextExitingEventIds,
+        };
+      });
+      return;
+    }
+
+    const sourceEventIds = new Set(
+      Array.from(
+        transitionState.pendingFilter === null
+          ? previousVisibleEventIdsRef.current
+          : transitionState.sourceEventIds,
+      ).filter((eventId) => allEventIds.has(eventId)),
+    );
     const animatedExitIds = new Set<string>();
 
     if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -493,91 +529,120 @@ const MessageFeedList = memo(function MessageFeedList({
       if (feed && viewport) {
         const viewportRect = viewport.getBoundingClientRect();
         for (const node of feed.querySelectorAll<HTMLElement>("[data-message-entry]")) {
-          if (visibleEventIds.has(node.dataset.messageEntry ?? "")) continue;
+          const eventId = node.dataset.messageEntry ?? "";
+          if (!eventId || visibleEventIds.has(eventId)) continue;
           const rowRect = node.getBoundingClientRect();
           if (rowRect.bottom > viewportRect.top && rowRect.top < viewportRect.bottom) {
-            animatedExitIds.add(node.dataset.messageEntry ?? "");
+            animatedExitIds.add(eventId);
           }
         }
       }
     }
 
-    previousVisibleEventIdsRef.current = visibleEventIds;
-    setTransitionState((current) => {
-      const nextExitingIds = new Set<string>();
-      for (const eventId of current.exitingEventIds) {
-        if (allEventIds.has(eventId) && !visibleEventIds.has(eventId)) {
-          nextExitingIds.add(eventId);
-        }
-      }
-      for (const eventId of animatedExitIds) {
-        nextExitingIds.add(eventId);
-      }
-      return {
-        filter,
-        exitingEventIds: nextExitingIds,
-      };
-    });
+    if (animatedExitIds.size === 0) {
+      previousVisibleEventIdsRef.current = visibleEventIds;
+      setTransitionState({
+        committedFilter: filter,
+        pendingFilter: null,
+        sourceEventIds: new Set(visibleEventIds),
+        exitingEventIds: new Set(),
+      });
+      return;
+    }
+
+    setTransitionState((current) => ({
+      committedFilter: current.committedFilter,
+      pendingFilter: filter,
+      sourceEventIds,
+      exitingEventIds: animatedExitIds,
+    }));
   }, [
     allEvents,
     filter,
-    transitionState.filter,
+    transitionState.committedFilter,
+    transitionState.exitingEventIds.size,
+    transitionState.pendingFilter,
+    transitionState.sourceEventIds,
     viewportRef,
     visibleEventIds,
   ]);
 
+  const settleFilterTransition = useCallback((
+    current: MessageFilterTransitionState,
+    nextExitingEventIds: ReadonlySet<string>,
+  ): MessageFilterTransitionState => {
+    if (nextExitingEventIds.size > 0) {
+      return { ...current, exitingEventIds: nextExitingEventIds };
+    }
+    const pendingFilter = current.pendingFilter;
+    if (pendingFilter === null || pendingFilter !== requestedFilterRef.current) {
+      return { ...current, exitingEventIds: nextExitingEventIds };
+    }
+    const targetEventIds = new Set(requestedVisibleEventIdsRef.current);
+    previousVisibleEventIdsRef.current = targetEventIds;
+    return {
+      committedFilter: pendingFilter,
+      pendingFilter: null,
+      sourceEventIds: targetEventIds,
+      exitingEventIds: new Set(),
+    };
+  }, []);
+
   const finishFilterExit = useCallback((eventId: string) => {
     setTransitionState((current) => {
       if (!current.exitingEventIds.has(eventId)) return current;
-      const nextExitingIds = new Set(current.exitingEventIds);
-      nextExitingIds.delete(eventId);
-      return { ...current, exitingEventIds: nextExitingIds };
+      const nextExitingEventIds = new Set(current.exitingEventIds);
+      nextExitingEventIds.delete(eventId);
+      return settleFilterTransition(current, nextExitingEventIds);
     });
-  }, []);
+  }, [settleFilterTransition]);
 
   useEffect(() => {
     if (transitionState.exitingEventIds.size === 0) return;
     const viewport = viewportRef.current;
     const duration = viewport
-      ? readCssTimeMilliseconds(viewport, "--message-filter-exit-duration", 300)
-      : 300;
+      ? readCssTimeMilliseconds(viewport, "--message-filter-exit-duration", 820)
+      : 820;
     const exitingSnapshot = new Set(transitionState.exitingEventIds);
     const timer = window.setTimeout(() => {
       setTransitionState((current) => {
-        const nextExitingIds = new Set(current.exitingEventIds);
-        for (const eventId of exitingSnapshot) nextExitingIds.delete(eventId);
-        return nextExitingIds.size === current.exitingEventIds.size
-          ? current
-          : { ...current, exitingEventIds: nextExitingIds };
+        const nextExitingEventIds = new Set(current.exitingEventIds);
+        for (const eventId of exitingSnapshot) nextExitingEventIds.delete(eventId);
+        if (nextExitingEventIds.size === current.exitingEventIds.size) return current;
+        return settleFilterTransition(current, nextExitingEventIds);
       });
     }, duration + 80);
     return () => window.clearTimeout(timer);
-  }, [transitionState.exitingEventIds, viewportRef]);
+  }, [settleFilterTransition, transitionState.exitingEventIds, viewportRef]);
 
   useLayoutEffect(() => {
-    const filterChanged = scrolledFilterRef.current !== filter;
-    if (!initialScrollPendingRef.current && !filterChanged) return;
-    if (renderedEvents.length === 0) return;
-    scrolledFilterRef.current = filter;
+    if (!initialScrollPendingRef.current || renderedEvents.length === 0) return;
     initialScrollPendingRef.current = false;
     const frame = window.requestAnimationFrame(() => {
       rowVirtualizer.scrollToEnd({ behavior: "auto" });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [filter, renderedEvents.length, rowVirtualizer]);
+  }, [renderedEvents.length, rowVirtualizer]);
 
   useLayoutEffect(() => {
-    if (!enteringEventId || followedEventRef.current === enteringEventId) return;
+    if (
+      transitionActive
+      || !enteringEventId
+      || followedEventRef.current === enteringEventId
+    ) {
+      return;
+    }
     followedEventRef.current = enteringEventId;
     const frame = window.requestAnimationFrame(() => {
       rowVirtualizer.scrollToEnd({ behavior: "auto" });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [enteringEventId, rowVirtualizer]);
+  }, [enteringEventId, rowVirtualizer, transitionActive]);
 
   const virtualItems = rowVirtualizer.getVirtualItems();
-  const showEmptyState = visibleEventIds.size === 0
-    && transitionState.exitingEventIds.size === 0;
+  const showEmptyState = !transitionActive
+    && !transitionRequested
+    && visibleEventIds.size === 0;
 
   return (
     <MessageFeed ref={feedRef} style={feedStyle} data-virtualized="true">
@@ -587,11 +652,13 @@ const MessageFeedList = memo(function MessageFeedList({
         aria-label="直播间消息"
         data-total-count={renderedEvents.length}
         data-mounted-count={virtualItems.length}
+        data-filter-transition={transitionActive ? "exiting" : "idle"}
       >
         {virtualItems.map((virtualItem) => {
           const event = renderedEvents[virtualItem.index];
           if (!event) return null;
-          const enterOnMount = event.id === enteringEventId
+          const enterOnMount = !transitionActive
+            && event.id === enteringEventId
             && animatedEntryEventIdRef.current !== event.id;
           if (enterOnMount) animatedEntryEventIdRef.current = event.id;
           return (
@@ -631,7 +698,6 @@ const MessageFeedList = memo(function MessageFeedList({
   && previous.connected === next.connected
   && previous.viewportRef === next.viewportRef
 ));
-
 let dashboardFirstFrameReported = false;
 
 /**

@@ -438,8 +438,7 @@ export const MessageViewport = styled.div`
   --message-enter-offset-x: -20px;
   --message-enter-offset-y: 13px;
   /* 分类切换退场调参：仅当前视口内被过滤的消息会执行这组动画。 */
-  --message-filter-exit-duration: 420ms;
-  --message-filter-exit-offset-x: -64px;
+  --message-filter-exit-duration: 820ms;
   /* 消息元信息字号调参区：昵称、UID、事件标签和时间戳统一从这里调整。 */
   --message-user-font-size: 13px;
   --message-uid-font-size: 10px;
@@ -508,20 +507,7 @@ export const MessageEntry = styled.div`
   }
 
   &[data-filter-phase="exiting"] {
-    overflow: clip;
     pointer-events: none;
-    animation: bilimaku-message-filter-layout-out var(--message-filter-exit-duration)
-      cubic-bezier(0.4, 0, 0.65, 1) both;
-  }
-
-  @keyframes bilimaku-message-filter-layout-out {
-    0%,
-    58% {
-      grid-template-rows: minmax(0, 1fr);
-    }
-    100% {
-      grid-template-rows: minmax(0, 0fr);
-    }
   }
 
   @keyframes bilimaku-message-layout-in {
@@ -554,27 +540,41 @@ export const MessageEntryContent = styled.div`
   }
 
   &[data-filter-phase="exiting"] {
-    transform-origin: center;
-    will-change: transform, opacity, clip-path;
+    transform-origin: left bottom;
+    will-change: transform, opacity, filter;
     animation: bilimaku-message-filter-content-out var(--message-filter-exit-duration)
-      cubic-bezier(0.4, 0, 0.65, 1) both;
+      linear both;
   }
 
   @keyframes bilimaku-message-filter-content-out {
     0% {
       opacity: 1;
-      clip-path: inset(0 0 0 0);
-      transform: translate3d(0, 0, 0);
+      filter: blur(0);
+      transform: translate3d(0, 0, 0) scale(1);
     }
-    58% {
-      opacity: 0.72;
-      clip-path: inset(0 44% 0 0);
-      transform: translate3d(-30px, 0, 0);
+    5% {
+      transform: translate3d(-0.08px, 0.04px, 0) scale(0.9999);
+    }
+    13% {
+      transform: translate3d(0.28px, -0.16px, 0) scale(1.0006);
+    }
+    28% {
+      transform: translate3d(-0.9px, 0.55px, 0) scale(0.9984);
+    }
+    48% {
+      opacity: 1;
+      filter: blur(0);
+      transform: translate3d(2.6px, -1.5px, 0) scale(1.0065);
     }
     100% {
       opacity: 0;
-      clip-path: inset(0 100% 0 0);
-      transform: translate3d(var(--message-filter-exit-offset-x), 0, 0);
+      filter: blur(1.4px);
+      transform: translate3d(
+          var(--message-enter-offset-x),
+          var(--message-enter-offset-y),
+          0
+        )
+        scale(0.975);
     }
   }
 
