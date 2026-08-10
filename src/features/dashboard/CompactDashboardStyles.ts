@@ -438,9 +438,8 @@ export const MessageViewport = styled.div`
   --message-enter-offset-x: -20px;
   --message-enter-offset-y: 13px;
   /* 分类切换退场调参：仅当前视口内被过滤的消息会执行这组动画。 */
-  --message-filter-exit-duration: 300ms;
-  --message-filter-exit-offset-x: -16px;
-  --message-filter-exit-offset-y: -4px;
+  --message-filter-exit-duration: 420ms;
+  --message-filter-exit-offset-x: -64px;
   /* 消息元信息字号调参区：昵称、UID、事件标签和时间戳统一从这里调整。 */
   --message-user-font-size: 13px;
   --message-uid-font-size: 10px;
@@ -516,10 +515,11 @@ export const MessageEntry = styled.div`
   }
 
   @keyframes bilimaku-message-filter-layout-out {
-    from {
+    0%,
+    58% {
       grid-template-rows: minmax(0, 1fr);
     }
-    to {
+    100% {
       grid-template-rows: minmax(0, 0fr);
     }
   }
@@ -554,25 +554,27 @@ export const MessageEntryContent = styled.div`
   }
 
   &[data-filter-phase="exiting"] {
-    transform-origin: left center;
-    will-change: transform, opacity;
+    transform-origin: center;
+    will-change: transform, opacity, clip-path;
     animation: bilimaku-message-filter-content-out var(--message-filter-exit-duration)
       cubic-bezier(0.4, 0, 0.65, 1) both;
   }
 
   @keyframes bilimaku-message-filter-content-out {
-    from {
+    0% {
       opacity: 1;
-      transform: translate3d(0, 0, 0) scale(1);
+      clip-path: inset(0 0 0 0);
+      transform: translate3d(0, 0, 0);
     }
-    to {
+    58% {
+      opacity: 0.72;
+      clip-path: inset(0 44% 0 0);
+      transform: translate3d(-30px, 0, 0);
+    }
+    100% {
       opacity: 0;
-      transform: translate3d(
-          var(--message-filter-exit-offset-x),
-          var(--message-filter-exit-offset-y),
-          0
-        )
-        scale(0.985);
+      clip-path: inset(0 100% 0 0);
+      transform: translate3d(var(--message-filter-exit-offset-x), 0, 0);
     }
   }
 
