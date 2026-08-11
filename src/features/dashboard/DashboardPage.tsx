@@ -426,8 +426,15 @@ const MessageFeedList = memo(function MessageFeedList({
   const messageLayoutCanvasRef = useRef<HTMLElement | null>(null);
   const remainingCanvasShiftRef = useRef(0);
   const previousVirtualSizeRef = useRef(0);
+  const previousFilterRef = useRef(filter);
+  const filterScrollTargetRef = useRef<LiveMessageDisplayFilter | null>(null);
+  const filterScrollFrameRef = useRef<number | null>(null);
   requestedFilterRef.current = filter;
   requestedVisibleEventIdsRef.current = visibleEventIds;
+  if (previousFilterRef.current !== filter) {
+    previousFilterRef.current = filter;
+    filterScrollTargetRef.current = filter;
+  }
   const [transitionState, setTransitionState] = useState<MessageFilterTransitionState>(() => ({
     committedFilter: filter,
     pendingFilter: null,
@@ -638,6 +645,59 @@ const MessageFeedList = memo(function MessageFeedList({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [renderedEvents.length, rowVirtualizer]);
+
+  /**
+   * 分类切换先等待旧消息完成退场，再在目标虚拟列表挂载和测量后滚到底部。
+   * 双帧校正用于覆盖动态行高从预估值切换为真实值时产生的末端偏差。
+   */
+  useLayoutEffect(() => {
+    if (
+      filterScrollTargetRef.current !== filter
+      || transitionState.committedFilter !== filter
+      || transitionState.pendingFilter !== null
+      || transitionState.exitingEventIds.size > 0
+    ) {
+      return;
+    }
+
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    if (renderedEvents.length === 0) {
+      viewport.scrollTop = 0;
+      filterScrollTargetRef.current = null;
+      previousVirtualSizeRef.current = 0;
+      return;
+    }
+    if (filterScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(filterScrollFrameRef.current);
+    }
+
+    filterScrollFrameRef.current = window.requestAnimationFrame(() => {
+      rowVirtualizer.scrollToEnd({ behavior: "auto" });
+      filterScrollFrameRef.current = window.requestAnimationFrame(() => {
+        rowVirtualizer.scrollToEnd({ behavior: "auto" });
+        viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+        previousVirtualSizeRef.current = rowVirtualizer.getTotalSize();
+        filterScrollTargetRef.current = null;
+        filterScrollFrameRef.current = null;
+      });
+    });
+
+    return () => {
+      if (filterScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(filterScrollFrameRef.current);
+        filterScrollFrameRef.current = null;
+      }
+    };
+  }, [
+    filter,
+    renderedEvents.length,
+    rowVirtualizer,
+    transitionState.committedFilter,
+    transitionState.exitingEventIds.size,
+    transitionState.pendingFilter,
+    viewportRef,
+  ]);
 
   /**
    * 虚拟行是绝对定位，行高动画本身不会推动旧消息。
