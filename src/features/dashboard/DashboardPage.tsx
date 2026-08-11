@@ -601,8 +601,8 @@ const MessageFeedList = memo(function MessageFeedList({
     if (transitionState.exitingEventIds.size === 0) return;
     const viewport = viewportRef.current;
     const duration = viewport
-      ? readCssTimeMilliseconds(viewport, "--message-filter-exit-duration", 820)
-      : 820;
+      ? readCssTimeMilliseconds(viewport, "--message-filter-exit-duration", 360)
+      : 360;
     const exitingSnapshot = new Set(transitionState.exitingEventIds);
     const timer = window.setTimeout(() => {
       setTransitionState((current) => {

@@ -438,7 +438,8 @@ export const MessageViewport = styled.div`
   --message-enter-offset-x: -20px;
   --message-enter-offset-y: 13px;
   /* 分类切换退场调参：仅当前视口内被过滤的消息会执行这组动画。 */
-  --message-filter-exit-duration: 820ms;
+  --message-filter-exit-duration: 360ms;
+  --message-filter-exit-offset-x: -96px;
   /* 消息元信息字号调参区：昵称、UID、事件标签和时间戳统一从这里调整。 */
   --message-user-font-size: 13px;
   --message-uid-font-size: 10px;
@@ -540,41 +541,23 @@ export const MessageEntryContent = styled.div`
   }
 
   &[data-filter-phase="exiting"] {
-    transform-origin: left bottom;
-    will-change: transform, opacity, filter;
+    will-change: transform, opacity;
     animation: bilimaku-message-filter-content-out var(--message-filter-exit-duration)
-      linear both;
+      cubic-bezier(0.4, 0, 0.6, 1) both;
   }
 
   @keyframes bilimaku-message-filter-content-out {
     0% {
       opacity: 1;
-      filter: blur(0);
-      transform: translate3d(0, 0, 0) scale(1);
+      transform: translate3d(0, 0, 0);
     }
-    5% {
-      transform: translate3d(-0.08px, 0.04px, 0) scale(0.9999);
-    }
-    13% {
-      transform: translate3d(0.28px, -0.16px, 0) scale(1.0006);
-    }
-    28% {
-      transform: translate3d(-0.9px, 0.55px, 0) scale(0.9984);
-    }
-    48% {
-      opacity: 1;
-      filter: blur(0);
-      transform: translate3d(2.6px, -1.5px, 0) scale(1.0065);
+    42% {
+      opacity: 0.94;
+      transform: translate3d(-31px, 0, 0);
     }
     100% {
       opacity: 0;
-      filter: blur(1.4px);
-      transform: translate3d(
-          var(--message-enter-offset-x),
-          var(--message-enter-offset-y),
-          0
-        )
-        scale(0.975);
+      transform: translate3d(var(--message-filter-exit-offset-x), 0, 0);
     }
   }
 
