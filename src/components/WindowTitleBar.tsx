@@ -594,69 +594,6 @@ export function WindowTitleBar({
             <SummaryRail aria-label="直播间实时数据摘要">
               <SummaryMetric
                 data-live-metric="true"
-                data-kind="watched"
-                data-tooltip={liveStats.watchedCount === null
-                  ? "等待平台推送本场累计看过人数"
-                  : "平台 WATCHED_CHANGE 推送的本场累计看过人数"}
-              >
-                <MetricLabel>
-                  <Icon name="eye" size={theme.titleBar.metricIconSizePx} />
-                  <MetricLabelText data-metric-label-text="true">看过</MetricLabelText>
-                </MetricLabel>
-                <MetricValue>{formatLiveCount(liveStats.watchedCount)}</MetricValue>
-              </SummaryMetric>
-              <SummaryMetric
-                data-live-metric="true"
-                data-kind="messages"
-                data-tooltip="当前会话缓存中的弹幕数量"
-              >
-                <MetricLabel>
-                  <Icon name="message" size={theme.titleBar.metricIconSizePx} />
-                  <MetricLabelText data-metric-label-text="true">弹幕</MetricLabelText>
-                </MetricLabel>
-                <MetricValue>{formatLiveCount(roomSummary.messageCount)}</MetricValue>
-              </SummaryMetric>
-              <SummaryMetric
-                data-live-metric="true"
-                data-kind="highlighted"
-                data-tooltip="当前会话缓存中的礼物、醒目留言与大航海事件"
-              >
-                <MetricLabel>
-                  <Icon name="gift" size={theme.titleBar.metricIconSizePx} />
-                  <MetricLabelText data-metric-label-text="true">高亮</MetricLabelText>
-                </MetricLabel>
-                <MetricValue>{formatLiveCount(roomSummary.highlightedCount)}</MetricValue>
-              </SummaryMetric>
-              <SummaryMetric
-                data-live-metric="true"
-                data-kind="duration"
-                data-tooltip={roomSummary.liveTime
-                  ? `本场开播时间（北京时间）${roomSummary.liveTime}`
-                  : "连接后读取平台返回的本场开播时间"}
-              >
-                <MetricLabel>
-                  <Icon name="clock" size={theme.titleBar.metricIconSizePx} />
-                  <MetricLabelText data-metric-label-text="true">时长</MetricLabelText>
-                </MetricLabel>
-                <MetricValue>{roomSummary.liveDuration}</MetricValue>
-              </SummaryMetric>
-              <SummaryMetric
-                data-live-metric="true"
-                data-kind="popularity"
-                data-tooltip="平台心跳返回的是人气指标，并非精确在线人数"
-              >
-                <MetricLabel>
-                  <Icon name="flame" size={theme.titleBar.metricIconSizePx} />
-                  <MetricLabelText data-metric-label-text="true">人气</MetricLabelText>
-                </MetricLabel>
-                <MetricValue>
-                  {roomSummary.hasLiveContext
-                    ? formatLiveCount(roomSummary.popularity)
-                    : "--"}
-                </MetricValue>
-              </SummaryMetric>
-              <SummaryMetric
-                data-live-metric="true"
                 data-kind="online"
                 data-tooltip={formatOnlineRankTooltip(roomSummary)}
               >
@@ -689,6 +626,69 @@ export function WindowTitleBar({
                     })}
                   </MetricRankFaces>
                 ) : null}
+              </SummaryMetric>
+              <SummaryMetric
+                data-live-metric="true"
+                data-kind="watched"
+                data-tooltip={liveStats.watchedCount === null
+                  ? "等待平台推送本场累计看过人数"
+                  : "平台 WATCHED_CHANGE 推送的本场累计看过人数"}
+              >
+                <MetricLabel>
+                  <Icon name="eye" size={theme.titleBar.metricIconSizePx} />
+                  <MetricLabelText data-metric-label-text="true">观看</MetricLabelText>
+                </MetricLabel>
+                <MetricValue>{formatLiveCount(liveStats.watchedCount)}</MetricValue>
+              </SummaryMetric>
+              <SummaryMetric
+                data-live-metric="true"
+                data-kind="messages"
+                data-tooltip="当前会话缓存中的弹幕数量"
+              >
+                <MetricLabel>
+                  <Icon name="message" size={theme.titleBar.metricIconSizePx} />
+                  <MetricLabelText data-metric-label-text="true">弹幕数</MetricLabelText>
+                </MetricLabel>
+                <MetricValue>{formatLiveCount(roomSummary.messageCount)}</MetricValue>
+              </SummaryMetric>
+              <SummaryMetric
+                data-live-metric="true"
+                data-kind="popularity"
+                data-tooltip="平台心跳返回的是人气指标，并非精确在线人数"
+              >
+                <MetricLabel>
+                  <Icon name="flame" size={theme.titleBar.metricIconSizePx} />
+                  <MetricLabelText data-metric-label-text="true">人气</MetricLabelText>
+                </MetricLabel>
+                <MetricValue>
+                  {roomSummary.hasLiveContext
+                    ? formatLiveCount(roomSummary.popularity)
+                    : "--"}
+                </MetricValue>
+              </SummaryMetric>
+              <SummaryMetric
+                data-live-metric="true"
+                data-kind="highlighted"
+                data-tooltip="当前会话缓存中的礼物、醒目留言与大航海事件"
+              >
+                <MetricLabel>
+                  <Icon name="gift" size={theme.titleBar.metricIconSizePx} />
+                  <MetricLabelText data-metric-label-text="true">礼物</MetricLabelText>
+                </MetricLabel>
+                <MetricValue>{formatLiveCount(roomSummary.highlightedCount)}</MetricValue>
+              </SummaryMetric>
+              <SummaryMetric
+                data-live-metric="true"
+                data-kind="duration"
+                data-tooltip={roomSummary.liveTime
+                  ? `本场开播时间（北京时间）${roomSummary.liveTime}`
+                  : "连接后读取平台返回的本场开播时间"}
+              >
+                <MetricLabel>
+                  <Icon name="clock" size={theme.titleBar.metricIconSizePx} />
+                  <MetricLabelText data-metric-label-text="true">时间</MetricLabelText>
+                </MetricLabel>
+                <MetricValue>{roomSummary.liveDuration}</MetricValue>
               </SummaryMetric>
             </SummaryRail>
           </>
