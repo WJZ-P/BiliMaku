@@ -173,6 +173,13 @@ function readCssTimeMilliseconds(
   return fallback;
 }
 
+/** 聊天列表腾位动画的三次 ease-in-out，保证起步和到达时都没有速度突变。 */
+function easeInOutCubic(progress: number) {
+  return progress < 0.5
+    ? 4 * progress * progress * progress
+    : 1 - ((-2 * progress + 2) ** 3) / 2;
+}
+
 function normalizeBilibiliImageUrl(value: string) {
   const url = value.trim();
   if (url.startsWith("//")) return `https:${url}`;
@@ -415,6 +422,10 @@ const MessageFeedList = memo(function MessageFeedList({
   const initialScrollPendingRef = useRef(true);
   const followedEventRef = useRef<string | undefined>(undefined);
   const animatedEntryEventIdRef = useRef<string | undefined>(undefined);
+  const messageLayoutFrameRef = useRef<number | null>(null);
+  const messageLayoutCanvasRef = useRef<HTMLElement | null>(null);
+  const remainingCanvasShiftRef = useRef(0);
+  const previousVirtualSizeRef = useRef(0);
   requestedFilterRef.current = filter;
   requestedVisibleEventIdsRef.current = visibleEventIds;
   const [transitionState, setTransitionState] = useState<MessageFilterTransitionState>(() => ({
@@ -469,7 +480,7 @@ const MessageFeedList = memo(function MessageFeedList({
     overscan: MESSAGE_VIRTUAL_OVERSCAN,
     rangeExtractor: extractVirtualRange,
     anchorTo: "end",
-    followOnAppend: true,
+    followOnAppend: false,
     scrollEndThreshold: 48,
     useFlushSync: false,
     directDomUpdates: true,
@@ -623,24 +634,133 @@ const MessageFeedList = memo(function MessageFeedList({
     initialScrollPendingRef.current = false;
     const frame = window.requestAnimationFrame(() => {
       rowVirtualizer.scrollToEnd({ behavior: "auto" });
+      previousVirtualSizeRef.current = rowVirtualizer.getTotalSize();
     });
     return () => window.cancelAnimationFrame(frame);
   }, [renderedEvents.length, rowVirtualizer]);
 
+  /**
+   * 虚拟行是绝对定位，行高动画本身不会推动旧消息。
+   * 这里同步补间滚动位置与短列表的画布偏移，使所有旧消息用同一条 ease-in-out 曲线腾出新行空间。
+   */
   useLayoutEffect(() => {
-    if (
-      transitionActive
-      || !enteringEventId
-      || followedEventRef.current === enteringEventId
-    ) {
+    const currentVirtualSize = rowVirtualizer.getTotalSize();
+
+    if (transitionActive) {
+      if (messageLayoutFrameRef.current !== null) {
+        window.cancelAnimationFrame(messageLayoutFrameRef.current);
+        messageLayoutFrameRef.current = null;
+      }
+      const activeCanvas = messageLayoutCanvasRef.current;
+      activeCanvas?.style.removeProperty("transform");
+      activeCanvas?.style.removeProperty("will-change");
+      messageLayoutCanvasRef.current = null;
+      remainingCanvasShiftRef.current = 0;
+      previousVirtualSizeRef.current = currentVirtualSize;
       return;
     }
+
+    if (!enteringEventId || followedEventRef.current === enteringEventId) return;
     followedEventRef.current = enteringEventId;
-    const frame = window.requestAnimationFrame(() => {
+
+    const viewport = viewportRef.current;
+    const canvas = feedRef.current?.querySelector<HTMLElement>(
+      '[data-message-virtual-canvas="true"]',
+    );
+    const previousVirtualSize = previousVirtualSizeRef.current || currentVirtualSize;
+    previousVirtualSizeRef.current = currentVirtualSize;
+
+    if (!viewport || !canvas) {
       rowVirtualizer.scrollToEnd({ behavior: "auto" });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [enteringEventId, rowVirtualizer, transitionActive]);
+      return;
+    }
+
+    if (messageLayoutFrameRef.current !== null) {
+      window.cancelAnimationFrame(messageLayoutFrameRef.current);
+      messageLayoutFrameRef.current = null;
+    }
+
+    const carriedCanvasShift = remainingCanvasShiftRef.current;
+    const duration = readCssTimeMilliseconds(
+      viewport,
+      "--message-layout-duration",
+      620,
+    );
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const startScrollOffset = viewport.scrollTop;
+
+    // Transform ????????????????????????????????
+    canvas.style.removeProperty("transform");
+    const targetScrollOffset = Math.max(
+      0,
+      viewport.scrollHeight - viewport.clientHeight,
+    );
+    const totalGrowth = Math.max(0, currentVirtualSize - previousVirtualSize);
+    const scrollTravel = Math.max(0, targetScrollOffset - startScrollOffset);
+    const initialCanvasShift = carriedCanvasShift
+      + Math.max(0, totalGrowth - scrollTravel);
+
+    if (reducedMotion || duration <= 0) {
+      viewport.scrollTop = targetScrollOffset;
+      canvas.style.removeProperty("will-change");
+      messageLayoutCanvasRef.current = null;
+      remainingCanvasShiftRef.current = 0;
+      previousVirtualSizeRef.current = rowVirtualizer.getTotalSize();
+      return;
+    }
+
+    let startedAt: number | null = null;
+    canvas.style.willChange = "transform";
+    canvas.style.transform = initialCanvasShift > 0.1
+      ? `translate3d(0, ${initialCanvasShift}px, 0)`
+      : "translate3d(0, 0, 0)";
+    messageLayoutCanvasRef.current = canvas;
+    remainingCanvasShiftRef.current = initialCanvasShift;
+
+    const animateLayout = (timestamp: number) => {
+      startedAt ??= timestamp;
+      const progress = Math.min(1, Math.max(0, (timestamp - startedAt) / duration));
+      const easedProgress = easeInOutCubic(progress);
+      const remainingCanvasShift = initialCanvasShift * (1 - easedProgress);
+
+      viewport.scrollTop = startScrollOffset
+        + (targetScrollOffset - startScrollOffset) * easedProgress;
+      remainingCanvasShiftRef.current = remainingCanvasShift;
+      canvas.style.transform = remainingCanvasShift > 0.1
+        ? `translate3d(0, ${remainingCanvasShift}px, 0)`
+        : "translate3d(0, 0, 0)";
+
+      if (progress < 1) {
+        messageLayoutFrameRef.current = window.requestAnimationFrame(animateLayout);
+        return;
+      }
+
+      canvas.style.removeProperty("transform");
+      canvas.style.removeProperty("will-change");
+      viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      messageLayoutFrameRef.current = null;
+      messageLayoutCanvasRef.current = null;
+      remainingCanvasShiftRef.current = 0;
+      previousVirtualSizeRef.current = rowVirtualizer.getTotalSize();
+    };
+
+    messageLayoutFrameRef.current = window.requestAnimationFrame(animateLayout);
+  }, [enteringEventId, rowVirtualizer, transitionActive, viewportRef]);
+
+  /** 非新消息变化只刷新尺寸基线，不重启正在执行的腾位动画。 */
+  useLayoutEffect(() => {
+    if (messageLayoutFrameRef.current !== null) return;
+    previousVirtualSizeRef.current = rowVirtualizer.getTotalSize();
+  }, [renderedEvents, rowVirtualizer]);
+
+  useEffect(() => () => {
+    if (messageLayoutFrameRef.current !== null) {
+      window.cancelAnimationFrame(messageLayoutFrameRef.current);
+    }
+    const activeCanvas = messageLayoutCanvasRef.current;
+    activeCanvas?.style.removeProperty("transform");
+    activeCanvas?.style.removeProperty("will-change");
+  }, []);
 
   const virtualItems = rowVirtualizer.getVirtualItems();
   const showEmptyState = !transitionActive
@@ -656,6 +776,7 @@ const MessageFeedList = memo(function MessageFeedList({
         data-total-count={renderedEvents.length}
         data-mounted-count={virtualItems.length}
         data-filter-transition={transitionActive ? "exiting" : "idle"}
+        data-message-virtual-canvas="true"
       >
         {virtualItems.map((virtualItem) => {
           const event = renderedEvents[virtualItem.index];

@@ -485,8 +485,8 @@ export const MessageVirtualCanvas = styled.div`
 `;
 
 /**
- * 新消息从 0 高度展开，布局会自然推动所有旧消息向上移动。
- * 时长由 MessageViewport 的 --message-layout-duration 统一控制。
+ * 消息行始终以完整高度交给虚拟列表测量。
+ * 新消息的腾位由 MessageFeedList 补间滚动与画布位移，避免行高动画逐帧触发虚拟列表重测。
  */
 export const MessageEntry = styled.div`
   position: absolute;
@@ -501,29 +501,8 @@ export const MessageEntry = styled.div`
     padding-top: 0;
   }
 
-  &[data-entering="true"] {
-    overflow: clip;
-    animation: bilimaku-message-layout-in var(--message-layout-duration)
-      cubic-bezier(0.22, 0.72, 0.26, 1) both;
-  }
-
   &[data-filter-phase="exiting"] {
     pointer-events: none;
-  }
-
-  @keyframes bilimaku-message-layout-in {
-    from {
-      grid-template-rows: minmax(0, 0fr);
-    }
-    to {
-      grid-template-rows: minmax(0, 1fr);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    &[data-entering="true"] {
-      animation: none;
-    }
   }
 `;
 
@@ -543,19 +522,15 @@ export const MessageEntryContent = styled.div`
   &[data-filter-phase="exiting"] {
     will-change: transform, opacity;
     animation: bilimaku-message-filter-content-out var(--message-filter-exit-duration)
-      cubic-bezier(0.4, 0, 0.6, 1) both;
+      cubic-bezier(0.4, 0, 0.2, 1) both;
   }
 
   @keyframes bilimaku-message-filter-content-out {
-    0% {
+    from {
       opacity: 1;
       transform: translate3d(0, 0, 0);
     }
-    42% {
-      opacity: 0.94;
-      transform: translate3d(-31px, 0, 0);
-    }
-    100% {
+    to {
       opacity: 0;
       transform: translate3d(var(--message-filter-exit-offset-x), 0, 0);
     }
