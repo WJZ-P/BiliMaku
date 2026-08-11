@@ -360,9 +360,6 @@ const PreferenceSwitch = styled.label`
     transform: translateX(18px) rotate(90deg);
   }
 
-  input:disabled + span {
-    opacity: 0.48;
-  }
 `;
 
 const PreferenceIcon = styled.span`
@@ -641,7 +638,9 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
     DEFAULT_STARTUP_BEHAVIOR_SETTINGS,
   );
   const [startupReady, setStartupReady] = useState(false);
-  const [startupBusyKey, setStartupBusyKey] = useState<keyof StartupBehaviorSettings | null>(null);
+  const [startupBusyKeys, setStartupBusyKeys] = useState<
+    ReadonlySet<keyof StartupBehaviorSettings>
+  >(() => new Set());
   const [startupError, setStartupError] = useState("");
   const [savedRoomId, setSavedRoomId] = useState("");
   const latestAppearanceRef = useRef(liveAppearance);
@@ -778,9 +777,9 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
     key: keyof StartupBehaviorSettings,
     enabled: boolean,
   ) => {
-    if (!startupReady || startupBusyKey !== null) return;
-    const previous = startupSettings;
-    setStartupBusyKey(key);
+    if (!startupReady || startupBusyKeys.has(key)) return;
+    const previousValue = startupSettings[key];
+    setStartupBusyKeys((current) => new Set(current).add(key));
     setStartupError("");
     setStartupSettings((current) => ({ ...current, [key]: enabled }));
 
@@ -800,10 +799,14 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
         if (!enabled) cancelSpeech();
       }
     } catch (reason) {
-      setStartupSettings(previous);
+      setStartupSettings((current) => ({ ...current, [key]: previousValue }));
       setStartupError(`保存启动偏好失败：${errorText(reason)}`);
     } finally {
-      setStartupBusyKey(null);
+      setStartupBusyKeys((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
     }
   };
   const logout = async () => {
@@ -887,7 +890,7 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
                 <PanelDescription>统一管理冷启动恢复与自动播报行为</PanelDescription>
               </PanelHeading>
               <PanelMeta>
-                {!startupReady ? "正在读取" : startupBusyKey ? "正在保存" : "变更自动保存"}
+                {!startupReady ? "正在读取" : startupBusyKeys.size > 0 ? "正在保存" : "变更自动保存"}
               </PanelMeta>
             </PanelHeader>
             <AutomationBody>
@@ -906,7 +909,7 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
                     type="checkbox"
                     aria-label="冷启动恢复直播间连接"
                     checked={startupSettings.autoConnect}
-                    disabled={!startupReady || startupBusyKey !== null || !savedRoomId}
+                    disabled={!startupReady || startupBusyKeys.has("autoConnect") || !savedRoomId}
                     onChange={(event) => {
                       void updateStartupSetting("autoConnect", event.target.checked);
                     }}
@@ -924,7 +927,7 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
                     type="checkbox"
                     aria-label="冷启动恢复全屏弹幕"
                     checked={startupSettings.autoOpenDanmaku}
-                    disabled={!startupReady || startupBusyKey !== null}
+                    disabled={!startupReady || startupBusyKeys.has("autoOpenDanmaku")}
                     onChange={(event) => {
                       void updateStartupSetting("autoOpenDanmaku", event.target.checked);
                     }}
@@ -942,7 +945,7 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
                     type="checkbox"
                     aria-label="冷启动恢复侧边事件栏"
                     checked={startupSettings.autoOpenSidebar}
-                    disabled={!startupReady || startupBusyKey !== null}
+                    disabled={!startupReady || startupBusyKeys.has("autoOpenSidebar")}
                     onChange={(event) => {
                       void updateStartupSetting("autoOpenSidebar", event.target.checked);
                     }}
@@ -960,7 +963,7 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
                     type="checkbox"
                     aria-label="自动语音播报"
                     checked={startupSettings.autoSpeak}
-                    disabled={!startupReady || startupBusyKey !== null}
+                    disabled={!startupReady || startupBusyKeys.has("autoSpeak")}
                     onChange={(event) => {
                       void updateStartupSetting("autoSpeak", event.target.checked);
                     }}

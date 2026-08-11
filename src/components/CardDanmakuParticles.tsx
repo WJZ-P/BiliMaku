@@ -1,5 +1,5 @@
 import { styled } from "@linaria/react";
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 
 const ParticleCanvas = styled.canvas`
   position: absolute;
@@ -129,7 +129,9 @@ function roundedRect(
  * 蓝白色系的上升粒子背景，不绘制弹幕文字或长胶囊。
  * 位置、大小、速度、横向摆动、形状、亮度和颜色均独立随机。
  */
-export function CardDanmakuParticles({ seed }: CardDanmakuParticlesProps) {
+export const CardDanmakuParticles = memo(function CardDanmakuParticles({
+  seed,
+}: CardDanmakuParticlesProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -361,4 +363,4 @@ export function CardDanmakuParticles({ seed }: CardDanmakuParticlesProps) {
   }, [seed]);
 
   return <ParticleCanvas ref={canvasRef} aria-hidden="true" data-card-danmaku-particles />;
-}
+});
