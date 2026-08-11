@@ -91,7 +91,18 @@ const EventRow = styled.article`
   --row-background-strong: rgba(13, 29, 47, 0.24);
   --row-background-soft: rgba(13, 29, 47, 0.08);
   --row-glass-highlight: rgba(255, 255, 255, 0.1);
+  --row-accent-wash: rgba(120, 240, 192, 0.07);
+  --row-accent-sheen: rgba(120, 240, 192, 0.08);
+  --row-accent-noise: rgba(120, 240, 192, 0.24);
+  --row-accent-edge: rgba(120, 240, 192, 0.1);
+  --row-noise-white: rgba(255, 255, 255, 0.34);
+  --row-shadow-strong: rgba(1, 10, 22, 0.14);
+  --row-shadow-soft: rgba(1, 10, 22, 0.08);
+  --row-fallback-highlight: rgba(255, 255, 255, 0.1);
   --row-blur: 22px;
+  --row-saturation: 1.58;
+  --row-brightness: 1.08;
+  --row-contrast: 1.05;
   --row-radius: 5px;
 
   position: relative;
@@ -113,7 +124,7 @@ const EventRow = styled.article`
     linear-gradient(
       112deg,
       color-mix(in srgb, var(--row-glass-highlight) 78%, transparent) 0%,
-      color-mix(in srgb, var(--event-accent) 7%, transparent) 42%,
+      var(--row-accent-wash) 42%,
       transparent 78%
     ),
     linear-gradient(
@@ -123,20 +134,20 @@ const EventRow = styled.article`
       transparent 100%
     );
   box-shadow:
-    0 10px 28px rgba(1, 10, 22, 0.14),
-    0 2px 8px rgba(1, 10, 22, 0.08),
+    0 10px 28px var(--row-shadow-strong),
+    0 2px 8px var(--row-shadow-soft),
     inset 0 1px 0 color-mix(in srgb, var(--row-glass-highlight) 88%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, var(--event-accent) 10%, transparent);
+    inset 0 -1px 0 var(--row-accent-edge);
   -webkit-backdrop-filter:
     blur(var(--row-blur))
-    saturate(1.58)
-    brightness(1.08)
-    contrast(1.05);
+    saturate(var(--row-saturation))
+    brightness(var(--row-brightness))
+    contrast(var(--row-contrast));
   backdrop-filter:
     blur(var(--row-blur))
-    saturate(1.58)
-    brightness(1.08)
-    contrast(1.05);
+    saturate(var(--row-saturation))
+    brightness(var(--row-brightness))
+    contrast(var(--row-contrast));
   pointer-events: none;
   will-change: transform, opacity;
 
@@ -156,7 +167,7 @@ const EventRow = styled.article`
         104deg,
         color-mix(in srgb, var(--row-glass-highlight) 92%, transparent),
         transparent 24%,
-        color-mix(in srgb, var(--event-accent) 8%, transparent) 58%,
+        var(--row-accent-sheen) 58%,
         transparent 84%
       );
     opacity: 0.72;
@@ -164,8 +175,8 @@ const EventRow = styled.article`
 
   &::after {
     background-image:
-      radial-gradient(circle at 14% 20%, rgba(255, 255, 255, 0.34) 0 0.55px, transparent 0.9px),
-      radial-gradient(circle at 72% 66%, color-mix(in srgb, var(--event-accent) 24%, transparent) 0 0.5px, transparent 0.9px);
+      radial-gradient(circle at 14% 20%, var(--row-noise-white) 0 0.55px, transparent 0.9px),
+      radial-gradient(circle at 72% 66%, var(--row-accent-noise) 0 0.5px, transparent 0.9px);
     background-position: 0 0, 2px 3px;
     background-size: 5px 5px, 7px 7px;
     mask-image: linear-gradient(90deg, black, rgba(0, 0, 0, 0.45) 62%, transparent 95%);
@@ -182,10 +193,23 @@ const EventRow = styled.article`
     background:
       linear-gradient(
         90deg,
-        color-mix(in srgb, var(--row-background-strong) 86%, rgba(255, 255, 255, 0.1)),
+        color-mix(in srgb, var(--row-background-strong) 86%, var(--row-fallback-highlight)),
         var(--row-background-soft) 78%,
         transparent
       );
+  }
+
+  &[data-background="false"] {
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  &[data-background="false"]::before,
+  &[data-background="false"]::after {
+    display: none;
   }
 `;
 
@@ -380,23 +404,38 @@ function SidebarRow({ event, settings, onDone }: SidebarRowProps) {
   ]);
 
   const accent = settings.colors[event.type];
+  const backgroundStrength = settings.backgroundEnabled
+    ? Math.min(1, Math.max(0, settings.cardOpacity))
+    : 0;
+  const backgroundVisible = backgroundStrength > 0;
   const style = {
     color: settings.textColor,
     "--event-accent": accent,
     "--username-color": settings.usernameColor,
     "--row-background-strong": hexToRgba(
       settings.backgroundColor,
-      Math.min(0.4, settings.cardOpacity * 0.36),
+      Math.min(0.4, backgroundStrength * 0.36),
     ),
     "--row-background-soft": hexToRgba(
       settings.backgroundColor,
-      Math.min(0.18, settings.cardOpacity * 0.14),
+      Math.min(0.18, backgroundStrength * 0.14),
     ),
     "--row-glass-highlight": `rgba(255, 255, 255, ${Math.min(
       0.18,
-      settings.cardOpacity * 0.15,
+      backgroundStrength * 0.15,
     )})`,
-    "--row-blur": `${settings.blur}px`,
+    "--row-accent-wash": hexToRgba(accent, backgroundStrength * 0.07),
+    "--row-accent-sheen": hexToRgba(accent, backgroundStrength * 0.08),
+    "--row-accent-noise": hexToRgba(accent, backgroundStrength * 0.24),
+    "--row-accent-edge": hexToRgba(accent, backgroundStrength * 0.1),
+    "--row-noise-white": `rgba(255, 255, 255, ${backgroundStrength * 0.34})`,
+    "--row-shadow-strong": `rgba(1, 10, 22, ${backgroundStrength * 0.14})`,
+    "--row-shadow-soft": `rgba(1, 10, 22, ${backgroundStrength * 0.08})`,
+    "--row-fallback-highlight": `rgba(255, 255, 255, ${backgroundStrength * 0.1})`,
+    "--row-blur": `${settings.blur * backgroundStrength}px`,
+    "--row-saturation": `${1 + backgroundStrength * 0.58}`,
+    "--row-brightness": `${1 + backgroundStrength * 0.08}`,
+    "--row-contrast": `${1 + backgroundStrength * 0.05}`,
     "--row-radius": `${Math.min(settings.radius, 6)}px`,
   } as CSSProperties;
   const layoutStyle = {
@@ -406,7 +445,12 @@ function SidebarRow({ event, settings, onDone }: SidebarRowProps) {
   return (
     <RowLayout ref={layoutRef} style={layoutStyle}>
       <RowClip>
-        <EventRow ref={ref} style={style} data-avatar={settings.showAvatar}>
+        <EventRow
+          ref={ref}
+          style={style}
+          data-avatar={settings.showAvatar}
+          data-background={backgroundVisible ? "true" : "false"}
+        >
           {settings.showAvatar ? (
             <Avatar>
               {avatar ? <img src={avatar} alt="" referrerPolicy="no-referrer" /> : event.user.slice(0, 1)}

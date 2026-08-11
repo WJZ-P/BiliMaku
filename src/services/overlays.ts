@@ -75,6 +75,7 @@ export const defaultOverlaySettings: OverlaySettings = {
     textColor: "#f7fbff",
     usernameColor: DEFAULT_USERNAME_COLOR,
     colors: defaultColors,
+    backgroundEnabled: true,
     backgroundColor: "#0d1d2f",
     cardOpacity: 0.68,
     blur: 22,

@@ -839,12 +839,26 @@ export function OverlaySettingsPage() {
 
             <Section>
               <SectionTitle>外观</SectionTitle>
+              <WindowSwitchGrid>
+                <WindowSwitch>
+                  <WindowSwitchCopy>
+                    <WindowSwitchTitle>启用消息背景</WindowSwitchTitle>
+                    <WindowSwitchHint>关闭后移除底色、玻璃模糊、高光、噪点与阴影，头像仍由独立选项控制</WindowSwitchHint>
+                  </WindowSwitchCopy>
+                  <input
+                    type="checkbox"
+                    checked={settings.sidebar.backgroundEnabled}
+                    onChange={(event) => updateSidebar({ backgroundEnabled: event.target.checked })}
+                  />
+                  <WindowSwitchTrack aria-hidden="true" />
+                </WindowSwitch>
+              </WindowSwitchGrid>
               <ColorControls value={settings.sidebar.colors} onChange={(colors) => updateSidebar({ colors })} />
               <Fields>
                 <ColorField><input type="color" value={settings.sidebar.usernameColor} onChange={(event) => updateSidebar({ usernameColor: event.target.value })} />昵称色</ColorField>
                 <ColorField><input type="color" value={settings.sidebar.backgroundColor} onChange={(event) => updateSidebar({ backgroundColor: event.target.value })} />气泡底色</ColorField>
                 <ColorField><input type="color" value={settings.sidebar.textColor} onChange={(event) => updateSidebar({ textColor: event.target.value })} />文字色</ColorField>
-                <NumberField label="玻璃透明度" value={settings.sidebar.cardOpacity} min={0} max={1} step={0.05} onChange={(cardOpacity) => updateSidebar({ cardOpacity })} />
+                <NumberField label="背景不透明度" value={settings.sidebar.cardOpacity} min={0} max={1} step={0.05} onChange={(cardOpacity) => updateSidebar({ cardOpacity })} />
                 <NumberField label="背景模糊" value={settings.sidebar.blur} min={0} max={40} step={1} suffix="px" onChange={(blur) => updateSidebar({ blur })} />
                 <NumberField label="气泡圆角" value={settings.sidebar.radius} min={0} max={20} step={1} suffix="px" onChange={(radius) => updateSidebar({ radius })} />
               </Fields>

@@ -128,6 +128,8 @@ export interface SidebarOverlaySettings {
   usernameColor: string;
   /** 各事件种类的强调色。 */
   colors: EventColorMap;
+  /** 是否绘制消息卡片的玻璃背景；关闭后只保留头像与文字。 */
+  backgroundEnabled: boolean;
   /** 消息气泡背景色。 */
   backgroundColor: string;
   /** 消息气泡不透明度。 */
