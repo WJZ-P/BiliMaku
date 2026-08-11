@@ -188,6 +188,18 @@ pub fn get_live_connection_status(
     })
 }
 
+/// 只更新冷启动自动连接偏好，不创建或断开当前直播间长链。
+#[tauri::command]
+pub fn update_live_auto_connect(
+    store: State<'_, AppConfigStore>,
+    enabled: bool,
+) -> Result<bool, String> {
+    if enabled && store.room_id()?.trim().is_empty() {
+        return Err("请先保存一个有效的直播间号".to_string());
+    }
+    store.set_live_auto_connect(enabled)
+}
+
 pub fn emit_status(app: &AppHandle, status: LiveStatus) {
     let _ = app.emit(LIVE_STATUS_EVENT_NAME, status);
 }

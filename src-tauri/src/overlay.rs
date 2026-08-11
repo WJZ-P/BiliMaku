@@ -515,6 +515,16 @@ pub fn get_overlay_auto_open(
     store.overlay_auto_open()
 }
 
+/// 只更新冷启动悬浮窗恢复偏好，不立即创建或关闭窗口。
+#[tauri::command]
+pub fn update_overlay_auto_open(
+    store: State<'_, AppConfigStore>,
+    kind: String,
+    enabled: bool,
+) -> Result<bool, String> {
+    store.set_overlay_auto_open(&kind, enabled)
+}
+
 #[tauri::command]
 pub fn update_overlay_settings(
     app: AppHandle,

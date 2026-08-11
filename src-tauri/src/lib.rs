@@ -99,6 +99,7 @@ pub fn run() {
             live::connect_live_room,
             live::disconnect_live_room,
             live::get_live_connection_status,
+            live::update_live_auto_connect,
             live::get_live_online_rank,
             live::send_live_danmaku,
             store::get_config_file_path,
@@ -125,6 +126,7 @@ pub fn run() {
             overlay::is_overlay_open,
             overlay::get_overlay_settings,
             overlay::get_overlay_auto_open,
+            overlay::update_overlay_auto_open,
             overlay::update_overlay_settings,
             overlay::preview_overlay_event
         ])

@@ -166,6 +166,12 @@ export async function getLiveConnectionStatus() {
   return invoke<ConnectionSnapshot>("get_live_connection_status");
 }
 
+/** 只更新冷启动自动连接偏好，不改变当前正在运行的直播间长链。 */
+export async function saveLiveAutoConnect(enabled: boolean): Promise<void> {
+  if (!isDesktopRuntime()) return;
+  await invoke("update_live_auto_connect", { enabled });
+}
+
 /** 读取当前活动直播间在线贡献榜人数与前三名。 */
 export async function getLiveOnlineRank(): Promise<LiveOnlineRankSnapshot> {
   if (!isDesktopRuntime()) {

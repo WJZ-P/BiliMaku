@@ -8,11 +8,27 @@ import {
   disconnectLiveRoom,
   getConfigFilePath,
   getLiveAppearanceSettings,
+  getLiveConnectionStatus,
   logoutBilibiliAccount,
   saveLiveAppearanceSettings,
+  saveLiveAutoConnect,
 } from "../../services/desktop";
+import {
+  getOverlayAutoOpenState,
+  saveOverlayAutoOpenState,
+} from "../../services/overlays";
+import {
+  hydrateTtsSettings,
+  loadTtsSettings,
+  saveTtsSettingsPersisted,
+} from "../../services/tts";
+import { cancelSpeech } from "../../services/ttsPlayback";
 import { DEFAULT_MESSAGE_BUBBLE_COLOR, theme } from "../../styles/theme";
 import type { BilibiliLoginStatus } from "../../types/account";
+import {
+  DEFAULT_STARTUP_BEHAVIOR_SETTINGS,
+  type StartupBehaviorSettings,
+} from "../../types/applicationSettings";
 import type { LiveAppearanceSettings } from "../../types/liveAppearance";
 import {
   MAX_STORED_LIVE_MESSAGES,
@@ -268,6 +284,143 @@ const LogoutButton = styled.button`
   }
 `;
 
+const AutomationBody = styled.div`
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px 20px;
+`;
+
+const PreferenceGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+
+  @media (max-width: 720px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`;
+
+const PreferenceSwitch = styled.label`
+  position: relative;
+  display: grid;
+  min-height: 66px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 12px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 66%, transparent);
+  border-radius: 4px;
+  background:
+    linear-gradient(
+      128deg,
+      color-mix(in srgb, ${theme.colors.highlight} 16%, transparent),
+      transparent 48%
+    ),
+    color-mix(in srgb, ${theme.colors.surface} 38%, transparent);
+  cursor: pointer;
+  transition:
+    border-color ${theme.motion.fast},
+    background ${theme.motion.fast},
+    transform ${theme.motion.fast};
+
+  &:hover {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 46%, ${theme.colors.borderStrong});
+    background:
+      linear-gradient(
+        128deg,
+        color-mix(in srgb, ${theme.colors.brandSoft} 22%, transparent),
+        transparent 52%
+      ),
+      color-mix(in srgb, ${theme.colors.surface} 44%, transparent);
+    transform: translateY(-1px);
+  }
+
+  &:focus-within {
+    outline: 2px solid color-mix(in srgb, ${theme.colors.brand} 24%, transparent);
+    outline-offset: 1px;
+  }
+
+  input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  input:checked + span {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 62%, transparent);
+    background: linear-gradient(135deg, ${theme.colors.brand}, ${theme.colors.brandDeep});
+    box-shadow: 0 4px 13px color-mix(in srgb, ${theme.colors.brand} 24%, transparent);
+  }
+
+  input:checked + span::after {
+    transform: translateX(18px) rotate(90deg);
+  }
+
+  input:disabled + span {
+    opacity: 0.48;
+  }
+`;
+
+const PreferenceIcon = styled.span`
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-left: 2px solid color-mix(in srgb, ${theme.colors.brand} 62%, transparent);
+  background: color-mix(in srgb, ${theme.colors.brandSoft} 34%, transparent);
+  color: ${theme.colors.brandDeep};
+`;
+
+const PreferenceCopy = styled.span`
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+`;
+
+const PreferenceTitle = styled.strong`
+  color: ${theme.colors.textPrimary};
+  font-size: 11px;
+  font-weight: 820;
+  letter-spacing: 0.01em;
+`;
+
+const PreferenceDescription = styled.span`
+  color: ${theme.colors.textMuted};
+  font-size: 9px;
+  font-weight: 620;
+  line-height: 1.5;
+`;
+
+const PreferenceTrack = styled.span`
+  position: relative;
+  width: 39px;
+  height: 21px;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, ${theme.colors.textMuted} 30%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, ${theme.colors.textMuted} 12%, ${theme.colors.surface});
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+
+  &::after {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 15px;
+    height: 15px;
+    border-radius: 2px;
+    background: ${theme.colors.surface};
+    box-shadow: 0 2px 5px color-mix(in srgb, ${theme.colors.textPrimary} 18%, transparent);
+    content: "";
+    transition: transform 260ms cubic-bezier(0.18, 0.9, 0.28, 1.32);
+  }
+`;
 const ThemeBody = styled.div`
   display: grid;
   gap: 12px;
@@ -484,7 +637,15 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
   const [liveAppearance, setLiveAppearance] = useState<LiveAppearanceSettings>({
     messageBubbleColor: DEFAULT_MESSAGE_BUBBLE_COLOR,
   });
+  const [startupSettings, setStartupSettings] = useState<StartupBehaviorSettings>(
+    DEFAULT_STARTUP_BEHAVIOR_SETTINGS,
+  );
+  const [startupReady, setStartupReady] = useState(false);
+  const [startupBusyKey, setStartupBusyKey] = useState<keyof StartupBehaviorSettings | null>(null);
+  const [startupError, setStartupError] = useState("");
+  const [savedRoomId, setSavedRoomId] = useState("");
   const latestAppearanceRef = useRef(liveAppearance);
+  const ttsSettingsRef = useRef(loadTtsSettings());
   const appearanceReadyRef = useRef(false);
   const profile = accountStatus.profile;
   const recordedActivity = useMemo(() => {
@@ -508,6 +669,32 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
       if (active) setConfigPath(path);
     });
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all([
+      getLiveConnectionStatus(),
+      getOverlayAutoOpenState(),
+      hydrateTtsSettings(),
+    ]).then(([connection, overlay, tts]) => {
+      if (!active) return;
+      ttsSettingsRef.current = tts;
+      setSavedRoomId(connection.savedRoomId);
+      setStartupSettings({
+        autoConnect: connection.autoConnect,
+        autoOpenDanmaku: overlay.danmaku,
+        autoOpenSidebar: overlay.sidebar,
+        autoSpeak: tts.autoSpeak,
+      });
+      setStartupReady(true);
+      setStartupError("");
+    }).catch((reason) => {
+      if (active) setStartupError(`读取启动偏好失败：${errorText(reason)}`);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -587,6 +774,38 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
     }
   };
 
+  const updateStartupSetting = async (
+    key: keyof StartupBehaviorSettings,
+    enabled: boolean,
+  ) => {
+    if (!startupReady || startupBusyKey !== null) return;
+    const previous = startupSettings;
+    setStartupBusyKey(key);
+    setStartupError("");
+    setStartupSettings((current) => ({ ...current, [key]: enabled }));
+
+    try {
+      if (key === "autoConnect") {
+        await saveLiveAutoConnect(enabled);
+      } else if (key === "autoOpenDanmaku") {
+        await saveOverlayAutoOpenState("danmaku", enabled);
+      } else if (key === "autoOpenSidebar") {
+        await saveOverlayAutoOpenState("sidebar", enabled);
+      } else {
+        const nextTtsSettings = await saveTtsSettingsPersisted({
+          ...ttsSettingsRef.current,
+          autoSpeak: enabled,
+        });
+        ttsSettingsRef.current = nextTtsSettings;
+        if (!enabled) cancelSpeech();
+      }
+    } catch (reason) {
+      setStartupSettings(previous);
+      setStartupError(`保存启动偏好失败：${errorText(reason)}`);
+    } finally {
+      setStartupBusyKey(null);
+    }
+  };
   const logout = async () => {
     setBusy(true);
     setError("");
@@ -659,6 +878,100 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
           </SettingsPanelSurface>
         </SettingsPanel>
 
+        <SettingsPanel>
+          <SettingsPanelSurface>
+            <CardDanmakuParticles seed={0x4155544f} />
+            <PanelHeader>
+              <PanelHeading>
+                <PanelTitle>启动与自动化</PanelTitle>
+                <PanelDescription>统一管理冷启动恢复与自动播报行为</PanelDescription>
+              </PanelHeading>
+              <PanelMeta>
+                {!startupReady ? "正在读取" : startupBusyKey ? "正在保存" : "变更自动保存"}
+              </PanelMeta>
+            </PanelHeader>
+            <AutomationBody>
+              <PreferenceGrid>
+                <PreferenceSwitch>
+                  <PreferenceIcon><Icon name="plug" size={18} /></PreferenceIcon>
+                  <PreferenceCopy>
+                    <PreferenceTitle>恢复直播间连接</PreferenceTitle>
+                    <PreferenceDescription>
+                      {savedRoomId
+                        ? `下次启动自动连接房间 ${savedRoomId}`
+                        : "先在直播间页面保存一个有效房间号"}
+                    </PreferenceDescription>
+                  </PreferenceCopy>
+                  <input
+                    type="checkbox"
+                    aria-label="冷启动恢复直播间连接"
+                    checked={startupSettings.autoConnect}
+                    disabled={!startupReady || startupBusyKey !== null || !savedRoomId}
+                    onChange={(event) => {
+                      void updateStartupSetting("autoConnect", event.target.checked);
+                    }}
+                  />
+                  <PreferenceTrack aria-hidden="true" />
+                </PreferenceSwitch>
+
+                <PreferenceSwitch>
+                  <PreferenceIcon><Icon name="message" size={18} /></PreferenceIcon>
+                  <PreferenceCopy>
+                    <PreferenceTitle>恢复全屏弹幕</PreferenceTitle>
+                    <PreferenceDescription>下次启动恢复滚动弹幕层，不改变当前窗口</PreferenceDescription>
+                  </PreferenceCopy>
+                  <input
+                    type="checkbox"
+                    aria-label="冷启动恢复全屏弹幕"
+                    checked={startupSettings.autoOpenDanmaku}
+                    disabled={!startupReady || startupBusyKey !== null}
+                    onChange={(event) => {
+                      void updateStartupSetting("autoOpenDanmaku", event.target.checked);
+                    }}
+                  />
+                  <PreferenceTrack aria-hidden="true" />
+                </PreferenceSwitch>
+
+                <PreferenceSwitch>
+                  <PreferenceIcon><Icon name="dashboard" size={18} /></PreferenceIcon>
+                  <PreferenceCopy>
+                    <PreferenceTitle>恢复侧边播报</PreferenceTitle>
+                    <PreferenceDescription>下次启动恢复侧边事件栏，不改变当前窗口</PreferenceDescription>
+                  </PreferenceCopy>
+                  <input
+                    type="checkbox"
+                    aria-label="冷启动恢复侧边事件栏"
+                    checked={startupSettings.autoOpenSidebar}
+                    disabled={!startupReady || startupBusyKey !== null}
+                    onChange={(event) => {
+                      void updateStartupSetting("autoOpenSidebar", event.target.checked);
+                    }}
+                  />
+                  <PreferenceTrack aria-hidden="true" />
+                </PreferenceSwitch>
+
+                <PreferenceSwitch>
+                  <PreferenceIcon><Icon name="volume" size={18} /></PreferenceIcon>
+                  <PreferenceCopy>
+                    <PreferenceTitle>自动语音播报</PreferenceTitle>
+                    <PreferenceDescription>沿用语音角色页的音色与事件筛选；关闭会清空当前队列</PreferenceDescription>
+                  </PreferenceCopy>
+                  <input
+                    type="checkbox"
+                    aria-label="自动语音播报"
+                    checked={startupSettings.autoSpeak}
+                    disabled={!startupReady || startupBusyKey !== null}
+                    onChange={(event) => {
+                      void updateStartupSetting("autoSpeak", event.target.checked);
+                    }}
+                  />
+                  <PreferenceTrack aria-hidden="true" />
+                </PreferenceSwitch>
+              </PreferenceGrid>
+              {startupError ? <ErrorMessage>{startupError}</ErrorMessage> : null}
+            </AutomationBody>
+          </SettingsPanelSurface>
+        </SettingsPanel>
         <SettingsPanel>
           <SettingsPanelSurface>
             <CardDanmakuParticles seed={0x53455454} />

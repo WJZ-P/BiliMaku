@@ -73,15 +73,29 @@ export function loadTtsSettings(): TtsSettings {
   }
 }
 
+function publishTtsSettings(settings: TtsSettings) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  window.dispatchEvent(new CustomEvent(TTS_SETTINGS_EVENT, { detail: settings }));
+}
+
 export function saveTtsSettings(settings: TtsSettings) {
   const normalized = normalizeTtsSettings(settings);
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(normalized));
-  window.dispatchEvent(new CustomEvent(TTS_SETTINGS_EVENT, { detail: normalized }));
+  publishTtsSettings(normalized);
   if (isDesktopRuntime()) {
     void invoke("update_tts_settings", { settings: normalized }).catch((error) => {
       console.warn("bilimaku TTS settings persistence failed", error);
     });
   }
+}
+
+/** 持久化成功后再发布 TTS 设置，供需要准确保存状态的快速设置使用。 */
+export async function saveTtsSettingsPersisted(settings: TtsSettings): Promise<TtsSettings> {
+  const normalized = normalizeTtsSettings(settings);
+  if (isDesktopRuntime()) {
+    await invoke("update_tts_settings", { settings: normalized });
+  }
+  publishTtsSettings(normalized);
+  return normalized;
 }
 
 /**

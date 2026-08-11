@@ -243,6 +243,15 @@ export async function getOverlayAutoOpenState(): Promise<OverlayAutoOpenState> {
   return invoke<OverlayAutoOpenState>("get_overlay_auto_open");
 }
 
+/** 只更新冷启动悬浮窗恢复偏好，不改变当前窗口的开关状态。 */
+export async function saveOverlayAutoOpenState(
+  kind: OverlayKind,
+  enabled: boolean,
+): Promise<void> {
+  if (!isDesktopRuntime()) return;
+  await invoke("update_overlay_auto_open", { kind, enabled });
+}
+
 /** 一次读取两个悬浮窗的实际运行状态。 */
 export async function getOverlayWindowState(): Promise<OverlayAutoOpenState> {
   const [danmaku, sidebar] = await Promise.all([
