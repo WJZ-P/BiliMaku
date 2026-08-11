@@ -1,6 +1,7 @@
 import { styled } from "@linaria/react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { LiveMessageContent } from "../../components/LiveMessageContent";
 import type { LiveEvent } from "../../types/events";
 import type { DanmakuOverlaySettings } from "../../types/overlay";
 import {
@@ -147,7 +148,7 @@ function ScrollingBullet({
             {eventSeparator(item.event.type)}
           </>
         ) : null}
-        {item.event.content}
+        <LiveMessageContent content={item.event.content} emotes={item.event.emotes} />
       </Text>
     </Bullet>
   );

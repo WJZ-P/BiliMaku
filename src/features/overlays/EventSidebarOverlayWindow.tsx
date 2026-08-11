@@ -2,6 +2,7 @@ import { styled } from "@linaria/react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import { LiveMessageContent } from "../../components/LiveMessageContent";
 import {
   finalizeSidebarOverlayPosition,
   hexToRgba,
@@ -413,7 +414,10 @@ function SidebarRow({ event, settings, onDone }: SidebarRowProps) {
           ) : null}
           <Sentence>
             <User>{event.user}</User>
-            <EventText>{eventSeparator(event.type)}{event.content}</EventText>
+            <EventText>
+              {eventSeparator(event.type)}
+              <LiveMessageContent content={event.content} emotes={event.emotes} />
+            </EventText>
           </Sentence>
         </EventRow>
       </RowClip>

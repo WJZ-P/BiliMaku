@@ -3,6 +3,7 @@ import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo,
 import type { CSSProperties, RefObject } from "react";
 import { Icon, type IconName } from "../../components/Icon";
 import { LiquidGlassSurface } from "../../components/LiquidGlassSurface";
+import { LiveMessageContent } from "../../components/LiveMessageContent";
 import { getLiveAppearanceSettings, saveLiveRoomId } from "../../services/desktop";
 import { sendLiveDanmaku } from "../../services/liveChat";
 import {
@@ -346,7 +347,9 @@ const AnimatedMessageRow = memo(function AnimatedMessageRow({
                   radiusPx={event.type === "system" ? 999 : 10}
                 />
               ) : null}
-              <MessageBubbleText>{event.content}</MessageBubbleText>
+              <MessageBubbleText>
+                <LiveMessageContent content={event.content} emotes={event.emotes} />
+              </MessageBubbleText>
             </MessageBubble>
           </MessageBody>
         </MessageRow>

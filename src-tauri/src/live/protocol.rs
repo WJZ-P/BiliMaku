@@ -7,7 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::LiveEvent;
 use crate::types::live::{
-    DecodedPacket, LiveInteractionKind, LiveRoomStatsUpdate, INTERACT_WORD, INTERACT_WORD_V2,
+    DecodedPacket, LiveInteractionKind, LiveMessageEmote, LiveRoomStatsUpdate, INTERACT_WORD,
+    INTERACT_WORD_V2,
 };
 
 const HEADER_LENGTH: usize = 16;
@@ -354,8 +355,9 @@ fn normalize_danmaku(session_id: u64, room_id: u64, command: Value) -> Option<Li
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
+    let emotes = normalize_danmaku_emotes(info, &content);
 
-    Some(new_event(
+    let mut event = new_event(
         session_id,
         room_id,
         "message",
@@ -365,7 +367,94 @@ fn normalize_danmaku(session_id: u64, room_id: u64, command: Value) -> Option<Li
         content,
         None,
         command.get("cmd")?.as_str()?.to_string(),
-    ))
+    );
+    event.emotes = emotes;
+    Some(event)
+}
+
+/// 读取平台随 DANMU_MSG 下发的表情映射，不依赖本地维护的静态表情字典。
+fn normalize_danmaku_emotes(info: &[Value], content: &str) -> Vec<LiveMessageEmote> {
+    let metadata = info.first();
+    let extra = metadata
+        .and_then(|value| value.get(15))
+        .and_then(|value| value.get("extra"))
+        .and_then(parse_embedded_json);
+    let mut emotes = Vec::new();
+
+    if let Some(entries) = extra
+        .as_ref()
+        .and_then(|value| value.get("emots"))
+        .and_then(Value::as_object)
+    {
+        for (key, metadata) in entries {
+            let text = [
+                Some(key.as_str()),
+                metadata.get("emoji").and_then(Value::as_str),
+                metadata.get("descript").and_then(Value::as_str),
+            ]
+            .into_iter()
+            .flatten()
+            .find(|candidate| !candidate.is_empty() && content.contains(candidate));
+            if let Some(emote) = text.and_then(|text| parse_live_message_emote(text, metadata)) {
+                push_unique_emote(&mut emotes, emote);
+            }
+        }
+    }
+
+    // 房间定制大表情单独位于 info[0][13]，正文就是它在无障碍和播报中的回退文本。
+    if let Some(metadata) = metadata.and_then(|value| value.get(13)) {
+        if let Some(emote) = parse_live_message_emote(content, metadata) {
+            push_unique_emote(&mut emotes, emote);
+        }
+    }
+
+    emotes.sort_by_key(|emote| content.find(&emote.text).unwrap_or(usize::MAX));
+    emotes
+}
+
+fn parse_embedded_json(value: &Value) -> Option<Value> {
+    match value {
+        Value::String(raw) => serde_json::from_str(raw).ok(),
+        Value::Object(_) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn parse_live_message_emote(text: &str, metadata: &Value) -> Option<LiveMessageEmote> {
+    if text.is_empty() {
+        return None;
+    }
+    let url = metadata
+        .get("url")
+        .and_then(Value::as_str)
+        .and_then(normalize_platform_image_url)?;
+    Some(LiveMessageEmote {
+        text: text.to_string(),
+        url,
+        width: value_u64(metadata, &["width"])
+            .unwrap_or_default()
+            .min(u64::from(u32::MAX)) as u32,
+        height: value_u64(metadata, &["height"])
+            .unwrap_or_default()
+            .min(u64::from(u32::MAX)) as u32,
+    })
+}
+
+fn normalize_platform_image_url(value: &str) -> Option<String> {
+    let value = value.trim();
+    if let Some(path) = value.strip_prefix("//") {
+        return Some(format!("https://{path}"));
+    }
+    if let Some(path) = value.strip_prefix("http://") {
+        return Some(format!("https://{path}"));
+    }
+    value.starts_with("https://").then(|| value.to_string())
+}
+
+fn push_unique_emote(emotes: &mut Vec<LiveMessageEmote>, emote: LiveMessageEmote) {
+    if emotes.iter().all(|current| current.text != emote.text) {
+        emotes.push(emote);
+    }
 }
 
 fn normalize_gift(session_id: u64, room_id: u64, command: Value) -> Option<LiveEvent> {
@@ -478,6 +567,7 @@ fn new_event(
         user,
         avatar,
         content,
+        emotes: Vec::new(),
         meta,
         raw_command,
         emitted_at,
@@ -556,6 +646,71 @@ mod tests {
         assert_eq!(event.room_id, 100);
     }
 
+    #[test]
+    fn normalizes_inline_danmaku_emotes() {
+        let extra = serde_json::json!({
+            "emots": {
+                "[dog]": {
+                    "emoji": "[dog]",
+                    "url": "http://i0.hdslb.com/bfs/live/dog.png",
+                    "width": 20,
+                    "height": 20
+                }
+            }
+        })
+        .to_string();
+        let command = serde_json::json!({
+            "cmd": "DANMU_MSG",
+            "info": [
+                [0, 1, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {}, {
+                    "extra": extra,
+                    "user": {"base": {"face": "https://example.test/avatar.png"}}
+                }],
+                "高情商，还有很大进步空间[dog]",
+                [123, "蓝莓汽水"]
+            ]
+        });
+
+        let event = normalize_command(7, 100, command).expect("danmaku emote event");
+        assert_eq!(
+            event.emotes,
+            vec![LiveMessageEmote {
+                text: "[dog]".to_string(),
+                url: "https://i0.hdslb.com/bfs/live/dog.png".to_string(),
+                width: 20,
+                height: 20,
+            }]
+        );
+        let serialized = serde_json::to_value(event).expect("serialize emote event");
+        assert_eq!(serialized["emotes"][0]["text"], "[dog]");
+    }
+
+    #[test]
+    fn normalizes_single_large_danmaku_emote() {
+        let command = serde_json::json!({
+            "cmd": "DANMU_MSG",
+            "info": [
+                [0, 1, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {
+                    "emoticon_unique": "room_100_1",
+                    "url": "//i0.hdslb.com/bfs/live/large.png",
+                    "width": 162,
+                    "height": 162
+                }, {}, {"user": {"base": {"face": ""}}}],
+                "干杯",
+                [123, "蓝莓汽水"]
+            ]
+        });
+
+        let event = normalize_command(7, 100, command).expect("large danmaku emote event");
+        assert_eq!(event.emotes.len(), 1);
+        assert_eq!(event.emotes[0].text, "干杯");
+        assert_eq!(
+            event.emotes[0].url,
+            "https://i0.hdslb.com/bfs/live/large.png"
+        );
+        assert_eq!(event.emotes[0].width, 162);
+        assert_eq!(event.emotes[0].height, 162);
+    }
     #[test]
     fn normalizes_legacy_interaction_message() {
         let command = serde_json::json!({

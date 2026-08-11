@@ -16,6 +16,18 @@ export type LiveInteractionKind =
   | "mutual-follow"
   | "like";
 
+/** 平台随弹幕事件下发的行内表情资源。 */
+export interface LiveMessageEmote {
+  /** 正文中的占位文本，例如 `[dog]`。 */
+  text: string;
+  /** 表情图片地址。 */
+  url: string;
+  /** 平台声明的原始图片宽度；缺失时为 0。 */
+  width: number;
+  /** 平台声明的原始图片高度；缺失时为 0。 */
+  height: number;
+}
+
 /** Rust 协议层完成归一化后发送给 React 的直播事件。 */
 export interface LiveEvent {
   /** 事件在本机的唯一编号。 */
@@ -36,6 +48,8 @@ export interface LiveEvent {
   avatar: string;
   /** 用于展示和播报的事件正文。 */
   content: string;
+  /** 正文中可替换为图片的表情元数据；普通文本或旧事件中为空。 */
+  emotes?: LiveMessageEmote[];
   /** 礼物数量、互动动作等补充信息。 */
   meta?: string;
   /** 归一化后的协议命令名。 */

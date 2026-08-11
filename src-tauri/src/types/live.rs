@@ -75,6 +75,20 @@ pub struct LiveStatus {
     pub attempt: u32,
 }
 
+/// 弹幕正文中由平台下发表情元数据描述的行内图片。
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveMessageEmote {
+    /// 正文中的占位文本，例如 `[dog]`；前端据此进行精确替换。
+    pub text: String,
+    /// 平台表情图片地址，协议层会统一升级为 HTTPS。
+    pub url: String,
+    /// 平台声明的原始图片宽度；缺失时为 0。
+    pub width: u32,
+    /// 平台声明的原始图片高度；缺失时为 0。
+    pub height: u32,
+}
+
 /// 经过协议归一化后的直播事件。
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -99,6 +113,9 @@ pub struct LiveEvent {
     pub avatar: String,
     /// 可直接展示或播报的事件正文。
     pub content: String,
+    /// 弹幕正文中的平台表情；非弹幕事件或普通纯文本弹幕为空。
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub emotes: Vec<LiveMessageEmote>,
     /// 礼物数量、互动种类等补充信息。
     pub meta: Option<String>,
     /// 平台下发的原始命令字，例如 INTERACT_WORD_V2；用于调试与规则筛选。
