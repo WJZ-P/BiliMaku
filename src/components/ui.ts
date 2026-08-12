@@ -10,6 +10,74 @@ export const Panel = styled.section`
   backdrop-filter: blur(16px);
 `;
 
+/**
+ * 设置型页面共用的硬朗毛玻璃面板。
+ * 外层只负责裁切与边界，动态粒子和内容统一放进 FrostedPanelSurface。
+ */
+export const FrostedPanel = styled.section`
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 86%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, ${theme.colors.surface} 15%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 72%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.textMuted} 9%, transparent);
+`;
+
+/** 设置型面板位于粒子 Canvas 上方的真实玻璃表层。 */
+export const FrostedPanelSurface = styled.div`
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
+  background:
+    linear-gradient(
+      132deg,
+      color-mix(in srgb, ${theme.colors.highlight} 14%, transparent),
+      transparent 42%
+    ),
+    color-mix(
+      in srgb,
+      ${theme.colors.surface} ${theme.frostedGlass.surfaceMix},
+      transparent
+    );
+  -webkit-backdrop-filter: blur(${theme.frostedGlass.blur})
+    saturate(${theme.frostedGlass.saturation})
+    brightness(${theme.frostedGlass.brightness})
+    contrast(${theme.frostedGlass.contrast});
+  backdrop-filter: blur(${theme.frostedGlass.blur})
+    saturate(${theme.frostedGlass.saturation})
+    brightness(${theme.frostedGlass.brightness})
+    contrast(${theme.frostedGlass.contrast});
+
+  &::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background-image: url("/textures/frosted-noise.svg");
+    background-size: 96px 96px;
+    content: "";
+    mix-blend-mode: soft-light;
+    opacity: ${theme.frostedGlass.noiseOpacity};
+    pointer-events: none;
+  }
+
+  & > [data-card-danmaku-particles] {
+    position: absolute;
+    z-index: 0;
+  }
+
+  & > :not([data-card-danmaku-particles]) {
+    position: relative;
+    z-index: 2;
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background: color-mix(in srgb, ${theme.colors.surface} 84%, ${theme.colors.canvasAccent});
+  }
+`;
+
 export const PanelHeader = styled.header`
   display: flex;
   min-height: 64px;
@@ -36,6 +104,14 @@ export const PanelDescription = styled.p`
   margin: 3px 0 0;
   color: ${theme.colors.textMuted};
   font-size: 10px;
+`;
+
+/** 面板标题栏右侧的轻量状态文字，避免再套一层胶囊容器。 */
+export const PanelMeta = styled.span`
+  color: ${theme.colors.textMuted};
+  font-size: 10px;
+  font-weight: 720;
+  letter-spacing: 0.02em;
 `;
 
 export const SubtleButton = styled.button`
