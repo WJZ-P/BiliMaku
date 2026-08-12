@@ -583,6 +583,31 @@ export const MessageRow = styled.article`
   gap: 8px;
   align-items: flex-start;
 
+  &[data-anchor="true"] {
+    grid-template-columns: minmax(0, 1fr) 34px;
+  }
+
+  &[data-anchor="true"] > [data-event-avatar="true"] {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  &[data-anchor="true"] > :not([data-event-avatar="true"]) {
+    display: grid;
+    grid-column: 1;
+    grid-row: 1;
+    justify-items: end;
+  }
+
+  &[data-anchor="true"] [data-message-meta="true"] {
+    justify-content: flex-end;
+    margin: 0 2px 5px 0;
+  }
+
+  &[data-anchor="true"] [data-liquid-glass="true"] {
+    border-radius: 10px 3px 10px 10px;
+  }
+
   &[data-type="system"] {
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;

@@ -331,7 +331,7 @@ const AnimatedMessageRow = memo(function AnimatedMessageRow({
           }
         }}
       >
-        <MessageRow data-type={event.type}>
+        <MessageRow data-type={event.type} data-anchor={anchorDanmaku}>
           <EventAvatarView event={event} />
           <MessageBody>
             <MessageMeta data-message-meta="true">
