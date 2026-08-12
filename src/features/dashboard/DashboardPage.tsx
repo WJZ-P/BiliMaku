@@ -1125,7 +1125,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       <DashboardShell>
         <ChatPanel>
           <ChatHeader>
-            <RoomIdentity>
+            <RoomIdentity data-state={live.status.state}>
               <RoomCoverView
                 coverUrl={live.room?.coverUrl ?? ""}
                 title={roomTitle}
@@ -1142,6 +1142,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             </RoomIdentity>
 
             <ConnectForm
+              data-connected={connected}
               onSubmit={(event) => {
                 event.preventDefault();
                 void handleConnection();

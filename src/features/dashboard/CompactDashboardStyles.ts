@@ -36,28 +36,78 @@ export const ChatPanel = styled.section`
 `;
 
 export const ChatHeader = styled.header`
-  display: flex;
+  position: relative;
+  display: grid;
   min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 5px 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 12px;
+  padding: 7px 0 7px 7px;
+  overflow: hidden;
   border-bottom: 1px solid ${theme.colors.border};
-  background: color-mix(in srgb, ${theme.colors.surface} 78%, transparent);
+  background:
+    linear-gradient(
+      112deg,
+      color-mix(in srgb, ${theme.colors.highlight} 30%, transparent),
+      transparent 43%
+    ),
+    color-mix(in srgb, ${theme.colors.surface} 68%, transparent);
+
+  &::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, ${theme.colors.brand} 44%, transparent),
+      color-mix(in srgb, ${theme.colors.cyan} 28%, transparent) 42%,
+      transparent 82%
+    );
+    content: "";
+    pointer-events: none;
+  }
 
   @media (max-width: 760px) {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 8px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
   }
 `;
 
+/** 封面与标题组合成一块直播身份区域，以状态色短线代替额外状态徽章。 */
 export const RoomIdentity = styled.div`
+  position: relative;
   display: grid;
   min-width: 0;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  column-gap: 8px;
+  gap: 10px;
+  padding-left: 5px;
+
+  &::before {
+    position: absolute;
+    top: 7px;
+    bottom: 7px;
+    left: 0;
+    width: 2px;
+    background: ${theme.colors.textMuted};
+    content: "";
+  }
+
+  &[data-state="connected"]::before {
+    background: linear-gradient(180deg, ${theme.colors.cyan}, ${theme.colors.brand});
+    box-shadow: 0 0 9px color-mix(in srgb, ${theme.colors.brand} 52%, transparent);
+  }
+
+  &[data-state="connecting"]::before,
+  &[data-state="reconnecting"]::before {
+    background: ${theme.colors.warning};
+  }
+
+  &[data-state="error"]::before {
+    background: ${theme.colors.danger};
+  }
 `;
 
 /** 直播间封面按源图 720×540 的 4:3 比例缩放为十分之一。 */
@@ -69,13 +119,13 @@ export const RoomCover = styled.span`
   flex: 0 0 72px;
   place-items: center;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, ${theme.colors.brand} 25%, ${theme.colors.border});
-  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.brand} 28%, ${theme.colors.border});
+  border-radius: 3px;
   background: ${theme.colors.surfaceMuted};
   color: ${theme.colors.textMuted};
   box-shadow:
-    0 4px 12px color-mix(in srgb, ${theme.colors.brandDeep} 10%, transparent),
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 74%, transparent);
+    0 3px 10px color-mix(in srgb, ${theme.colors.brandDeep} 8%, transparent),
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 64%, transparent);
 
   &[data-state="connecting"],
   &[data-state="reconnecting"] {
@@ -84,7 +134,7 @@ export const RoomCover = styled.span`
   }
 
   &[data-state="connected"] {
-    border-color: color-mix(in srgb, ${theme.colors.brand} 40%, ${theme.colors.border});
+    border-color: color-mix(in srgb, ${theme.colors.brand} 46%, ${theme.colors.border});
     color: ${theme.colors.brandDeep};
   }
 
@@ -129,11 +179,12 @@ export const RoomCoverImage = styled.img`
     animation: none;
   }
 `;
+
 export const RoomCopy = styled.div`
   display: grid;
   min-width: 0;
   align-content: center;
-  gap: 8px;
+  gap: 5px;
 `;
 
 export const RoomTitle = styled.h2`
@@ -141,9 +192,9 @@ export const RoomTitle = styled.h2`
   margin: 0;
   color: ${theme.colors.textPrimary};
   font-size: 14px;
-  font-weight: 820;
-  letter-spacing: -0.015em;
-  line-height: 1.2;
+  font-weight: 840;
+  letter-spacing: -0.018em;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 `;
@@ -152,9 +203,9 @@ export const RoomCaption = styled.p`
   overflow: hidden;
   margin: 0;
   color: ${theme.colors.textMuted};
-  font-size: 12px;
-  font-weight: 620;
-  line-height: 1.2;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 
@@ -163,41 +214,50 @@ export const RoomCaption = styled.p`
   }
 `;
 
+/** 房间号与连接动作共享同一控制外壳，避免右侧出现两块松散卡片。 */
 export const ConnectForm = styled.form`
-  display: flex;
-  min-width: 214px;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
+  align-self: center;
+  display: grid;
+  min-width: 198px;
+  height: 34px;
+  grid-template-columns: 116px auto;
+  align-items: stretch;
+  justify-self: end;
+  overflow: hidden;
+  border: 1px solid ${theme.colors.borderStrong};
+  border-right: 0;
+  border-radius: 4px 0 0 4px;
+  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 70%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 65%, transparent);
+  transition:
+    border-color ${theme.motion.fast},
+    background ${theme.motion.fast};
+
+  &:focus-within {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 54%, ${theme.colors.borderStrong});
+    background: color-mix(in srgb, ${theme.colors.surface} 86%, transparent);
+  }
+
+  &[data-connected="true"] {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 22%, ${theme.colors.borderStrong});
+  }
 
   @media (max-width: 760px) {
+    width: calc(100% + 7px);
     min-width: 0;
-    justify-content: stretch;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 `;
 
 export const RoomField = styled.label`
   display: flex;
-  width: 124px;
-  height: 32px;
+  min-width: 0;
   align-items: center;
   gap: 6px;
   padding: 0 9px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: 7px;
-  background: ${theme.colors.surfaceMuted};
+  border-right: 1px solid ${theme.colors.border};
+  background: transparent;
   color: ${theme.colors.textMuted};
-  transition: border-color ${theme.motion.fast}, background ${theme.motion.fast};
-
-  &:focus-within {
-    border-color: ${theme.colors.brandSoft};
-    background: ${theme.colors.surface};
-  }
-
-  @media (max-width: 760px) {
-    width: auto;
-    flex: 1;
-  }
 `;
 
 export const RoomInput = styled.input`
@@ -209,41 +269,43 @@ export const RoomInput = styled.input`
   color: ${theme.colors.textPrimary};
   font-family: ${theme.typography.mono};
   font-size: 10px;
-  font-weight: 650;
+  font-weight: 700;
 
   &::placeholder {
     color: ${theme.colors.textMuted};
   }
 
   &:disabled {
-    cursor: not-allowed;
-    opacity: 0.66;
+    cursor: default;
+    opacity: 0.72;
   }
 `;
 
 export const ConnectButton = styled.button`
   display: inline-flex;
-  height: 32px;
-  flex: 0 0 auto;
+  min-width: 68px;
+  height: 100%;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: ${theme.colors.brand};
+  padding: 0 11px;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(135deg, ${theme.colors.brand}, ${theme.colors.brandDeep});
   color: ${theme.colors.textOnBrand};
   font-size: 10px;
-  font-weight: 760;
-  transition: transform ${theme.motion.spring}, background ${theme.motion.fast};
+  font-weight: 780;
+  transition:
+    background ${theme.motion.fast},
+    color ${theme.motion.fast},
+    filter ${theme.motion.fast};
 
   &:hover:not(:disabled) {
-    background: ${theme.colors.brandHover};
-    transform: translateY(-1px);
+    filter: brightness(1.045) saturate(1.06);
   }
 
   &:active:not(:disabled) {
-    transform: translateY(1px) scale(0.96);
+    filter: brightness(0.96);
   }
 
   &:disabled {
@@ -252,12 +314,10 @@ export const ConnectButton = styled.button`
   }
 
   &[data-connected="true"] {
-    border-color: color-mix(in srgb, ${theme.colors.danger} 22%, ${theme.colors.border});
-    background: ${theme.colors.dangerSoft};
+    background: color-mix(in srgb, ${theme.colors.dangerSoft} 76%, ${theme.colors.surface});
     color: ${theme.colors.danger};
   }
 `;
-
 export const ChatToolbar = styled.div`
   display: flex;
   min-width: 0;
