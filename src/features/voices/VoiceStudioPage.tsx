@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { CardDanmakuParticles } from "../../components/CardDanmakuParticles";
 import { Icon } from "../../components/Icon";
+import { VoiceSearchSelect } from "./VoiceSearchSelect";
 import {
   AnimatedSwitchTrack as SwitchTrack,
   FrostedPanel,
@@ -776,6 +777,8 @@ const speechEventOptions = [
   description: string;
 }>;
 
+/** 未选择模型时复用同一个空音色集合，避免搜索框被无意义地重置。 */
+const EMPTY_TTS_VOICES: InstalledTtsModel["voices"] = [];
 export function VoiceStudioPage() {
   const [models, setModels] = useState<InstalledTtsModel[]>([]);
   const [settings, setSettings] = useState<TtsSettings>(() => loadTtsSettings());
@@ -1094,7 +1097,7 @@ export function VoiceStudioPage() {
                     <option value="">自动选择中文音色</option>
                     {systemVoices.map((voice) => (
                       <option key={voice.voiceURI} value={voice.voiceURI}>
-                        {voice.name} ? {voice.lang}
+                        {voice.name} · {voice.lang}
                       </option>
                     ))}
                   </Select>
@@ -1102,21 +1105,12 @@ export function VoiceStudioPage() {
               ) : (
                 <Field>
                   <FieldTop>模型音色</FieldTop>
-                  <Select
+                  <VoiceSearchSelect
+                    voices={selectedModel?.voices ?? EMPTY_TTS_VOICES}
                     value={settings.voiceId}
                     disabled={!selectedModel || selectedModel.voices.length === 0}
-                    onChange={(event) => updateSettings({ voiceId: event.target.value })}
-                  >
-                    {selectedModel?.voices.length ? (
-                      selectedModel.voices.map((voice) => (
-                        <option key={voice.id} value={voice.id}>
-                          {voice.name}{voice.language ? ` ? ${voice.language}` : ""}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="">由模型运行时决定</option>
-                    )}
-                  </Select>
+                    onChange={(voiceId) => updateSettings({ voiceId })}
+                  />
                 </Field>
               )}
 
@@ -1162,7 +1156,7 @@ export function VoiceStudioPage() {
                         <EnvironmentCheckRow key={check.id}>
                           <CheckDot data-state={check.state} />
                           <div>
-                            <CheckName>{check.label} ? {checkStateLabel(check.state)}</CheckName>
+                            <CheckName>{check.label} · {checkStateLabel(check.state)}</CheckName>
                             <CheckDetail>{check.detail}</CheckDetail>
                             {check.guide || check.downloadUrl ? (
                               <CheckGuide>
