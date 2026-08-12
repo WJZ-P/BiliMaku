@@ -469,6 +469,7 @@ export const MessageViewport = styled.div`
 `;
 
 export const MessageFeed = styled.div`
+  position: relative;
   display: flex;
   min-height: 100%;
   flex-direction: column;
@@ -816,10 +817,13 @@ export const MessageBubbleText = styled.span`
 `;
 
 export const EmptyFeed = styled.div`
+  position: absolute;
+  z-index: 1;
+  inset: 0;
   display: grid;
-  min-height: 100%;
   place-items: center;
   color: ${theme.colors.textMuted};
+  pointer-events: none;
   font-size: var(--message-empty-font-size);
   line-height: 1.6;
   text-align: center;
