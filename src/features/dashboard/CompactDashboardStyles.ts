@@ -10,19 +10,13 @@ export const Page = styled.section`
   overflow: hidden;
 `;
 
-/** 中央聊天区与右侧功能栏组成的紧凑双列布局。 */
+/** 直播间聊天工作台；功能操作已经并入消息工具栏，不再额外占用侧栏宽度。 */
 export const DashboardShell = styled.div`
   display: grid;
   width: 100%;
   height: 100%;
   min-height: 0;
-  grid-template-columns: minmax(0, 1fr) 78px;
-  gap: 10px;
-
-  @media (max-width: 900px) {
-    grid-template-columns: minmax(0, 1fr) 70px;
-    gap: 8px;
-  }
+  grid-template-columns: minmax(0, 1fr);
 `;
 
 export const ChatPanel = styled.section`
@@ -280,6 +274,85 @@ export const FilterGroup = styled.div`
   min-width: 0;
   align-items: center;
   gap: 4px;
+  flex: 0 0 auto;
+`;
+
+/** 消息分类右侧的紧凑功能区；宽度不足时可横向滚动，不挤压消息视口。 */
+export const ToolbarActions = styled.div`
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`;
+
+export const ToolbarDivider = styled.span`
+  width: 1px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin: 0 3px;
+  background: color-mix(in srgb, ${theme.colors.borderStrong} 72%, transparent);
+`;
+
+export const ToolbarActionButton = styled.button`
+  display: inline-flex;
+  height: 29px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: ${theme.colors.textMuted};
+  font-size: 9px;
+  font-weight: 720;
+  white-space: nowrap;
+  transition:
+    transform ${theme.motion.spring},
+    border-color ${theme.motion.fast},
+    background ${theme.motion.fast},
+    color ${theme.motion.fast};
+
+  &:hover:not(:disabled) {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 28%, ${theme.colors.border});
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 72%, transparent);
+    color: ${theme.colors.brandDeep};
+    transform: translateY(-1px);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0) scale(0.96);
+  }
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.48;
+  }
+
+  &[data-active="true"] {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 28%, ${theme.colors.border});
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 86%, transparent);
+    color: ${theme.colors.brand};
+    box-shadow: inset 0 -2px 0 ${theme.colors.brand};
+  }
+
+  @media (max-width: 760px) {
+    width: 29px;
+    padding: 0;
+
+    span {
+      display: none;
+    }
+  }
 `;
 
 export const FilterButton = styled.button`
@@ -1083,83 +1156,4 @@ export const DrawerLoading = styled.div`
   place-items: center;
   color: ${theme.colors.textMuted};
   font-size: 9px;
-`;
-export const FunctionRail = styled.aside`
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  gap: 6px;
-  padding: 7px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  border: 1px solid ${theme.colors.borderStrong};
-  border-radius: 0;
-  background: color-mix(in srgb, ${theme.colors.surface} 84%, transparent);
-  box-shadow:
-    0 10px 26px color-mix(in srgb, ${theme.colors.brandDeep} 7%, transparent),
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 72%, transparent);
-  backdrop-filter: blur(18px);
-`;
-
-export const RailTitle = styled.div`
-  padding: 4px 0 5px;
-  color: ${theme.colors.textMuted};
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-align: center;
-`;
-
-export const RailButton = styled.button`
-  display: flex;
-  min-height: 51px;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  flex-direction: column;
-  padding: 6px 3px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: 0;
-  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 70%, transparent);
-  color: ${theme.colors.textMuted};
-  font-size: 9px;
-  font-weight: 720;
-  transition:
-    transform ${theme.motion.spring},
-    border-color ${theme.motion.fast},
-    background ${theme.motion.fast},
-    color ${theme.motion.fast};
-
-  &:hover:not(:disabled) {
-    border-color: color-mix(in srgb, ${theme.colors.brand} 36%, ${theme.colors.border});
-    background: ${theme.colors.brandSubtle};
-    color: ${theme.colors.brandDeep};
-    transform: translateX(-2px);
-  }
-
-  &:active:not(:disabled) {
-    transform: translateX(-1px) scale(0.96);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.44;
-  }
-
-  &[data-active="true"] {
-    border-color: ${theme.colors.brandSoft};
-    background: ${theme.colors.brandSubtle};
-    color: ${theme.colors.brand};
-    box-shadow: inset 2px 0 0 ${theme.colors.brand};
-  }
-
-  &[data-danger="true"] {
-    border-color: color-mix(in srgb, ${theme.colors.danger} 20%, ${theme.colors.border});
-    background: ${theme.colors.dangerSoft};
-    color: ${theme.colors.danger};
-  }
-`;
-
-export const RailSpacer = styled.div`
-  flex: 1;
 `;

@@ -49,7 +49,9 @@ import {
   EventUserId,
   FilterButton,
   FilterGroup,
-  FunctionRail,
+  ToolbarActions,
+  ToolbarActionButton,
+  ToolbarDivider,
   MessageBody,
   MessageBubble,
   MessageBubbleText,
@@ -61,9 +63,6 @@ import {
   MessageRow,
   MessageViewport,
   Page,
-  RailButton,
-  RailSpacer,
-  RailTitle,
   RoomCaption,
   RoomCopy,
   RoomCover,
@@ -85,7 +84,7 @@ const AnchorAnalyticsPanel = lazy(() =>
 );
 
 interface DashboardPageProps {
-  /** 从直播间右侧功能栏跳转到其他工作台模块。 */
+  /** 从直播间消息工具栏跳转到其他工作台模块。 */
   onNavigate?: (view: AppView) => void;
 }
 
@@ -1190,6 +1189,72 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 </FilterButton>
               ))}
             </FilterGroup>
+            <ToolbarActions aria-label="直播间功能">
+              <ToolbarActionButton
+                type="button"
+                data-active={live.autoSpeak}
+                data-tooltip={live.autoSpeak
+                  ? "关闭自动播报（会持久化）"
+                  : "开启自动播报（会持久化）"}
+                data-tooltip-placement="bottom"
+                aria-label={live.autoSpeak ? "关闭自动播报" : "开启自动播报"}
+                onClick={live.toggleAutoSpeak}
+              >
+                <Icon name={live.autoSpeak ? "pause" : "play"} size={14} />
+                <span>{live.autoSpeak ? "关闭播报" : "开启播报"}</span>
+              </ToolbarActionButton>
+
+              <ToolbarActionButton
+                type="button"
+                data-active={analyticsOpen}
+                data-tooltip="查看主播数据总览"
+                data-tooltip-placement="bottom"
+                onClick={() => setAnalyticsOpen((value) => !value)}
+              >
+                <Icon name="dashboard" size={14} />
+                <span>数据</span>
+              </ToolbarActionButton>
+
+              <ToolbarActionButton
+                type="button"
+                data-active={overlaysOpen}
+                disabled={overlayBusy}
+                aria-pressed={overlaysOpen}
+                aria-label={overlaysOpen ? "关闭全部悬浮组件" : "打开全部悬浮组件"}
+                data-tooltip={overlayError || (overlaysOpen
+                  ? "关闭全屏弹幕层与侧边事件栏"
+                  : "打开全屏弹幕层与侧边事件栏")}
+                data-tooltip-placement="bottom"
+                onClick={() => void toggleOverlays()}
+              >
+                <Icon name="message" size={14} />
+                <span>{overlayBusy ? "处理中" : overlaysOpen ? "关闭悬浮" : "开启悬浮"}</span>
+              </ToolbarActionButton>
+
+              <ToolbarDivider aria-hidden="true" />
+              {railActions.map((action) => (
+                <ToolbarActionButton
+                  key={action.view}
+                  type="button"
+                  data-tooltip={action.tooltip}
+                  data-tooltip-placement="bottom"
+                  onClick={() => onNavigate?.(action.view)}
+                >
+                  <Icon name={action.icon} size={14} />
+                  <span>{action.label}</span>
+                </ToolbarActionButton>
+              ))}
+
+              <ToolbarActionButton
+                type="button"
+                data-tooltip="账号、主题与应用设置"
+                data-tooltip-placement="bottom"
+                onClick={() => onNavigate?.("settings")}
+              >
+                <Icon name="settings" size={14} />
+                <span>设置</span>
+              </ToolbarActionButton>
+            </ToolbarActions>
           </ChatToolbar>
 
           <MessageViewport ref={messageViewportRef} data-message-viewport="true">
@@ -1270,71 +1335,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             </AnalyticsDrawer>
           ) : null}
         </ChatPanel>
-
-        <FunctionRail aria-label="直播间功能栏">
-          <RailTitle>功能</RailTitle>
-          <RailButton
-            type="button"
-            data-active={live.autoSpeak}
-            data-tooltip={live.autoSpeak ? "关闭自动播报（会持久化）" : "开启自动播报（会持久化）"}
-            data-tooltip-placement="left"
-            onClick={live.toggleAutoSpeak}
-          >
-            <Icon name={live.autoSpeak ? "pause" : "play"} size={17} />
-            {live.autoSpeak ? "关闭" : "开启"}
-          </RailButton>
-
-          <RailButton
-            type="button"
-            data-active={analyticsOpen}
-            data-tooltip="查看主播数据总览"
-            data-tooltip-placement="left"
-            onClick={() => setAnalyticsOpen((value) => !value)}
-          >
-            <Icon name="dashboard" size={17} />
-            数据
-          </RailButton>
-
-          <RailButton
-            type="button"
-            data-active={overlaysOpen}
-            disabled={overlayBusy}
-            aria-pressed={overlaysOpen}
-            aria-label={overlaysOpen ? "关闭全部悬浮组件" : "打开全部悬浮组件"}
-            data-tooltip={overlayError || (overlaysOpen
-              ? "关闭全屏弹幕层与侧边事件栏"
-              : "打开全屏弹幕层与侧边事件栏")}
-            data-tooltip-placement="left"
-            onClick={() => void toggleOverlays()}
-          >
-            <Icon name="message" size={17} />
-            {overlayBusy ? "处理中" : overlaysOpen ? "关闭" : "悬浮"}
-          </RailButton>
-
-          {railActions.map((action) => (
-            <RailButton
-              key={action.view}
-              type="button"
-              data-tooltip={action.tooltip}
-              data-tooltip-placement="left"
-              onClick={() => onNavigate?.(action.view)}
-            >
-              <Icon name={action.icon} size={17} />
-              {action.label}
-            </RailButton>
-          ))}
-
-          <RailSpacer />
-          <RailButton
-            type="button"
-            data-tooltip="账号、主题与应用设置"
-            data-tooltip-placement="left"
-            onClick={() => onNavigate?.("settings")}
-          >
-            <Icon name="settings" size={17} />
-            设置
-          </RailButton>
-        </FunctionRail>
       </DashboardShell>
     </Page>
   );
