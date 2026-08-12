@@ -273,25 +273,49 @@ const ColorField = styled.label`
 const ToggleGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
+
+  @media (max-width: 620px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 `;
 
 const Toggle = styled.label`
   display: flex;
-  min-height: 35px;
+  min-height: 42px;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 0 10px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 65%, transparent);
+  gap: 10px;
+  padding: 0 13px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 68%, transparent);
   border-radius: 4px;
-  background: color-mix(in srgb, ${theme.colors.surface} 42%, transparent);
+  background: color-mix(in srgb, ${theme.colors.surface} 44%, transparent);
   color: ${theme.colors.textSecondary};
-  font-size: 8px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 740;
+  cursor: pointer;
+  transition:
+    border-color ${theme.motion.fast},
+    background ${theme.motion.fast},
+    color ${theme.motion.fast};
+
+  &:hover {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 38%, ${theme.colors.borderStrong});
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 32%, transparent);
+    color: ${theme.colors.textPrimary};
+  }
+
+  &:focus-within {
+    outline: 2px solid color-mix(in srgb, ${theme.colors.brand} 22%, transparent);
+    outline-offset: 1px;
+  }
 
   input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
     accent-color: ${theme.colors.brand};
+    cursor: pointer;
   }
 `;
 
@@ -371,30 +395,64 @@ const WindowSwitchTrack = styled(AnimatedSwitchTrack)`
 const TypeGrid = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 9px;
 `;
 
 const TypeToggle = styled.label`
   display: inline-flex;
-  height: 30px;
+  min-width: 54px;
+  height: 38px;
   align-items: center;
-  gap: 6px;
-  padding: 0 9px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 66%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, ${theme.colors.surface} 42%, transparent);
-  color: ${theme.colors.textMuted};
-  font-size: 8px;
-  font-weight: 750;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 72%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, ${theme.colors.surface} 46%, transparent);
+  color: ${theme.colors.textSecondary};
+  font-size: 11px;
+  font-weight: 780;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(8px) saturate(1.18);
+  backdrop-filter: blur(8px) saturate(1.18);
+  transition:
+    border-color ${theme.motion.fast},
+    background ${theme.motion.fast},
+    color ${theme.motion.fast},
+    box-shadow ${theme.motion.fast},
+    transform ${theme.motion.fast};
+
+  &:hover {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 42%, ${theme.colors.borderStrong});
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 38%, transparent);
+    color: ${theme.colors.brandDeep};
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+
+  &:focus-within {
+    outline: 2px solid color-mix(in srgb, ${theme.colors.brand} 24%, transparent);
+    outline-offset: 1px;
+  }
 
   &:has(input:checked) {
-    border-color: color-mix(in srgb, ${theme.colors.brand} 38%, ${theme.colors.border});
-    background: color-mix(in srgb, ${theme.colors.brandSubtle} 62%, transparent);
-    color: ${theme.colors.brand};
+    border-color: color-mix(in srgb, ${theme.colors.brand} 52%, ${theme.colors.border});
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 72%, transparent);
+    color: ${theme.colors.brandDeep};
+    box-shadow:
+      inset 0 -2px 0 color-mix(in srgb, ${theme.colors.brand} 72%, transparent),
+      0 4px 12px color-mix(in srgb, ${theme.colors.brand} 10%, transparent);
   }
 
   input {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
   }
 `;
 
