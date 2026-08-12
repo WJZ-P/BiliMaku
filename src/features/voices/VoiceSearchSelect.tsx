@@ -1,5 +1,5 @@
 import { styled } from "@linaria/react";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import { globalLayers } from "../../styles/layers";
 import { theme } from "../../styles/theme";
@@ -222,6 +222,7 @@ function getVoiceLabel(voice: TtsVoice) {
  */
 export function VoiceSearchSelect({ voices, value, disabled = false, onChange }: VoiceSearchSelectProps) {
   const listboxId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -278,9 +279,10 @@ export function VoiceSearchSelect({ voices, value, disabled = false, onChange }:
         }
       }}
     >
-      <SearchControl data-disabled={disabled}>
+      <SearchControl data-disabled={disabled} onClick={() => inputRef.current?.focus()}>
         <SearchGlyph><Icon name="search" size={15} /></SearchGlyph>
         <SearchInput
+          ref={inputRef}
           role="combobox"
           aria-label="搜索模型音色"
           aria-autocomplete="list"

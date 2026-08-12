@@ -311,6 +311,11 @@ const Field = styled.label`
   gap: 7px;
 `;
 
+const VoiceField = styled.div`
+  display: grid;
+  gap: 7px;
+`;
+
 const FieldTop = styled.span`
   display: flex;
   align-items: center;
@@ -1103,7 +1108,7 @@ export function VoiceStudioPage() {
                   </Select>
                 </Field>
               ) : (
-                <Field>
+                <VoiceField>
                   <FieldTop>模型音色</FieldTop>
                   <VoiceSearchSelect
                     voices={selectedModel?.voices ?? EMPTY_TTS_VOICES}
@@ -1111,7 +1116,7 @@ export function VoiceStudioPage() {
                     disabled={!selectedModel || selectedModel.voices.length === 0}
                     onChange={(voiceId) => updateSettings({ voiceId })}
                   />
-                </Field>
+                </VoiceField>
               )}
 
               {settings.provider === "custom" && selectedModel ? (
