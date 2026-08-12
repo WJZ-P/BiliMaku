@@ -362,7 +362,7 @@ export const ToolbarDivider = styled.span`
 
 export const ToolbarActionButton = styled.button`
   display: inline-flex;
-  height: 29px;
+  height: 31px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -372,8 +372,8 @@ export const ToolbarActionButton = styled.button`
   border-radius: 4px;
   background: transparent;
   color: ${theme.colors.textMuted};
-  font-size: 9px;
-  font-weight: 720;
+  font-size: 10px;
+  font-weight: 740;
   white-space: nowrap;
   transition:
     transform ${theme.motion.spring},
@@ -385,7 +385,7 @@ export const ToolbarActionButton = styled.button`
     border-color: color-mix(in srgb, ${theme.colors.brand} 28%, ${theme.colors.border});
     background: color-mix(in srgb, ${theme.colors.brandSubtle} 72%, transparent);
     color: ${theme.colors.brandDeep};
-    transform: translateY(-1px);
+    transform: none;
   }
 
   &:active:not(:disabled) {
@@ -397,6 +397,11 @@ export const ToolbarActionButton = styled.button`
     opacity: 0.48;
   }
 
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+
   &[data-active="true"] {
     border-color: color-mix(in srgb, ${theme.colors.brand} 28%, ${theme.colors.border});
     background: color-mix(in srgb, ${theme.colors.brandSubtle} 86%, transparent);
@@ -405,7 +410,7 @@ export const ToolbarActionButton = styled.button`
   }
 
   @media (max-width: 760px) {
-    width: 29px;
+    width: 31px;
     padding: 0;
 
     span {
@@ -415,14 +420,14 @@ export const ToolbarActionButton = styled.button`
 `;
 
 export const FilterButton = styled.button`
-  height: 29px;
+  height: 31px;
   padding: 0 10px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: ${theme.colors.textMuted};
-  font-size: 11px;
-  font-weight: 760;
+  font-size: 12px;
+  font-weight: 780;
   line-height: 1;
   transition: all ${theme.motion.fast};
 
