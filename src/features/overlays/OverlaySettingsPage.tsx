@@ -1,6 +1,7 @@
 import { styled } from "@linaria/react";
 import { useEffect, useRef, useState } from "react";
 import { OverlayCardParticles } from "./OverlayCardParticles";
+import { AnimatedSwitchTrack } from "../../components/ui";
 import {
   closeOverlay,
   loadOverlaySettings,
@@ -323,8 +324,11 @@ const WindowSwitch = styled.label`
 
   input:checked + span {
     border-color: color-mix(in srgb, ${theme.colors.brand} 58%, transparent);
-    background: linear-gradient(135deg, ${theme.colors.brand}, ${theme.colors.brandDeep});
     box-shadow: 0 4px 12px color-mix(in srgb, ${theme.colors.brand} 28%, transparent);
+  }
+
+  input:checked + span::before {
+    opacity: 1;
   }
 
   input:checked + span::after {
@@ -355,28 +359,13 @@ const WindowSwitchHint = styled.span`
   line-height: 1.45;
 `;
 
-const WindowSwitchTrack = styled.span`
-  position: relative;
-  width: 35px;
-  height: 19px;
-  flex: 0 0 auto;
-  border: 1px solid color-mix(in srgb, ${theme.colors.textMuted} 28%, transparent);
-  border-radius: 4px;
-  background: color-mix(in srgb, ${theme.colors.textMuted} 13%, white);
-  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
-
-  &::after {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 13px;
-    height: 13px;
-    border-radius: 3px;
-    background: white;
-    box-shadow: 0 2px 5px rgba(13, 50, 88, 0.22);
-    content: "";
-    transition: transform 220ms cubic-bezier(0.2, 0.85, 0.25, 1.25);
-  }
+const WindowSwitchTrack = styled(AnimatedSwitchTrack)`
+  --switch-width: 35px;
+  --switch-height: 19px;
+  --switch-thumb-size: 13px;
+  --switch-thumb-offset: 2px;
+  --switch-thumb-radius: 3px;
+  --switch-radius: 4px;
 `;
 
 const TypeGrid = styled.div`

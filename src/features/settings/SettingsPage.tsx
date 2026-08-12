@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { CardDanmakuParticles } from "../../components/CardDanmakuParticles";
 import { Icon } from "../../components/Icon";
 import {
+  AnimatedSwitchTrack,
   FrostedPanel as SettingsPanel,
   FrostedPanelSurface as SettingsPanelSurface,
   PanelDescription,
@@ -289,8 +290,11 @@ const PreferenceSwitch = styled.label`
 
   input:checked + span {
     border-color: color-mix(in srgb, ${theme.colors.brand} 62%, transparent);
-    background: linear-gradient(135deg, ${theme.colors.brand}, ${theme.colors.brandDeep});
     box-shadow: 0 4px 13px color-mix(in srgb, ${theme.colors.brand} 24%, transparent);
+  }
+
+  input:checked + span::before {
+    opacity: 1;
   }
 
   input:checked + span::after {
@@ -329,31 +333,12 @@ const PreferenceDescription = styled.span`
   line-height: 1.5;
 `;
 
-const PreferenceTrack = styled.span`
-  position: relative;
-  width: 39px;
-  height: 21px;
-  flex: 0 0 auto;
-  border: 1px solid color-mix(in srgb, ${theme.colors.textMuted} 30%, transparent);
-  border-radius: 4px;
-  background: color-mix(in srgb, ${theme.colors.textMuted} 12%, ${theme.colors.surface});
-  transition:
-    border-color 180ms ease,
-    background 180ms ease,
-    box-shadow 180ms ease;
-
-  &::after {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 15px;
-    height: 15px;
-    border-radius: 2px;
-    background: ${theme.colors.surface};
-    box-shadow: 0 2px 5px color-mix(in srgb, ${theme.colors.textPrimary} 18%, transparent);
-    content: "";
-    transition: transform 260ms cubic-bezier(0.18, 0.9, 0.28, 1.32);
-  }
+const PreferenceTrack = styled(AnimatedSwitchTrack)`
+  --switch-width: 39px;
+  --switch-height: 21px;
+  --switch-thumb-size: 15px;
+  --switch-thumb-offset: 2px;
+  --switch-radius: 4px;
 `;
 const ThemeBody = styled.div`
   display: grid;

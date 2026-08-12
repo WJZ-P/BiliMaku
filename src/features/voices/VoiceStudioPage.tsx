@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { CardDanmakuParticles } from "../../components/CardDanmakuParticles";
 import { Icon } from "../../components/Icon";
 import {
+  AnimatedSwitchTrack as SwitchTrack,
   FrostedPanel,
   FrostedPanelSurface,
   PanelDescription,
@@ -445,7 +446,13 @@ const AutoSpeakSwitch = styled.label`
 
   input:checked + span {
     border-color: color-mix(in srgb, ${theme.colors.brand} 62%, transparent);
-    background: linear-gradient(135deg, ${theme.colors.brand}, ${theme.colors.brandDeep});
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 26%, transparent),
+      0 4px 13px color-mix(in srgb, ${theme.colors.brand} 24%, transparent);
+  }
+
+  input:checked + span::before {
+    opacity: 1;
   }
 
   input:checked + span::after {
@@ -481,32 +488,6 @@ const SwitchCopy = styled.span`
   }
 `;
 
-const SwitchTrack = styled.span`
-  position: relative;
-  display: block;
-  width: 40px;
-  height: 22px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 88%, transparent);
-  border-radius: 3px;
-  background: color-mix(in srgb, ${theme.colors.surfacePressed} 76%, transparent);
-  transition:
-    border-color ${theme.motion.fast},
-    background ${theme.motion.fast};
-
-  &::after {
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 14px;
-    height: 14px;
-    border-radius: 2px;
-    background: ${theme.colors.surface};
-    box-shadow: 0 2px 6px color-mix(in srgb, ${theme.colors.textPrimary} 20%, transparent);
-    content: "";
-    transform: translateX(0) rotate(0);
-    transition: transform 420ms cubic-bezier(0.2, 1.62, 0.35, 0.96);
-  }
-`;
 
 const SpeechEventSection = styled.section`
   display: grid;
