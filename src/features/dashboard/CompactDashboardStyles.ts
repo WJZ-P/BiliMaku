@@ -42,7 +42,7 @@ export const ChatHeader = styled.header`
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: stretch;
   gap: 12px;
-  padding: 7px 0 7px 7px;
+  padding: 7px;
   overflow: hidden;
   border-bottom: 1px solid ${theme.colors.border};
   background:
@@ -225,8 +225,7 @@ export const ConnectForm = styled.form`
   justify-self: end;
   overflow: hidden;
   border: 1px solid ${theme.colors.borderStrong};
-  border-right: 0;
-  border-radius: 4px 0 0 4px;
+  border-radius: 4px;
   background: color-mix(in srgb, ${theme.colors.surfaceMuted} 70%, transparent);
   box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 65%, transparent);
   transition:
@@ -243,7 +242,7 @@ export const ConnectForm = styled.form`
   }
 
   @media (max-width: 760px) {
-    width: calc(100% + 7px);
+    width: 100%;
     min-width: 0;
     grid-template-columns: minmax(0, 1fr) auto;
   }
