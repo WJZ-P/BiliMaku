@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// 当前统一配置文件结构版本。
-pub const CONFIG_SCHEMA_VERSION: u32 = 2;
+pub const CONFIG_SCHEMA_VERSION: u32 = 3;
 
 /// bilimaku 统一配置文件。
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -90,6 +90,18 @@ impl Default for LiveMessageSettings {
     }
 }
 
+/// 自首次使用 bilimaku 以来累计收到的直播事件统计。
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct LiveActivityTotals {
+    /// 累计收到的用户进场事件数。
+    pub entrances: u64,
+    /// 累计收到的普通弹幕数。
+    pub messages: u64,
+    /// 累计收到的礼物数量；同一事件中的礼物数量会累加。
+    pub gifts: u64,
+}
+
 /// 直播间连接与界面配置。
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -102,6 +114,8 @@ pub struct LiveStorageConfig {
     pub appearance: LiveAppearanceSettings,
     /// 消息分类与当前会话缓存上限。
     pub messages: LiveMessageSettings,
+    /// 自首次使用软件以来累计收到的事件数量。
+    pub activity_totals: LiveActivityTotals,
 }
 
 fn default_tts_event_types() -> Vec<String> {

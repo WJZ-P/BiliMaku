@@ -3,9 +3,11 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import {
   connectLiveRoom,
   disconnectLiveRoom,
+  getLiveActivityTotals,
   getLiveConnectionStatus,
   getLiveMessageSettings,
   getLiveOnlineRank,
+  incrementLiveActivityTotals,
   isDesktopRuntime,
   listenToLiveEvents,
   listenToLiveStatus,
@@ -31,6 +33,10 @@ import {
   type LiveMessageSettings,
 } from "../../types/liveMessages";
 import type { LiveOnlineRankSnapshot } from "../../types/liveRank";
+import {
+  EMPTY_LIVE_ACTIVITY_TOTALS,
+  type LiveActivityTotals,
+} from "../../types/liveActivity";
 import type { TtsSettings, TtsSpeechEventType } from "../../types/tts";
 
 const initialStatus: LiveStatusPayload = {
@@ -40,6 +46,26 @@ const initialStatus: LiveStatusPayload = {
   message: "输入直播间 ID 后即可建立本机长链",
   attempt: 0,
 };
+
+function addActivityTotals(left: LiveActivityTotals, right: LiveActivityTotals): LiveActivityTotals {
+  return {
+    entrances: left.entrances + right.entrances,
+    messages: left.messages + right.messages,
+    gifts: left.gifts + right.gifts,
+  };
+}
+
+/** 把统一直播事件转换成需要累计持久化的计数增量。 */
+function getActivityIncrement(event: LiveEvent): LiveActivityTotals {
+  const entrances = event.type === "interaction" && event.interactionKind === "enter" ? 1 : 0;
+  const messages = event.type === "message" ? 1 : 0;
+  const giftMatch = event.type === "gift" ? event.content.match(/×\s*(\d+)/u) : null;
+  const parsedGifts = giftMatch ? Number(giftMatch[1]) : 0;
+  const gifts = event.type === "gift"
+    ? Number.isSafeInteger(parsedGifts) && parsedGifts > 0 ? parsedGifts : 1
+    : 0;
+  return { entrances, messages, gifts };
+}
 
 /** 把实时事件转换为自动播报文本。 */
 function makeSpeechText(event: LiveEvent) {
@@ -61,6 +87,9 @@ export function useLiveRoomController() {
   const [status, setStatus] = useState<LiveStatusPayload>(initialStatus);
   const [room, setRoom] = useState<RoomConnectionInfo | null>(null);
   const [events, setEvents] = useState<LiveEvent[]>([]);
+  const [activityTotals, setActivityTotals] = useState<LiveActivityTotals>(() => ({
+    ...EMPTY_LIVE_ACTIVITY_TOTALS,
+  }));
   const [popularity, setPopularity] = useState(0);
   const [onlineRank, setOnlineRank] = useState<LiveOnlineRankSnapshot | null>(null);
   const [onlineRankError, setOnlineRankError] = useState("");
@@ -70,6 +99,13 @@ export function useLiveRoomController() {
   const [ttsSettings, setTtsSettings] = useState<TtsSettings>(() => loadTtsSettings());
   const messageSettingsRef = useRef(messageSettings);
   const messageSettingsSaveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const activitySaveChainRef = useRef<Promise<LiveActivityTotals>>(Promise.resolve({
+    ...EMPTY_LIVE_ACTIVITY_TOTALS,
+  }));
+  const countedEventIdsRef = useRef(new Set<string>());
+  const pendingActivityRef = useRef<LiveActivityTotals>({ ...EMPTY_LIVE_ACTIVITY_TOTALS });
+  const activityFlushTimerRef = useRef<number | null>(null);
+  const activityHydratedRef = useRef(false);
   const lastSpokenId = useRef<string | null>(null);
   const startupAutoConnectStarted = useRef(false);
   const desktopRuntime = useMemo(() => isDesktopRuntime(), []);
@@ -136,6 +172,23 @@ export function useLiveRoomController() {
 
   useEffect(() => {
     let active = true;
+    const load = getLiveActivityTotals().then((totals) => {
+      if (active && !activityHydratedRef.current) {
+        activityHydratedRef.current = true;
+        setActivityTotals((current) => addActivityTotals(totals, current));
+      }
+      return totals;
+    }).catch((error) => {
+      console.error("bilimaku live activity totals loading failed", error);
+      return { ...EMPTY_LIVE_ACTIVITY_TOTALS };
+    });
+    activitySaveChainRef.current = load;
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    let active = true;
     void getLiveMessageSettings().then((settings) => {
       if (active) applyMessageSettings(settings);
     }).catch((error) => {
@@ -150,9 +203,42 @@ export function useLiveRoomController() {
     let active = true;
     const unlisteners: UnlistenFn[] = [];
 
+    const flushPendingActivity = () => {
+      activityFlushTimerRef.current = null;
+      const increments = pendingActivityRef.current;
+      if (!increments.entrances && !increments.messages && !increments.gifts) return;
+      pendingActivityRef.current = { ...EMPTY_LIVE_ACTIVITY_TOTALS };
+      const save = activitySaveChainRef.current.then(() =>
+        incrementLiveActivityTotals(increments),
+      );
+      activitySaveChainRef.current = save.catch((error) => {
+        console.error("bilimaku live activity totals saving failed", error);
+        pendingActivityRef.current = addActivityTotals(pendingActivityRef.current, increments);
+        if (active && activityFlushTimerRef.current === null) {
+          activityFlushTimerRef.current = window.setTimeout(flushPendingActivity, 2_000);
+        }
+        return { ...EMPTY_LIVE_ACTIVITY_TOTALS };
+      });
+    };
+
+    const scheduleActivityFlush = () => {
+      if (activityFlushTimerRef.current !== null) return;
+      activityFlushTimerRef.current = window.setTimeout(flushPendingActivity, 500);
+    };
     Promise.all([
       listenToLiveEvents((event) => {
         if (!active) return;
+        if (countedEventIdsRef.current.has(event.id)) return;
+        countedEventIdsRef.current.add(event.id);
+        const increments = getActivityIncrement(event);
+        if (increments.entrances || increments.messages || increments.gifts) {
+          pendingActivityRef.current = addActivityTotals(
+            pendingActivityRef.current,
+            increments,
+          );
+          setActivityTotals((current) => addActivityTotals(current, increments));
+          scheduleActivityFlush();
+        }
         setEvents((current) => {
           if (current.some((item) => item.id === event.id)) return current;
           return [event, ...current].slice(
@@ -216,7 +302,12 @@ export function useLiveRoomController() {
     });
 
     return () => {
+      if (activityFlushTimerRef.current !== null) {
+        window.clearTimeout(activityFlushTimerRef.current);
+        activityFlushTimerRef.current = null;
+      }
       active = false;
+      flushPendingActivity();
       unlisteners.forEach((unsubscribe) => unsubscribe());
     };
   }, [connect]);
@@ -332,6 +423,7 @@ export function useLiveRoomController() {
     status,
     room,
     events,
+    activityTotals,
     popularity,
     onlineRank,
     onlineRankError,

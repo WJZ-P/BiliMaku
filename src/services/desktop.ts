@@ -17,6 +17,10 @@ import type { DesktopStatus } from "../types/app";
 import { DEFAULT_MESSAGE_BUBBLE_COLOR } from "../styles/theme";
 import type { LiveAppearanceSettings } from "../types/liveAppearance";
 import {
+  EMPTY_LIVE_ACTIVITY_TOTALS,
+  type LiveActivityTotals,
+} from "../types/liveActivity";
+import {
   DEFAULT_LIVE_MESSAGE_SETTINGS,
   type LiveMessageSettings,
 } from "../types/liveMessages";
@@ -60,6 +64,23 @@ export async function saveLiveAppearanceSettings(
   await invoke("update_live_appearance_settings", { settings });
 }
 
+/** 读取自首次使用 BiliMaku 以来累计收到的直播事件数量。 */
+export async function getLiveActivityTotals(): Promise<LiveActivityTotals> {
+  if (!isDesktopRuntime()) return { ...EMPTY_LIVE_ACTIVITY_TOTALS };
+  return invoke<LiveActivityTotals>("get_live_activity_totals");
+}
+
+/** 把刚收到的事件增量合并到 Rust 统一配置，并返回新的累计值。 */
+export async function incrementLiveActivityTotals(
+  increments: LiveActivityTotals,
+): Promise<LiveActivityTotals> {
+  if (!isDesktopRuntime()) return { ...EMPTY_LIVE_ACTIVITY_TOTALS };
+  return invoke<LiveActivityTotals>("increment_live_activity_totals", {
+    entrances: increments.entrances,
+    messages: increments.messages,
+    gifts: increments.gifts,
+  });
+}
 /** 读取 Rust 统一配置中的消息分类与缓存上限。 */
 export async function getLiveMessageSettings(): Promise<LiveMessageSettings> {
   if (!isDesktopRuntime()) return { ...DEFAULT_LIVE_MESSAGE_SETTINGS };

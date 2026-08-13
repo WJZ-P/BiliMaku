@@ -1,5 +1,5 @@
 import { styled } from "@linaria/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { CardDanmakuParticles } from "../../components/CardDanmakuParticles";
 import { Icon } from "../../components/Icon";
@@ -568,20 +568,6 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
   const ttsSettingsRef = useRef(loadTtsSettings());
   const appearanceReadyRef = useRef(false);
   const profile = accountStatus.profile;
-  const recordedActivity = useMemo(() => {
-    const totals = { entrances: 0, messages: 0, gifts: 0 };
-    for (const event of live.events) {
-      if (event.type === "interaction" && event.interactionKind === "enter") {
-        totals.entrances += 1;
-      } else if (event.type === "message") {
-        totals.messages += 1;
-      } else if (event.type === "gift") {
-        const quantity = Number(event.content.match(/×\s*(\d+)/u)?.[1] ?? "1");
-        totals.gifts += Number.isSafeInteger(quantity) && quantity > 0 ? quantity : 1;
-      }
-    }
-    return totals;
-  }, [live.events]);
 
   useEffect(() => {
     let active = true;
@@ -753,7 +739,7 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
             <PanelHeading>
               <PanelTitle>账号与记录</PanelTitle>
               <PanelDescription>
-                BiliMaku 当前会话已记录 {recordedActivity.entrances.toLocaleString("zh-CN")} 个入场、{recordedActivity.messages.toLocaleString("zh-CN")} 条弹幕和 {recordedActivity.gifts.toLocaleString("zh-CN")} 个礼物
+                BiliMaku 使用以来累计记录 {live.activityTotals.entrances.toLocaleString("zh-CN")} 个入场、{live.activityTotals.messages.toLocaleString("zh-CN")} 条弹幕和 {live.activityTotals.gifts.toLocaleString("zh-CN")} 个礼物
               </PanelDescription>
             </PanelHeading>
           </PanelHeader>
@@ -769,25 +755,25 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
                 <AccountUid>UID {profile?.uid || "--"}</AccountUid>
               </div>
             </AccountIdentity>
-            <AccountStats aria-label="BiliMaku 当前会话记录">
-              <AccountStat data-tooltip="当前消息缓存中的进场事件数">
+            <AccountStats aria-label="BiliMaku 使用以来累计记录">
+              <AccountStat data-tooltip="使用 BiliMaku 以来累计收到的进场事件数">
                 <Icon name="users" size={18} />
                 <AccountStatCopy>
-                  <AccountStatValue>{recordedActivity.entrances.toLocaleString("zh-CN")}</AccountStatValue>
+                  <AccountStatValue>{live.activityTotals.entrances.toLocaleString("zh-CN")}</AccountStatValue>
                   <AccountStatLabel>入场消息</AccountStatLabel>
                 </AccountStatCopy>
               </AccountStat>
-              <AccountStat data-tooltip="当前消息缓存中的普通弹幕数">
+              <AccountStat data-tooltip="使用 BiliMaku 以来累计收到的普通弹幕数">
                 <Icon name="message" size={18} />
                 <AccountStatCopy>
-                  <AccountStatValue>{recordedActivity.messages.toLocaleString("zh-CN")}</AccountStatValue>
+                  <AccountStatValue>{live.activityTotals.messages.toLocaleString("zh-CN")}</AccountStatValue>
                   <AccountStatLabel>弹幕记录</AccountStatLabel>
                 </AccountStatCopy>
               </AccountStat>
-              <AccountStat data-tooltip="当前消息缓存中的礼物总数">
+              <AccountStat data-tooltip="使用 BiliMaku 以来累计收到的礼物总数">
                 <Icon name="gift" size={18} />
                 <AccountStatCopy>
-                  <AccountStatValue>{recordedActivity.gifts.toLocaleString("zh-CN")}</AccountStatValue>
+                  <AccountStatValue>{live.activityTotals.gifts.toLocaleString("zh-CN")}</AccountStatValue>
                   <AccountStatLabel>收到礼物</AccountStatLabel>
                 </AccountStatCopy>
               </AccountStat>

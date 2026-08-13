@@ -1,7 +1,7 @@
 use crate::types::account::AccountProfile;
 use crate::types::config::{
-    AccountStorageConfig, AppConfig, LiveAppearanceSettings, LiveMessageSettings,
-    OverlayAutoOpenConfig, TtsUserSettings, CONFIG_SCHEMA_VERSION,
+    AccountStorageConfig, AppConfig, LiveActivityTotals, LiveAppearanceSettings,
+    LiveMessageSettings, OverlayAutoOpenConfig, TtsUserSettings, CONFIG_SCHEMA_VERSION,
     DEFAULT_MAX_STORED_LIVE_MESSAGES, MAX_STORED_LIVE_MESSAGES,
 };
 use crate::types::overlay::SidebarOverlayPlacement;
@@ -292,6 +292,26 @@ impl AppConfigStore {
         self.update(|config| config.live.appearance = settings)
     }
 
+    /// 读取自首次使用软件以来累计收到的直播事件数量。
+    pub fn live_activity_totals(&self) -> Result<LiveActivityTotals, String> {
+        Ok(self.snapshot()?.live.activity_totals)
+    }
+
+    /// 原子累加直播事件统计。使用饱和加法避免极端长期运行发生整数回绕。
+    pub fn increment_live_activity_totals(
+        &self,
+        entrances: u64,
+        messages: u64,
+        gifts: u64,
+    ) -> Result<LiveActivityTotals, String> {
+        self.update(|config| {
+            let totals = &mut config.live.activity_totals;
+            totals.entrances = totals.entrances.saturating_add(entrances);
+            totals.messages = totals.messages.saturating_add(messages);
+            totals.gifts = totals.gifts.saturating_add(gifts);
+        })?;
+        self.live_activity_totals()
+    }
     /// 读取聊天区消息展示与缓存偏好。
     pub fn live_message_settings(&self) -> Result<LiveMessageSettings, String> {
         Ok(normalize_live_message_settings(
@@ -513,6 +533,24 @@ pub fn update_live_appearance_settings(
     store.set_live_appearance_settings(settings)
 }
 
+/// 读取自首次使用软件以来累计收到的直播事件数量。
+#[tauri::command]
+pub fn get_live_activity_totals(
+    store: State<'_, AppConfigStore>,
+) -> Result<LiveActivityTotals, String> {
+    store.live_activity_totals()
+}
+
+/// 累加新收到的直播事件数量并持久化到统一配置。
+#[tauri::command]
+pub fn increment_live_activity_totals(
+    store: State<'_, AppConfigStore>,
+    entrances: u64,
+    messages: u64,
+    gifts: u64,
+) -> Result<LiveActivityTotals, String> {
+    store.increment_live_activity_totals(entrances, messages, gifts)
+}
 /// 读取聊天区消息分类与缓存上限。
 #[tauri::command]
 pub fn get_live_message_settings(
@@ -696,6 +734,62 @@ mod tests {
         let _ = fs::remove_dir_all(directory);
     }
 
+    #[test]
+    fn persists_cumulative_live_activity_totals() {
+        let directory = test_directory("live-activity-totals");
+        let path = directory.join(CONFIG_FILE_NAME);
+        let store = AppConfigStore::default();
+        store
+            .initialize_from_path(path.clone())
+            .expect("initialize store");
+
+        assert_eq!(
+            store.live_activity_totals().expect("read empty totals"),
+            LiveActivityTotals::default()
+        );
+        assert_eq!(
+            store
+                .increment_live_activity_totals(2, 3, 5)
+                .expect("increment totals"),
+            LiveActivityTotals {
+                entrances: 2,
+                messages: 3,
+                gifts: 5,
+            }
+        );
+        assert_eq!(
+            store
+                .increment_live_activity_totals(1, 4, 2)
+                .expect("increment totals again"),
+            LiveActivityTotals {
+                entrances: 3,
+                messages: 7,
+                gifts: 7,
+            }
+        );
+
+        let reloaded = AppConfigStore::default();
+        reloaded
+            .initialize_from_path(path.clone())
+            .expect("reload store");
+        assert_eq!(
+            reloaded
+                .live_activity_totals()
+                .expect("read persisted totals"),
+            LiveActivityTotals {
+                entrances: 3,
+                messages: 7,
+                gifts: 7,
+            }
+        );
+        let persisted: Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("read persisted config"))
+                .expect("parse persisted config");
+        assert_eq!(persisted["live"]["activityTotals"]["entrances"], 3);
+        assert_eq!(persisted["live"]["activityTotals"]["messages"], 7);
+        assert_eq!(persisted["live"]["activityTotals"]["gifts"], 7);
+        let _ = fs::remove_dir_all(directory);
+    }
     #[test]
     fn persists_and_validates_live_message_settings() {
         let directory = test_directory("live-message-settings");

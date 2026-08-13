@@ -105,6 +105,8 @@ pub fn run() {
             store::get_config_file_path,
             store::get_live_appearance_settings,
             store::update_live_appearance_settings,
+            store::get_live_activity_totals,
+            store::increment_live_activity_totals,
             store::get_live_message_settings,
             store::update_live_message_settings,
             store::get_tts_settings,
