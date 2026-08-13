@@ -10,7 +10,6 @@ import {
   PanelDescription,
   PanelHeader,
   PanelHeading,
-  PanelMeta,
   PanelTitle,
 } from "../../components/ui";
 import {
@@ -757,7 +756,6 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
                 BiliMaku 当前会话已记录 {recordedActivity.entrances.toLocaleString("zh-CN")} 个入场、{recordedActivity.messages.toLocaleString("zh-CN")} 条弹幕和 {recordedActivity.gifts.toLocaleString("zh-CN")} 个礼物
               </PanelDescription>
             </PanelHeading>
-            <PanelMeta>{accountStatus.persisted ? "登录态已持久化" : "当前会话"}</PanelMeta>
           </PanelHeader>
           <AccountBody>
             <AccountIdentity>
@@ -811,9 +809,6 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
                 <PanelTitle>启动与自动化</PanelTitle>
                 <PanelDescription>统一管理冷启动恢复与自动播报行为</PanelDescription>
               </PanelHeading>
-              <PanelMeta>
-                {!startupReady ? "正在读取" : startupBusyKeys.size > 0 ? "正在保存" : "变更自动保存"}
-              </PanelMeta>
             </PanelHeader>
             <AutomationBody>
               <PreferenceGrid>
@@ -905,7 +900,6 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
               <PanelTitle>界面与消息</PanelTitle>
               <PanelDescription>主题外观与聊天缓存</PanelDescription>
             </PanelHeading>
-            <PanelMeta>浅蓝默认</PanelMeta>
           </PanelHeader>
           <ThemeBody>
             <ThemeOption>

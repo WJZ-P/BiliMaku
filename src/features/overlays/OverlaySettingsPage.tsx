@@ -749,7 +749,6 @@ export function OverlaySettingsPage() {
               <ToggleGrid>
                 <Toggle>显示用户名<input type="checkbox" checked={settings.danmaku.showUsername} onChange={(event) => updateDanmaku({ showUsername: event.target.checked })} /></Toggle>
                 <Toggle>显示头像<input type="checkbox" checked={settings.danmaku.showAvatar} onChange={(event) => updateDanmaku({ showAvatar: event.target.checked })} /></Toggle>
-                <Toggle>鼠标穿透<input type="checkbox" checked={settings.danmaku.clickThrough} onChange={(event) => updateDanmaku({ clickThrough: event.target.checked })} /></Toggle>
               </ToggleGrid>
             </Section>
 
@@ -844,7 +843,6 @@ export function OverlaySettingsPage() {
               </WindowSwitchGrid>
               <ToggleGrid>
                 <Toggle>显示头像<input type="checkbox" checked={settings.sidebar.showAvatar} onChange={(event) => updateSidebar({ showAvatar: event.target.checked })} /></Toggle>
-                <Toggle>鼠标穿透<input type="checkbox" checked={settings.sidebar.clickThrough} onChange={(event) => updateSidebar({ clickThrough: event.target.checked })} /></Toggle>
               </ToggleGrid>
               <Fields>
                 <OverlaySelectField<SidebarVerticalAlignment>
