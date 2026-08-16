@@ -7,6 +7,8 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager, State};
 
+static PROCESS_PANIC_HOOK_INSTALLED: OnceLock<()> = OnceLock::new();
+
 /// Rust 进程级启动性能记录器。
 pub struct StartupPerformanceState {
     started_at: Instant,
@@ -31,6 +33,45 @@ fn unix_millis() -> u128 {
         .duration_since(UNIX_EPOCH)
         .map(|value| value.as_millis())
         .unwrap_or_default()
+}
+
+fn append_emergency_record(path: &PathBuf, value: Value) {
+    let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) else {
+        return;
+    };
+    if serde_json::to_writer(&mut file, &value).is_ok() {
+        let _ = file.write_all(b"\n");
+        let _ = file.flush();
+    }
+}
+
+/// 把 Rust panic 写入本次运行日志。原有 panic hook 仍会继续输出到终端。
+pub fn install_process_panic_hook(log_path: PathBuf) {
+    PROCESS_PANIC_HOOK_INSTALLED.get_or_init(|| {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            let message = info
+                .payload()
+                .downcast_ref::<&str>()
+                .map(|value| (*value).to_string())
+                .or_else(|| info.payload().downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "未知 panic payload".to_string());
+            let location = info
+                .location()
+                .map(|value| format!("{}:{}:{}", value.file(), value.line(), value.column()))
+                .unwrap_or_else(|| "unknown".to_string());
+            append_emergency_record(
+                &log_path,
+                json!({
+                    "recordedAtUnixMs": unix_millis(),
+                    "source": "rust",
+                    "stage": "process-panic",
+                    "detail": format!("location={location}, message={message}"),
+                }),
+            );
+            previous(info);
+        }));
+    });
 }
 
 impl StartupPerformanceState {

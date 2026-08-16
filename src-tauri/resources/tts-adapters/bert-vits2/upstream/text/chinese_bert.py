@@ -1,7 +1,7 @@
 import os
 import sys
 import torch
-from transformers import AutoTokenizer, AutoModelForMaskedLM
+from transformers import AutoModel, AutoTokenizer
 from utils import EN_US
 
 device = torch.device(
@@ -32,11 +32,14 @@ else:
 
 
 tokenizer = AutoTokenizer.from_pretrained(model_dir)
-model = AutoModelForMaskedLM.from_pretrained(model_dir).to(device)
+model = AutoModel.from_pretrained(model_dir).to(device)
+model.eval()
 
 
 def get_bert_feature(text, word2ph):
-    with torch.no_grad():
+    # 这里只读取隐藏层特征。使用基础 AutoModel 可避免 Masked-LM 词表预测头
+    # 在每次合成时进行一轮没有用途的大矩阵计算。
+    with torch.inference_mode():
         inputs = tokenizer(text, return_tensors="pt")
         for i in inputs:
             inputs[i] = inputs[i].to(device)

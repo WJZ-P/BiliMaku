@@ -40,9 +40,32 @@ import type {
 } from "../../types/tts";
 
 const Page = styled.div`
+  /*
+   * 语音角色页字号基线：对齐直播数据面板。
+   * 后续只需要调整这里的五个变量，搜索框、模型卡片和环境信息会同步更新。
+   */
+  --voice-font-heading: 16px;
+  --voice-font-control: 14px;
+  --voice-font-body: 13px;
+  --voice-font-meta: 12px;
+  --voice-font-code: 11px;
+
   display: grid;
   gap: 12px;
   padding: 12px 20px 24px;
+`;
+
+const VoicePanelTitle = styled(PanelTitle)`
+  font-size: var(--voice-font-heading);
+`;
+
+const VoicePanelDescription = styled(PanelDescription)`
+  font-size: var(--voice-font-body);
+  line-height: 1.5;
+`;
+
+const VoicePanelMeta = styled(PanelMeta)`
+  font-size: var(--voice-font-body);
 `;
 
 const Grid = styled.div`
@@ -54,6 +77,13 @@ const Grid = styled.div`
   @media (max-width: 1080px) {
     grid-template-columns: minmax(0, 1fr);
   }
+`;
+
+const VoiceSettingsColumn = styled.div`
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 12px;
 `;
 
 const PreviewPanel = styled(FrostedPanel)`
@@ -78,7 +108,7 @@ const PrimaryButton = styled.button`
   border-radius: 5px;
   background: linear-gradient(135deg, ${theme.colors.brand}, ${theme.colors.brandDeep});
   color: ${theme.colors.textOnBrand};
-  font-size: 10px;
+  font-size: var(--voice-font-control);
   font-weight: 800;
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 38%, transparent),
@@ -117,7 +147,7 @@ const SecondaryButton = styled.button`
   border-radius: 5px;
   background: color-mix(in srgb, ${theme.colors.surface} 42%, transparent);
   color: ${theme.colors.textSecondary};
-  font-size: 10px;
+  font-size: var(--voice-font-control);
   font-weight: 760;
   -webkit-backdrop-filter: blur(6px) saturate(1.2);
   backdrop-filter: blur(6px) saturate(1.2);
@@ -151,8 +181,8 @@ const EngineBody = styled.div`
 `;
 
 const EngineItem = styled.div`
-  display: grid;
-  gap: 5px;
+  position: relative;
+  min-width: 0;
 `;
 
 const EngineCard = styled.button`
@@ -165,19 +195,21 @@ const EngineCard = styled.button`
   gap: 11px;
   padding: 11px 12px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 68%, transparent);
-  border-radius: 4px;
+
+  &[data-removable="true"] {
+    grid-template-columns: 30px minmax(0, 1fr);
+    padding-right: 82px;
+  }
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.controlRadius};
   background:
-    linear-gradient(
-      126deg,
-      color-mix(in srgb, ${theme.colors.highlight} 16%, transparent),
-      transparent 48%
-    ),
-    color-mix(in srgb, ${theme.colors.surface} 36%, transparent);
+    linear-gradient(126deg, color-mix(in srgb, ${theme.colors.highlight} 36%, transparent), transparent 50%),
+    color-mix(in srgb, ${theme.colors.prismSurface} 84%, transparent);
   color: inherit;
   text-align: left;
-  -webkit-backdrop-filter: blur(6px) saturate(1.24);
-  backdrop-filter: blur(6px) saturate(1.24);
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
   transition:
     border-color ${theme.motion.fast},
     background ${theme.motion.fast},
@@ -232,7 +264,7 @@ const EngineName = styled.span`
   display: block;
   overflow: hidden;
   color: ${theme.colors.textPrimary};
-  font-size: 11px;
+  font-size: var(--voice-font-heading);
   font-weight: 820;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -243,7 +275,7 @@ const EngineDescription = styled.span`
   overflow: hidden;
   margin-top: 3px;
   color: ${theme.colors.textMuted};
-  font-size: 9px;
+  font-size: var(--voice-font-body);
   line-height: 1.45;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -252,40 +284,51 @@ const EngineDescription = styled.span`
 const RuntimeText = styled.span`
   color: ${theme.colors.textMuted};
   font-family: ${theme.typography.mono};
-  font-size: 8px;
+  font-size: var(--voice-font-meta);
   font-weight: 720;
   letter-spacing: 0.03em;
 `;
 
-const ModelMeta = styled.div`
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0;
-  padding: 1px 5px 3px 42px;
-  color: ${theme.colors.textMuted};
-  font-size: 8px;
 
-  & > span + span::before {
-    margin: 0 7px;
-    color: ${theme.colors.borderStrong};
-    content: "|";
-  }
-`;
 
 const RemoveButton = styled.button`
-  margin-left: auto;
-  padding: 2px 0 2px 8px;
-  border: 0;
-  background: transparent;
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  right: 12px;
+  display: inline-flex;
+  min-width: 52px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.danger} 28%, ${theme.colors.borderStrong});
+  border-radius: 4px;
+  background: color-mix(in srgb, ${theme.colors.dangerSoft} 58%, transparent);
   color: ${theme.colors.danger};
-  font-size: 8px;
-  font-weight: 750;
+  font-size: var(--voice-font-body);
+  font-weight: 780;
+  transform: translateY(-50%);
+  transition:
+    border-color ${theme.motion.fast},
+    background ${theme.motion.fast},
+    box-shadow ${theme.motion.fast},
+    transform ${theme.motion.spring};
 
   &:hover {
-    text-decoration: underline;
-    text-underline-offset: 3px;
+    border-color: color-mix(in srgb, ${theme.colors.danger} 58%, ${theme.colors.borderStrong});
+    background: color-mix(in srgb, ${theme.colors.dangerSoft} 86%, transparent);
+    box-shadow: 0 5px 14px color-mix(in srgb, ${theme.colors.danger} 14%, transparent);
+    transform: translateY(-50%) scale(1.04);
+  }
+
+  &:active {
+    transform: translateY(-50%) scale(0.96);
+  }
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in srgb, ${theme.colors.danger} 24%, transparent);
+    outline-offset: 2px;
   }
 `;
 
@@ -295,7 +338,7 @@ const EmptyModels = styled.div`
   border-radius: 4px;
   background: color-mix(in srgb, ${theme.colors.surfaceMuted} 24%, transparent);
   color: ${theme.colors.textMuted};
-  font-size: 9px;
+  font-size: var(--voice-font-body);
   line-height: 1.7;
   text-align: center;
 `;
@@ -321,14 +364,14 @@ const FieldTop = styled.span`
   align-items: center;
   justify-content: space-between;
   color: ${theme.colors.textSecondary};
-  font-size: 10px;
+  font-size: var(--voice-font-control);
   font-weight: 760;
 `;
 
 const FieldValue = styled.span`
   color: ${theme.colors.brandDeep};
   font-family: ${theme.typography.mono};
-  font-size: 10px;
+  font-size: var(--voice-font-control);
   font-weight: 820;
 `;
 
@@ -336,14 +379,15 @@ const Select = styled.select`
   width: 100%;
   height: 38px;
   padding: 0 11px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 78%, transparent);
-  border-radius: 4px;
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.controlRadius};
   outline: 0;
-  background: color-mix(in srgb, ${theme.colors.surface} 58%, transparent);
+  background: color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 76%, transparent);
   color: ${theme.colors.textPrimary};
-  font-size: 10px;
-  -webkit-backdrop-filter: blur(6px) saturate(1.2);
-  backdrop-filter: blur(6px) saturate(1.2);
+  font-size: var(--voice-font-control);
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
 
   &:focus {
     border-color: ${theme.colors.brand};
@@ -351,13 +395,57 @@ const Select = styled.select`
   }
 `;
 
-const ParameterGrid = styled.div`
+const ParameterGrid = styled.section`
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  overflow: hidden;
+  padding: 14px 16px;
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.controlRadius};
+  background:
+    linear-gradient(126deg, color-mix(in srgb, ${theme.colors.highlight} 32%, transparent), transparent 52%),
+    color-mix(in srgb, ${theme.colors.prismSurface} 78%, transparent);
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+
+  &[data-columns="3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  & > * {
+    min-width: 0;
+    padding: 2px 16px;
+  }
+
+  & > :first-child { padding-left: 0; }
+  & > :last-child { padding-right: 0; }
+
+  & > * + * {
+    border-left: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 58%, transparent);
+  }
 
   @media (max-width: 540px) {
     grid-template-columns: minmax(0, 1fr);
+    padding: 13px 14px;
+
+    &[data-columns="3"] {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    & > * {
+      padding: 11px 0;
+    }
+
+    & > :first-child { padding-top: 0; }
+    & > :last-child { padding-bottom: 0; }
+
+    & > * + * {
+      border-top: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 58%, transparent);
+      border-left: 0;
+    }
   }
 `;
 
@@ -483,44 +571,20 @@ const SwitchCopy = styled.span`
 
   strong {
     color: ${theme.colors.textPrimary};
-    font-size: 10px;
+    font-size: var(--voice-font-control);
     font-weight: 820;
   }
 
   small {
     color: ${theme.colors.textMuted};
-    font-size: 8px;
+    font-size: var(--voice-font-meta);
     line-height: 1.45;
   }
 `;
 
 
-const SpeechEventSection = styled.section`
-  display: grid;
-  gap: 9px;
-  padding-top: 13px;
-  border-top: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 64%, transparent);
-`;
-
-const SpeechEventHeading = styled.div`
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-`;
-
-const SpeechEventTitle = styled.div`
-  color: ${theme.colors.textPrimary};
-  font-size: 10px;
-  font-weight: 820;
-`;
-
-const SpeechEventHint = styled.div`
-  max-width: 270px;
-  color: ${theme.colors.textMuted};
-  font-size: 8px;
-  line-height: 1.5;
-  text-align: right;
+const SpeechEventBody = styled.div`
+  padding: 14px 20px 18px;
 `;
 
 const SpeechEventGrid = styled.div`
@@ -540,7 +604,8 @@ const SpeechEventOption = styled.label`
   border-radius: 4px;
   background: color-mix(in srgb, ${theme.colors.surface} 32%, transparent);
   color: ${theme.colors.textSecondary};
-  font-size: 8px;
+  cursor: pointer;
+  font-size: var(--voice-font-meta);
   line-height: 1.42;
   -webkit-backdrop-filter: blur(5px) saturate(1.18);
   backdrop-filter: blur(5px) saturate(1.18);
@@ -562,12 +627,13 @@ const SpeechEventOption = styled.label`
   input {
     margin: 1px 0 0;
     accent-color: ${theme.colors.brand};
+    cursor: pointer;
   }
 
   strong {
     display: block;
     margin-bottom: 1px;
-    font-size: 9px;
+    font-size: var(--voice-font-control);
   }
 `;
 
@@ -591,21 +657,21 @@ const EnvironmentHeader = styled.div`
 
 const EnvironmentTitle = styled.div`
   color: ${theme.colors.textPrimary};
-  font-size: 10px;
+  font-size: var(--voice-font-heading);
   font-weight: 820;
 `;
 
 const EnvironmentSummary = styled.div`
   margin-top: 3px;
   color: ${theme.colors.textMuted};
-  font-size: 8px;
+  font-size: var(--voice-font-meta);
   line-height: 1.55;
 `;
 
 const EnvironmentState = styled.span`
   flex: 0 0 auto;
   color: ${theme.colors.warning};
-  font-size: 9px;
+  font-size: var(--voice-font-body);
   font-weight: 800;
 
   &[data-ready="true"] {
@@ -639,7 +705,7 @@ const CheckDot = styled.span`
 
 const CheckName = styled.div`
   color: ${theme.colors.textSecondary};
-  font-size: 8px;
+  font-size: var(--voice-font-meta);
   font-weight: 800;
 `;
 
@@ -647,14 +713,14 @@ const CheckDetail = styled.div`
   overflow-wrap: anywhere;
   margin-top: 2px;
   color: ${theme.colors.textMuted};
-  font-size: 8px;
+  font-size: var(--voice-font-meta);
   line-height: 1.5;
 `;
 
 const CheckGuide = styled.div`
   margin-top: 3px;
   color: ${theme.colors.warning};
-  font-size: 8px;
+  font-size: var(--voice-font-meta);
   line-height: 1.5;
 
   a {
@@ -676,7 +742,7 @@ const SetupCommand = styled.button`
   border-radius: 3px;
   background: color-mix(in srgb, ${theme.colors.surface} 46%, transparent);
   color: ${theme.colors.textSecondary};
-  font: 7px/1.45 ${theme.typography.mono};
+  font: var(--voice-font-code)/1.5 ${theme.typography.mono};
   text-align: left;
   text-overflow: ellipsis;
 
@@ -709,7 +775,7 @@ const TextArea = styled.textarea`
   outline: 0;
   background: color-mix(in srgb, ${theme.colors.surface} 54%, transparent);
   color: ${theme.colors.textPrimary};
-  font: 10px/1.65 ${theme.typography.family};
+  font: var(--voice-font-control)/1.65 ${theme.typography.family};
   -webkit-backdrop-filter: blur(7px) saturate(1.2);
   backdrop-filter: blur(7px) saturate(1.2);
 
@@ -733,7 +799,7 @@ const Notice = styled.div`
   border-radius: 3px;
   background: color-mix(in srgb, ${theme.colors.dangerSoft} 58%, transparent);
   color: ${theme.colors.danger};
-  font-size: 9px;
+  font-size: var(--voice-font-body);
   line-height: 1.55;
 
   &[data-success="true"] {
@@ -750,13 +816,6 @@ function rangeProgress(value: number, min: number, max: number): CSSProperties {
 
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
-}
-
-function runtimeLabel(model: InstalledTtsModel) {
-  if (model.runtime.type === "builtin") {
-    return model.runtime.adapter.toUpperCase();
-  }
-  return model.runtime.type.toUpperCase();
 }
 
 function checkStateLabel(state: TtsEnvironmentState) {
@@ -1010,11 +1069,11 @@ export function VoiceStudioPage() {
             <CardDanmakuParticles seed={0x564f4943} />
             <PanelHeader>
               <PanelHeading>
-                <PanelTitle>播报角色</PanelTitle>
-                <PanelDescription>选择系统音色或已导入的本地语音模型</PanelDescription>
+                <VoicePanelTitle>播报角色</VoicePanelTitle>
+                <VoicePanelDescription>选择系统音色或已导入的本地语音模型</VoicePanelDescription>
               </PanelHeading>
               <HeaderAside>
-                <PanelMeta>{models.length} 个自定义模型</PanelMeta>
+                <VoicePanelMeta>{models.length} 个自定义模型</VoicePanelMeta>
                 <SecondaryButton type="button" onClick={() => void refreshModels()}>
                   <Icon name="radio" size={13} />
                   刷新
@@ -1045,6 +1104,7 @@ export function VoiceStudioPage() {
                 <EngineItem key={model.id}>
                   <EngineCard
                     type="button"
+                    data-removable="true"
                     data-active={settings.provider === "custom" && settings.modelId === model.id}
                     onClick={() =>
                       updateSettings({
@@ -1059,16 +1119,14 @@ export function VoiceStudioPage() {
                       <EngineName>{model.name}</EngineName>
                       <EngineDescription>{model.description || model.modelDir}</EngineDescription>
                     </EngineCopy>
-                    <RuntimeText>{runtimeLabel(model)}</RuntimeText>
                   </EngineCard>
-                  <ModelMeta>
-                    <span>{model.version || "未标版本"}</span>
-                    <span>{model.author || "本地模型"}</span>
-                    <span>{model.voices.length} 个音色</span>
-                    <RemoveButton type="button" onClick={() => void removeModel(model.id)}>
-                      移除登记
-                    </RemoveButton>
-                  </ModelMeta>
+                  <RemoveButton
+                    type="button"
+                    aria-label={`移除模型 ${model.name}`}
+                    onClick={() => void removeModel(model.id)}
+                  >
+                    移除
+                  </RemoveButton>
                 </EngineItem>
               ))}
 
@@ -1081,186 +1139,17 @@ export function VoiceStudioPage() {
           </FrostedPanelSurface>
         </FrostedPanel>
 
-        <FrostedPanel>
-          <FrostedPanelSurface>
-            <CardDanmakuParticles seed={0x54545350} />
-            <PanelHeader>
-              <PanelHeading>
-                <PanelTitle>音色与播报</PanelTitle>
-                <PanelDescription>调整当前角色的音色、合成参数与自动播报范围</PanelDescription>
-              </PanelHeading>
-              <PanelMeta>{settings.provider === "custom" ? "本地模型" : "系统语音"}</PanelMeta>
-            </PanelHeader>
-            <SettingsBody>
-              {settings.provider === "system" ? (
-                <Field>
-                  <FieldTop>系统音色</FieldTop>
-                  <Select
-                    value={settings.systemVoiceUri}
-                    onChange={(event) => updateSettings({ systemVoiceUri: event.target.value })}
-                  >
-                    <option value="">自动选择中文音色</option>
-                    {systemVoices.map((voice) => (
-                      <option key={voice.voiceURI} value={voice.voiceURI}>
-                        {voice.name} · {voice.lang}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              ) : (
-                <VoiceField>
-                  <FieldTop>模型音色</FieldTop>
-                  <VoiceSearchSelect
-                    voices={selectedModel?.voices ?? EMPTY_TTS_VOICES}
-                    value={settings.voiceId}
-                    disabled={!selectedModel || selectedModel.voices.length === 0}
-                    onChange={(voiceId) => updateSettings({ voiceId })}
-                  />
-                </VoiceField>
-              )}
-
-              {settings.provider === "custom" && selectedModel ? (
-                <EnvironmentCard>
-                  <EnvironmentHeader>
-                    <div>
-                      <EnvironmentTitle>运行环境</EnvironmentTitle>
-                      <EnvironmentSummary>
-                        {checkingEnvironment
-                          ? "正在检查 Python、推理依赖、BERT 与计算设备…"
-                          : preparingModel
-                            ? "环境检查通过，正在把 BERT 与音色模型预热到显存…"
-                            : selectedPreloadStatus?.phase === "error"
-                              ? selectedPreloadStatus.message
-                              : preparation?.ready
-                                ? `${preparation.gpu || preparation.device} 已驻留显存 · ${preparation.gpuMemoryMb} MiB · 预热 ${(preparation.loadMs / 1000).toFixed(1)} 秒`
-                                : environment?.cached
-                                  ? `${environment.summary} · 已复用上次检查结果`
-                                  : environment?.summary || "等待环境检查"}
-                      </EnvironmentSummary>
-                    </div>
-                    <EnvironmentState
-                      data-ready={environment?.ready === true && selectedPreloadStatus?.phase !== "error"}
-                    >
-                      {checkingEnvironment
-                        ? "检查中"
-                        : preparingModel
-                          ? "预热中"
-                          : selectedPreloadStatus?.phase === "error"
-                            ? "异常"
-                            : preparation?.ready
-                              ? "GPU 就绪"
-                              : environment?.ready
-                                ? "已就绪"
-                                : "待配置"}
-                    </EnvironmentState>
-                  </EnvironmentHeader>
-
-                  {environment ? (
-                    <EnvironmentChecks>
-                      {environment.checks.map((check) => (
-                        <EnvironmentCheckRow key={check.id}>
-                          <CheckDot data-state={check.state} />
-                          <div>
-                            <CheckName>{check.label} · {checkStateLabel(check.state)}</CheckName>
-                            <CheckDetail>{check.detail}</CheckDetail>
-                            {check.guide || check.downloadUrl ? (
-                              <CheckGuide>
-                                {check.guide}
-                                {check.downloadUrl ? (
-                                  <a href={check.downloadUrl} target="_blank" rel="noreferrer">
-                                    查看下载页
-                                  </a>
-                                ) : null}
-                              </CheckGuide>
-                            ) : null}
-                          </div>
-                        </EnvironmentCheckRow>
-                      ))}
-                    </EnvironmentChecks>
-                  ) : null}
-
-                  {environment?.setupCommands.length ? (
-                    <SetupCommands>
-                      {environment.setupCommands.map((command) => (
-                        <SetupCommand
-                          key={command}
-                          type="button"
-                          data-tooltip="点击复制命令"
-                          onClick={() => void navigator.clipboard.writeText(command)}
-                        >
-                          {command}
-                        </SetupCommand>
-                      ))}
-                    </SetupCommands>
-                  ) : null}
-
-                  <EnvironmentActions>
-                    <SecondaryButton
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void registerChineseBert()}
-                    >
-                      选择 Chinese BERT
-                    </SecondaryButton>
-                    <SecondaryButton
-                      type="button"
-                      disabled={checkingEnvironment}
-                      onClick={() => void refreshEnvironment(selectedModel.id)}
-                    >
-                      {checkingEnvironment ? "检查中…" : "重新检查环境"}
-                    </SecondaryButton>
-                  </EnvironmentActions>
-                </EnvironmentCard>
-              ) : null}
-
-              <ParameterGrid>
-                <Field>
-                  <FieldTop>语速 <FieldValue>{settings.rate.toFixed(2)}×</FieldValue></FieldTop>
-                  <Range
-                    type="range" min="0.5" max="2" step="0.05" value={settings.rate}
-                    style={rangeProgress(settings.rate, 0.5, 2)}
-                    onChange={(event) => updateSettings({ rate: Number(event.target.value) })}
-                  />
-                </Field>
-                <Field>
-                  <FieldTop>音量 <FieldValue>{Math.round(settings.volume * 100)}%</FieldValue></FieldTop>
-                  <Range
-                    type="range" min="0" max="1" step="0.05" value={settings.volume}
-                    style={rangeProgress(settings.volume, 0, 1)}
-                    onChange={(event) => updateSettings({ volume: Number(event.target.value) })}
-                  />
-                </Field>
-                {settings.provider === "system" ? (
-                  <Field>
-                    <FieldTop>音调 <FieldValue>{settings.pitch.toFixed(2)}</FieldValue></FieldTop>
-                    <Range
-                      type="range" min="0.5" max="2" step="0.05" value={settings.pitch}
-                      style={rangeProgress(settings.pitch, 0.5, 2)}
-                      onChange={(event) => updateSettings({ pitch: Number(event.target.value) })}
-                    />
-                  </Field>
-                ) : null}
-              </ParameterGrid>
-
-              <AutoSpeakSwitch>
-                <SwitchIcon><Icon name="volume" size={17} /></SwitchIcon>
-                <SwitchCopy>
-                  <strong>自动语音播报</strong>
-                  <small>直播事件进入当前语音队列；关闭后仅保留手动试听</small>
-                </SwitchCopy>
-                <input
-                  type="checkbox"
-                  checked={settings.autoSpeak}
-                  onChange={(event) => updateSettings({ autoSpeak: event.target.checked })}
-                />
-                <SwitchTrack aria-hidden="true" />
-              </AutoSpeakSwitch>
-
-              <SpeechEventSection>
-                <SpeechEventHeading>
-                  <SpeechEventTitle>播报事件</SpeechEventTitle>
-                  <SpeechEventHint>弹幕、进场与关注均可独立控制</SpeechEventHint>
-                </SpeechEventHeading>
+        <VoiceSettingsColumn>
+          <FrostedPanel>
+            <FrostedPanelSurface>
+              <CardDanmakuParticles seed={0x45564e54} />
+              <PanelHeader>
+                <PanelHeading>
+                  <VoicePanelTitle>播报事件</VoicePanelTitle>
+                  <VoicePanelDescription>弹幕、进场与关注均可独立控制</VoicePanelDescription>
+                </PanelHeading>
+              </PanelHeader>
+              <SpeechEventBody>
                 <SpeechEventGrid>
                   {speechEventOptions.map((option) => {
                     const active = settings.enabledEventTypes.includes(option.value);
@@ -1279,20 +1168,205 @@ export function VoiceStudioPage() {
                     );
                   })}
                 </SpeechEventGrid>
-              </SpeechEventSection>
-            </SettingsBody>
-          </FrostedPanelSurface>
-        </FrostedPanel>
+              </SpeechEventBody>
+            </FrostedPanelSurface>
+          </FrostedPanel>
+
+          <FrostedPanel>
+            <FrostedPanelSurface>
+              <CardDanmakuParticles seed={0x54545350} />
+              <PanelHeader>
+                <PanelHeading>
+                  <VoicePanelTitle>音色与播报</VoicePanelTitle>
+                  <VoicePanelDescription>调整当前角色的音色、合成参数与自动播报范围</VoicePanelDescription>
+                </PanelHeading>
+                <VoicePanelMeta>{settings.provider === "custom" ? "本地模型" : "系统语音"}</VoicePanelMeta>
+              </PanelHeader>
+              <SettingsBody>
+                {settings.provider === "system" ? (
+                  <Field>
+                    <FieldTop>系统音色</FieldTop>
+                    <Select
+                      value={settings.systemVoiceUri}
+                      onChange={(event) => updateSettings({ systemVoiceUri: event.target.value })}
+                    >
+                      <option value="">自动选择中文音色</option>
+                      {systemVoices.map((voice) => (
+                        <option key={voice.voiceURI} value={voice.voiceURI}>
+                          {voice.name} · {voice.lang}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : (
+                  <VoiceField>
+                    <FieldTop>模型音色</FieldTop>
+                    <VoiceSearchSelect
+                      voices={selectedModel?.voices ?? EMPTY_TTS_VOICES}
+                      value={settings.voiceId}
+                      disabled={!selectedModel || selectedModel.voices.length === 0}
+                      onChange={(voiceId) => updateSettings({ voiceId })}
+                    />
+                  </VoiceField>
+                )}
+
+                <ParameterGrid
+                  aria-label="合成参数"
+                  data-columns={settings.provider === "system" ? 3 : 2}
+                >
+                  <Field>
+                    <FieldTop>语速 <FieldValue>{settings.rate.toFixed(2)}×</FieldValue></FieldTop>
+                    <Range
+                      type="range" min="0.5" max="2" step="0.05" value={settings.rate}
+                      style={rangeProgress(settings.rate, 0.5, 2)}
+                      onChange={(event) => updateSettings({ rate: Number(event.target.value) })}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldTop>音量 <FieldValue>{Math.round(settings.volume * 100)}%</FieldValue></FieldTop>
+                    <Range
+                      type="range" min="0" max="1" step="0.05" value={settings.volume}
+                      style={rangeProgress(settings.volume, 0, 1)}
+                      onChange={(event) => updateSettings({ volume: Number(event.target.value) })}
+                    />
+                  </Field>
+                  {settings.provider === "system" ? (
+                    <Field>
+                      <FieldTop>音调 <FieldValue>{settings.pitch.toFixed(2)}</FieldValue></FieldTop>
+                      <Range
+                        type="range" min="0.5" max="2" step="0.05" value={settings.pitch}
+                        style={rangeProgress(settings.pitch, 0.5, 2)}
+                        onChange={(event) => updateSettings({ pitch: Number(event.target.value) })}
+                      />
+                    </Field>
+                  ) : null}
+                </ParameterGrid>
+
+                {settings.provider === "custom" && selectedModel ? (
+                  <EnvironmentCard>
+                    <EnvironmentHeader>
+                      <div>
+                        <EnvironmentTitle>运行环境</EnvironmentTitle>
+                        <EnvironmentSummary>
+                          {checkingEnvironment
+                            ? "正在检查 Python、推理依赖、BERT 与计算设备…"
+                            : preparingModel
+                              ? "环境检查通过，正在把 BERT 与音色模型预热到显存…"
+                              : selectedPreloadStatus?.phase === "error"
+                                ? selectedPreloadStatus.message
+                                : preparation?.ready
+                                  ? `${preparation.gpu || preparation.device} 已驻留显存 · ${preparation.gpuMemoryMb} MiB · 预热 ${(preparation.loadMs / 1000).toFixed(1)} 秒`
+                                  : environment?.cached
+                                    ? `${environment.summary} · 已复用上次检查结果`
+                                    : environment?.summary || "等待环境检查"}
+                        </EnvironmentSummary>
+                      </div>
+                      <EnvironmentState
+                        data-ready={environment?.ready === true && selectedPreloadStatus?.phase !== "error"}
+                      >
+                        {checkingEnvironment
+                          ? "检查中"
+                          : preparingModel
+                            ? "预热中"
+                            : selectedPreloadStatus?.phase === "error"
+                              ? "异常"
+                              : preparation?.ready
+                                ? "GPU 就绪"
+                                : environment?.ready
+                                  ? "已就绪"
+                                  : "待配置"}
+                      </EnvironmentState>
+                    </EnvironmentHeader>
+
+                    {environment ? (
+                      <EnvironmentChecks>
+                        {environment.checks.map((check) => (
+                          <EnvironmentCheckRow key={check.id}>
+                            <CheckDot data-state={check.state} />
+                            <div>
+                              <CheckName>{check.label} · {checkStateLabel(check.state)}</CheckName>
+                              <CheckDetail>{check.detail}</CheckDetail>
+                              {check.guide || check.downloadUrl ? (
+                                <CheckGuide>
+                                  {check.guide}
+                                  {check.downloadUrl ? (
+                                    <a href={check.downloadUrl} target="_blank" rel="noreferrer">
+                                      查看下载页
+                                    </a>
+                                  ) : null}
+                                </CheckGuide>
+                              ) : null}
+                            </div>
+                          </EnvironmentCheckRow>
+                        ))}
+                      </EnvironmentChecks>
+                    ) : null}
+
+                    {environment?.setupCommands.length ? (
+                      <SetupCommands>
+                        {environment.setupCommands.map((command) => (
+                          <SetupCommand
+                            key={command}
+                            type="button"
+                            data-tooltip="点击复制命令"
+                            onClick={() => void navigator.clipboard.writeText(command)}
+                          >
+                            {command}
+                          </SetupCommand>
+                        ))}
+                      </SetupCommands>
+                    ) : null}
+
+                    <EnvironmentActions>
+                      <SecondaryButton
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void registerChineseBert()}
+                      >
+                        选择 Chinese BERT
+                      </SecondaryButton>
+                      <SecondaryButton
+                        type="button"
+                        disabled={checkingEnvironment}
+                        onClick={() => void refreshEnvironment(selectedModel.id)}
+                      >
+                        {checkingEnvironment ? "检查中…" : "重新检查环境"}
+                      </SecondaryButton>
+                    </EnvironmentActions>
+                  </EnvironmentCard>
+                ) : null}
+
+
+
+                <AutoSpeakSwitch>
+                  <SwitchIcon><Icon name="volume" size={17} /></SwitchIcon>
+                  <SwitchCopy>
+                    <strong>自动语音播报</strong>
+                    <small>直播事件进入当前语音队列；关闭后仅保留手动试听</small>
+                  </SwitchCopy>
+                  <input
+                    type="checkbox"
+                    checked={settings.autoSpeak}
+                    onChange={(event) => updateSettings({ autoSpeak: event.target.checked })}
+                  />
+                  <SwitchTrack aria-hidden="true" />
+                </AutoSpeakSwitch>
+
+
+              </SettingsBody>
+            </FrostedPanelSurface>
+          </FrostedPanel>
+        </VoiceSettingsColumn>
 
         <PreviewPanel>
           <FrostedPanelSurface>
             <CardDanmakuParticles seed={0x50524556} />
             <PanelHeader>
               <PanelHeading>
-                <PanelTitle>试听</PanelTitle>
-                <PanelDescription>输入文本确认当前音色与合成参数</PanelDescription>
+                <VoicePanelTitle>试听</VoicePanelTitle>
+                <VoicePanelDescription>输入文本确认当前音色与合成参数</VoicePanelDescription>
               </PanelHeading>
-              <PanelMeta>{preparingModel ? "模型预热中" : "实时试听"}</PanelMeta>
+              <VoicePanelMeta>{preparingModel ? "模型预热中" : "实时试听"}</VoicePanelMeta>
             </PanelHeader>
             <PreviewBody>
               <TextArea

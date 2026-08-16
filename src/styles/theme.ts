@@ -1,3 +1,5 @@
+import type { ThemeMode } from "../types/theme.ts";
+
 /** 浅蓝主题下的默认聊天气泡色。 */
 export const DEFAULT_MESSAGE_BUBBLE_COLOR = "#66CCFF";
 
@@ -25,6 +27,13 @@ export const lightTheme = {
     messageBubble: DEFAULT_MESSAGE_BUBBLE_COLOR,
     cyan: "#5dd7e8",
     cyanSoft: "#e1f9fc",
+    prismBase: "#dcecf7",
+    prismSurface: "rgba(220, 239, 252, 0.62)",
+    prismSurfaceStrong: "rgba(239, 248, 255, 0.74)",
+    prismBorder: "rgba(255, 255, 255, 0.64)",
+    prismBorderSoft: "rgba(255, 255, 255, 0.52)",
+    prismRim: "rgba(255, 255, 255, 0.84)",
+    prismShadow: "rgba(38, 73, 108, 0.09)",
     textPrimary: "#18324d",
     textSecondary: "#4b647e",
     textMuted: "#7f93a8",
@@ -46,6 +55,68 @@ export const lightTheme = {
   },
 } as const;
 
+/** 保证深浅主题拥有完全一致的语义色槽。 */
+export type ThemeColorTokens = {
+  [Key in keyof typeof lightTheme.colors]: string;
+};
+
+/**
+ * 深海冰川主题。
+ *
+ * 深色方案不直接覆写组件样式，只替换与浅色主题同名的语义色；这样玻璃、
+ * Canvas 与 WebGL 都能从同一组 token 读取目标颜色并参与过渡。
+ */
+export const darkTheme = {
+  colors: {
+    canvas: "#07111d",
+    canvasAccent: "#0b1b2c",
+    surface: "#0d1a28",
+    surfaceElevated: "#132235",
+    surfaceMuted: "#0a1623",
+    popoverSurface: "#152536",
+    surfacePressed: "#193149",
+    brand: "#66aef8",
+    brandHover: "#85c0ff",
+    brandDeep: "#3f84dc",
+    brandSoft: "#193b60",
+    brandSubtle: "#0d2740",
+    messageBubble: DEFAULT_MESSAGE_BUBBLE_COLOR,
+    cyan: "#65dae8",
+    cyanSoft: "#123844",
+    prismBase: "#132b3d",
+    prismSurface: "rgba(20, 45, 65, 0.64)",
+    prismSurfaceStrong: "rgba(25, 51, 73, 0.76)",
+    prismBorder: "rgba(158, 207, 240, 0.24)",
+    prismBorderSoft: "rgba(158, 207, 240, 0.15)",
+    prismRim: "rgba(210, 238, 255, 0.22)",
+    prismShadow: "rgba(0, 5, 12, 0.38)",
+    textPrimary: "#edf7ff",
+    textSecondary: "#bdd0e2",
+    textMuted: "#7f9ab1",
+    textOnBrand: "#ffffff",
+    border: "#1d3448",
+    borderStrong: "#2b4a64",
+    success: "#54d6a1",
+    successSoft: "#102f29",
+    warning: "#ffc36b",
+    warningSoft: "#3a2b18",
+    danger: "#ff7f98",
+    dangerSoft: "#3b1f2a",
+    gift: "#aa9dff",
+    giftSoft: "#292544",
+    scrim: "rgba(0, 6, 14, 0.56)",
+    shadow: "rgba(0, 5, 12, 0.32)",
+    shadowStrong: "rgba(0, 4, 10, 0.52)",
+    highlight: "rgba(220, 242, 255, 0.14)",
+  } satisfies ThemeColorTokens,
+} as const;
+
+/** 供首屏、Canvas 与 WebGL 读取的具体主题调色板。 */
+export const themePalettes = {
+  light: lightTheme,
+  dark: darkTheme,
+} as const satisfies Record<ThemeMode, { colors: ThemeColorTokens }>;
+
 export const theme = {
   colors: {
     canvas: "var(--bc-color-canvas)",
@@ -63,6 +134,13 @@ export const theme = {
     messageBubble: "var(--bc-color-message-bubble)",
     cyan: "var(--bc-color-cyan)",
     cyanSoft: "var(--bc-color-cyan-soft)",
+    prismBase: "var(--bc-color-prism-base)",
+    prismSurface: "var(--bc-color-prism-surface)",
+    prismSurfaceStrong: "var(--bc-color-prism-surface-strong)",
+    prismBorder: "var(--bc-color-prism-border)",
+    prismBorderSoft: "var(--bc-color-prism-border-soft)",
+    prismRim: "var(--bc-color-prism-rim)",
+    prismShadow: "var(--bc-color-prism-shadow)",
     textPrimary: "var(--bc-color-text-primary)",
     textSecondary: "var(--bc-color-text-secondary)",
     textMuted: "var(--bc-color-text-muted)",
@@ -84,16 +162,26 @@ export const theme = {
   },
   gradients: {
     brand:
-      "linear-gradient(135deg, var(--bc-color-brand) 0%, var(--bc-color-brand-deep) 62%, #3bbdd1 135%)",
+      "linear-gradient(135deg, var(--bc-color-brand) 0%, var(--bc-color-brand-deep) 62%, var(--bc-color-cyan) 135%)",
     soft:
       "linear-gradient(145deg, var(--bc-color-surface) 0%, var(--bc-color-brand-subtle) 100%)",
     canvas:
-      "radial-gradient(circle at 88% 4%, rgba(93, 215, 232, 0.17), transparent 28%), radial-gradient(circle at 12% 90%, rgba(67, 143, 241, 0.11), transparent 30%)",
+      "radial-gradient(circle at 88% 4%, color-mix(in srgb, var(--bc-color-cyan) 17%, transparent), transparent 28%), radial-gradient(circle at 12% 90%, color-mix(in srgb, var(--bc-color-brand) 11%, transparent), transparent 30%)",
   },
   typography: {
     family:
       'Inter, "SF Pro Display", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
     mono: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
+    /** 全局字号阶梯；页面组件按语义复用，避免局部散落硬编码字号。 */
+    fontSize: {
+      hero: "22px",
+      display: "20px",
+      title: "16px",
+      body: "14px",
+      label: "13px",
+      caption: "12px",
+      meta: "10px",
+    },
   },
   radius: {
     xs: "8px",
@@ -150,6 +238,16 @@ export const theme = {
     noiseOpacity: 0.055,
     /** WebGL 折射层透明度；仅保留轻微灵动感，不覆盖真实毛玻璃。 */
     refractionOpacity: 0.24,
+  },
+  prismGlass: {
+    /** 冰川蓝棱镜玻璃共用材质，透过表层采样全局流动光场。 */
+    blur: "22px",
+    strongBlur: "30px",
+    saturation: 1.22,
+    brightness: 1.04,
+    noiseOpacity: 0.045,
+    panelRadius: "8px",
+    controlRadius: "5px",
   },
   tooltip: {
     /** Tooltip 正文字号；感觉偏小或偏大时优先调整这里。 */
@@ -266,6 +364,10 @@ export const theme = {
     spring: "420ms cubic-bezier(0.2, 1.65, 0.3, 1)",
     /** 侧边栏宽度与收缩箭头专用弹簧。 */
     sidebarSpring: "400ms cubic-bezier(0.2, 1.20, 0.3, 1)",
+    /** 深浅主题 CSS、Canvas 与 WebGL 共用的调色板插值时长。 */
+    themeTransitionDurationMs: 520,
+    /** 主题插值曲线；避免深浅色在中点出现突兀的灰阶停顿。 */
+    themeTransitionTiming: "cubic-bezier(0.42, 0, 0.58, 1)",
   },
 } as const;
 

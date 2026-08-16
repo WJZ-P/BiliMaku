@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
+import gc
 import json
 import os
 import re
@@ -12,6 +14,10 @@ from typing import Any
 
 
 IPC_PREFIX = "BILIMAKU_TTS_IPC:"
+MIB = 1024 * 1024
+MIN_COMMIT_HEADROOM_MB = 1024
+MEMORY_CLEANUP_HEADROOM_MB = 2048
+MIN_GPU_HEADROOM_MB = 768
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,6 +62,40 @@ def checkpoint_path(model_dir: Path) -> Path:
 
 def elapsed_ms(start: float) -> int:
     return round((time.perf_counter() - start) * 1000)
+
+
+def system_memory_status() -> dict[str, int | float]:
+    """读取 Windows 系统提交内存余量；其他系统返回空字典。"""
+    if sys.platform != "win32":
+        return {}
+
+    class MemoryStatusEx(ctypes.Structure):
+        _fields_ = [
+            ("dwLength", ctypes.c_ulong),
+            ("dwMemoryLoad", ctypes.c_ulong),
+            ("ullTotalPhys", ctypes.c_ulonglong),
+            ("ullAvailPhys", ctypes.c_ulonglong),
+            ("ullTotalPageFile", ctypes.c_ulonglong),
+            ("ullAvailPageFile", ctypes.c_ulonglong),
+            ("ullTotalVirtual", ctypes.c_ulonglong),
+            ("ullAvailVirtual", ctypes.c_ulonglong),
+            ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+        ]
+
+    status = MemoryStatusEx()
+    status.dwLength = ctypes.sizeof(MemoryStatusEx)
+    if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+        return {}
+    total_commit = round(status.ullTotalPageFile / MIB)
+    available_commit = round(status.ullAvailPageFile / MIB)
+    return {
+        "physicalAvailableMb": round(status.ullAvailPhys / MIB),
+        "commitLimitMb": total_commit,
+        "commitAvailableMb": available_commit,
+        "commitUsedPercent": round(
+            ((total_commit - available_commit) / max(1, total_commit)) * 100, 1
+        ),
+    }
 
 
 def emit_ipc(payload: dict[str, Any]) -> None:
@@ -147,11 +187,64 @@ class BertVits2Engine:
         self.synthesize_audio("你好", self.default_voice, 1.0)
         self._synchronize()
         self.timings["warmupMs"] = elapsed_ms(warmup_started)
+        # 加载 checkpoint 与首次推理会留下可回收的 Python/CUDA 缓存。常驻
+        # worker 只保留模型本体，避免空闲时继续占用系统提交内存和显存余量。
+        gc.collect()
+        if self.device.startswith("cuda"):
+            self.torch.cuda.empty_cache()
         self.timings["totalLoadMs"] = elapsed_ms(started)
 
     def _synchronize(self) -> None:
         if self.device.startswith("cuda"):
             self.torch.cuda.synchronize()
+
+    def memory_status(self) -> dict[str, Any]:
+        status: dict[str, Any] = system_memory_status()
+        if self.device.startswith("cuda"):
+            free_bytes, total_bytes = self.torch.cuda.mem_get_info()
+            status.update(
+                {
+                    "gpuAllocatedMb": round(self.torch.cuda.memory_allocated(0) / MIB),
+                    "gpuReservedMb": round(self.torch.cuda.memory_reserved(0) / MIB),
+                    "gpuPeakAllocatedMb": round(
+                        self.torch.cuda.max_memory_allocated(0) / MIB
+                    ),
+                    "gpuFreeMb": round(free_bytes / MIB),
+                    "gpuTotalMb": round(total_bytes / MIB),
+                }
+            )
+        return status
+
+    def protect_memory_headroom(self) -> dict[str, Any]:
+        """低内存时主动归还缓存，并在原生分配崩溃前返回可读错误。"""
+        status = self.memory_status()
+        commit_available = int(status.get("commitAvailableMb", 0))
+        gpu_free = int(status.get("gpuFreeMb", 0))
+        should_cleanup = (
+            0 < commit_available < MEMORY_CLEANUP_HEADROOM_MB
+            or 0 < gpu_free < MIN_GPU_HEADROOM_MB * 2
+        )
+        if should_cleanup:
+            gc.collect()
+            if self.device.startswith("cuda"):
+                self.torch.cuda.empty_cache()
+            status = self.memory_status()
+            status["cacheReleased"] = True
+        else:
+            status["cacheReleased"] = False
+
+        commit_available = int(status.get("commitAvailableMb", 0))
+        gpu_free = int(status.get("gpuFreeMb", 0))
+        if 0 < commit_available < MIN_COMMIT_HEADROOM_MB:
+            raise RuntimeError(
+                "系统提交内存余量过低（"
+                f"{commit_available} MiB）；请关闭高内存程序或增大 Windows 页面文件后重试"
+            )
+        if self.device.startswith("cuda") and 0 < gpu_free < MIN_GPU_HEADROOM_MB:
+            raise RuntimeError(
+                f"CUDA 显存余量过低（{gpu_free} MiB）；请关闭占用显卡的程序后重试"
+            )
+        return status
 
     def prepare_text(self, value: str):
         normalized, phone, tone, word2ph = self.clean_text(value, "ZH")
@@ -220,6 +313,9 @@ class BertVits2Engine:
         self, text: str, voice: str, speed: float, output: Path
     ) -> dict[str, Any]:
         started = time.perf_counter()
+        memory_before = self.protect_memory_headroom()
+        if self.device.startswith("cuda"):
+            self.torch.cuda.reset_peak_memory_stats(0)
         audio = self.synthesize_audio(text, voice, speed)
         self._synchronize()
         inference_ms = elapsed_ms(started)
@@ -236,11 +332,13 @@ class BertVits2Engine:
             wav.setframerate(self.hps.data.sampling_rate)
             wav.writeframes(pcm.tobytes())
 
+        memory_after = self.protect_memory_headroom()
         return {
             "inferenceMs": inference_ms,
             "writeMs": elapsed_ms(write_started),
             "totalMs": elapsed_ms(started),
             "frames": int(waveform.size),
+            "memory": {"before": memory_before, "after": memory_after},
         }
 
     def status(self) -> dict[str, Any]:
@@ -290,6 +388,7 @@ def run_worker(engine: BertVits2Engine) -> int:
                     "ok": False,
                     "id": request_id,
                     "error": str(error),
+                    "memory": engine.memory_status(),
                 }
             )
     return 0

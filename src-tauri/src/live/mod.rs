@@ -1,4 +1,5 @@
 mod bilibili;
+mod emoticons;
 mod protocol;
 mod sender;
 
@@ -10,7 +11,7 @@ use crate::types::live::{
     ConnectionSnapshot, LiveEvent, LiveOnlineRankSnapshot, LiveStatus, PopularityUpdate,
     RoomConnectionInfo,
 };
-use crate::types::live_chat::{SendLiveDanmakuRequest, SendLiveDanmakuResult};
+use crate::types::live_chat::{LiveEmoticonCatalog, SendLiveDanmakuRequest, SendLiveDanmakuResult};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, State};
@@ -125,6 +126,18 @@ pub async fn send_live_danmaku(
 ) -> Result<SendLiveDanmakuResult, String> {
     let context = state.active_room_context()?;
     sender::send(&app, context, &account, &store, request).await
+}
+
+/// 读取当前账号在活动直播间可见的表情包、图片和逐项权限。
+#[tauri::command]
+pub async fn get_live_emoticons(
+    app: AppHandle,
+    state: State<'_, LiveConnectionState>,
+    account: State<'_, BiliAccountState>,
+    store: State<'_, AppConfigStore>,
+) -> Result<LiveEmoticonCatalog, String> {
+    let context = state.active_room_context()?;
+    emoticons::fetch(&app, context, &account, &store).await
 }
 
 /// 读取当前活动直播间的在线贡献榜人数与前三名。

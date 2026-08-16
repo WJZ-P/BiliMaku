@@ -1,5 +1,12 @@
 import { styled } from "@linaria/react";
 import { useEffect, useRef } from "react";
+import {
+  mixThemeColor,
+  resolveThemeColor,
+  THEME_CHANGE_EVENT,
+  themeTransitionProgress,
+  type ThemeChangeDetail,
+} from "../services/theme";
 
 const FlowCanvas = styled.canvas`
   position: fixed;
@@ -56,10 +63,27 @@ function colorWithAlpha(color: string, alpha: number) {
   return `rgba(67, 143, 241, ${alpha})`;
 }
 
-function readPalette(canvas: HTMLCanvasElement): FlowPalette {
+function mixPalette(from: FlowPalette, to: FlowPalette, progress: number): FlowPalette {
+  return {
+    canvas: mixThemeColor(from.canvas, to.canvas, progress),
+    surface: mixThemeColor(from.surface, to.surface, progress),
+    brand: mixThemeColor(from.brand, to.brand, progress),
+    brandDeep: mixThemeColor(from.brandDeep, to.brandDeep, progress),
+    brandSoft: mixThemeColor(from.brandSoft, to.brandSoft, progress),
+    brandSubtle: mixThemeColor(from.brandSubtle, to.brandSubtle, progress),
+    cyan: mixThemeColor(from.cyan, to.cyan, progress),
+    cyanSoft: mixThemeColor(from.cyanSoft, to.cyanSoft, progress),
+  };
+}
+
+function readPalette(
+  canvas: HTMLCanvasElement,
+  mode?: ThemeChangeDetail["mode"],
+): FlowPalette {
   const styles = getComputedStyle(canvas);
-  const read = (token: string, fallback: string) =>
-    styles.getPropertyValue(token).trim() || fallback;
+  const read = (token: string, fallback: string) => mode
+    ? resolveThemeColor(mode, token, fallback)
+    : styles.getPropertyValue(token).trim() || fallback;
 
   return {
     canvas: read("--bc-color-canvas", "#f4f9ff"),
@@ -88,6 +112,11 @@ export function WorkspaceFlowCanvas() {
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let palette = readPalette(canvas);
+    let paletteTransition: {
+      from: FlowPalette;
+      to: FlowPalette;
+      detail: ThemeChangeDetail;
+    } | null = null;
     let cssWidth = 1;
     let cssHeight = 1;
     let animationFrame = 0;
@@ -186,6 +215,11 @@ export function WorkspaceFlowCanvas() {
     };
 
     const draw = (timestamp: number) => {
+      if (paletteTransition) {
+        const progress = themeTransitionProgress(paletteTransition.detail, timestamp);
+        palette = mixPalette(paletteTransition.from, paletteTransition.to, progress);
+        if (progress >= 1) paletteTransition = null;
+      }
       const time = (timestamp / 1000) * WORKSPACE_FLOW_TUNING.speed;
       const intensity = WORKSPACE_FLOW_TUNING.intensity;
       pointerX += (pointerTargetX - pointerX) * WORKSPACE_FLOW_TUNING.pointerEase;
@@ -293,6 +327,17 @@ export function WorkspaceFlowCanvas() {
     };
     const handleVisibility = () => start();
     const handleMotionPreference = () => start();
+    const handleThemeChange = (event: Event) => {
+      const detail = (event as CustomEvent<ThemeChangeDetail>).detail;
+      const target = readPalette(canvas, detail.mode);
+      if (detail.durationMs <= 0) {
+        palette = target;
+        paletteTransition = null;
+      } else {
+        paletteTransition = { from: { ...palette }, to: target, detail };
+      }
+      start();
+    };
     const resizeObserver = new ResizeObserver(() => {
       resize();
       if (reducedMotion.matches) draw(0);
@@ -302,6 +347,7 @@ export function WorkspaceFlowCanvas() {
     window.addEventListener("pointermove", handlePointerMove, { passive: true });
     document.addEventListener("visibilitychange", handleVisibility);
     reducedMotion.addEventListener("change", handleMotionPreference);
+    window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange);
     resize();
     start();
 
@@ -311,6 +357,7 @@ export function WorkspaceFlowCanvas() {
       window.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("visibilitychange", handleVisibility);
       reducedMotion.removeEventListener("change", handleMotionPreference);
+      window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange);
     };
   }, []);
 

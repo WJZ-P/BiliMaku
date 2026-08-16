@@ -1,8 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { Icon, type IconName } from "../../components/Icon";
 import {
-  Panel,
-  PanelDescription,
   PanelHeader,
   PanelHeading,
   PanelTitle,
@@ -14,12 +12,16 @@ import type {
   PrimaryAnchorMetricKey,
 } from "../../types/anchorAnalytics";
 import {
+  AnchorAnalyticsSurface,
   AnchorChart,
   AnchorChartAxis,
   AnchorChartCanvas,
   AnchorChartHeader,
   AnchorChartLegend,
   AnchorChartTitle,
+  AnchorChartTooltip,
+  AnchorChartTooltipDate,
+  AnchorChartTooltipValue,
   AnchorMetricCard,
   AnchorMetricContent,
   AnchorMetricDelta,
@@ -108,9 +110,9 @@ function comparisonDirection(value: number) {
 }
 
 function shortDate(value: string) {
-  const normalized = value.replaceAll("-", "/");
-  const parts = normalized.split("/");
-  return parts.length >= 3 ? `${parts.at(-2)}/${parts.at(-1)}` : value;
+  const match = value.trim().match(/(?:\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (!match) return value.split(/[ T]/, 1)[0] || value;
+  return `${match[1].padStart(2, "0")}/${match[2].padStart(2, "0")}`;
 }
 
 interface ChartGeometry {
@@ -150,12 +152,18 @@ function buildChartGeometry(points: AnchorAnalyticsPoint[]): ChartGeometry | nul
   return { line, area, pointCoordinates, axisPoints };
 }
 
+type ChartTooltipStyle = CSSProperties & {
+  "--chart-tooltip-x": string;
+  "--chart-tooltip-y": string;
+};
+
 function TrendChart({ metric }: { metric: AnchorAnalyticsMetric }) {
   const primarySeries = metric.series.find((series) => series.points.length > 0);
   const geometry = useMemo(
     () => buildChartGeometry(primarySeries?.points ?? []),
     [primarySeries],
   );
+  const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
 
   if (!primarySeries || !geometry) {
     return (
@@ -168,29 +176,71 @@ function TrendChart({ metric }: { metric: AnchorAnalyticsMetric }) {
     );
   }
 
+  const hoveredCoordinate = hoveredPointIndex === null
+    ? null
+    : geometry.pointCoordinates[hoveredPointIndex] ?? null;
+  const tooltipStyle: ChartTooltipStyle | undefined = hoveredCoordinate
+    ? {
+        "--chart-tooltip-x": `${(hoveredCoordinate.x / 700) * 100}%`,
+        "--chart-tooltip-y": `${hoveredCoordinate.y}px`,
+      }
+    : undefined;
+
   return (
     <>
-      <AnchorChartCanvas>
+      <AnchorChartCanvas onPointerLeave={() => setHoveredPointIndex(null)}>
         <AnchorTrendSvg
           viewBox="0 0 700 142"
           preserveAspectRatio="none"
           role="img"
           aria-label={`${metric.label}趋势图`}
         >
-          <title>{metric.label}趋势</title>
           {[28, 57, 86, 115].map((y) => (
             <line key={y} className="grid" x1="20" x2="684" y1={y} y2={y} />
           ))}
           <polygon className="area" points={geometry.area} />
           <polyline className="line" points={geometry.line} />
-          {geometry.pointCoordinates.map(({ x, y, point }) => (
-            <circle key={`${point.date}-${point.value}`} className="point" cx={x} cy={y} r="4">
-              <title>
-                {point.date} · {formatMetricValue(metric, point.value)}
-              </title>
-            </circle>
+          {geometry.pointCoordinates.map(({ x, y, point }, index) => (
+            <g
+              key={`${point.date}-${point.value}`}
+              className="point-target"
+              tabIndex={0}
+              role="button"
+              aria-label={`${point.date}，${metric.label} ${formatMetricValue(metric, point.value)}`}
+              onPointerEnter={() => setHoveredPointIndex(index)}
+              onFocus={() => setHoveredPointIndex(index)}
+              onBlur={() => setHoveredPointIndex(null)}
+            >
+              <circle className="point-hit-area" cx={x} cy={y} r="12" />
+              <circle
+                className="point"
+                data-active={hoveredPointIndex === index}
+                cx={x}
+                cy={y}
+                r="4"
+              />
+            </g>
           ))}
         </AnchorTrendSvg>
+        {hoveredCoordinate ? (
+          <AnchorChartTooltip
+            role="tooltip"
+            data-edge={
+              hoveredPointIndex === 0
+                ? "start"
+                : hoveredPointIndex === geometry.pointCoordinates.length - 1
+                  ? "end"
+                  : "middle"
+            }
+            style={tooltipStyle}
+          >
+            <AnchorChartTooltipDate>{hoveredCoordinate.point.date.split(/[ T]/, 1)[0]}</AnchorChartTooltipDate>
+            <AnchorChartTooltipValue>
+              <span>{metric.label}</span>
+              {formatMetricValue(metric, hoveredCoordinate.point.value)}
+            </AnchorChartTooltipValue>
+          </AnchorChartTooltip>
+        ) : null}
         <AnchorChartAxis>
           {geometry.axisPoints.map((point) => (
             <span key={point.date}>{shortDate(point.date)}</span>
@@ -218,20 +268,11 @@ export function AnchorAnalyticsPanel() {
   const activeMetric =
     metricByKey.get(activeMetricKey) ?? primaryMetrics.find((item) => item.metric)?.metric;
   const hasMetrics = (analytics.overview?.metrics.length ?? 0) > 0;
-  const updatedThrough = analytics.overview?.updatedThrough
-    ? analytics.overview.updatedThrough.slice(0, 10)
-    : "--";
-
   return (
-    <Panel>
+    <AnchorAnalyticsSurface>
       <PanelHeader>
         <PanelHeading>
           <PanelTitle>主播数据概览</PanelTitle>
-          <PanelDescription>
-            {analytics.overview
-              ? `当前扫码账号 · ${analytics.overview.rangeLabel} · 更新至 ${updatedThrough}`
-              : "复用本地扫码 Session，读取账号自己的直播中心统计"}
-          </PanelDescription>
         </PanelHeading>
         <AnchorToolbar>
           <AnchorRangeSelector aria-label="主播数据统计周期">
@@ -331,12 +372,12 @@ export function AnchorAnalyticsPanel() {
                     ))}
                   </AnchorMetricTabs>
                 </AnchorChartHeader>
-                <TrendChart metric={activeMetric} />
+                <TrendChart key={activeMetric.key} metric={activeMetric} />
               </AnchorChart>
             ) : null}
           </>
         )}
       </AnchorPanelBody>
-    </Panel>
+    </AnchorAnalyticsSurface>
   );
 }

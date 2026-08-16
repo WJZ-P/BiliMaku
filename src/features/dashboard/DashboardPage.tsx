@@ -1,9 +1,16 @@
 import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/react-virtual";
 import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
+import {
+  ChatMessageContextMenu,
+  type ChatMessageContextTarget,
+} from "../../components/ChatMessageContextMenu";
 import { Icon, type IconName } from "../../components/Icon";
 import { LiquidGlassSurface } from "../../components/LiquidGlassSurface";
+import { LiveEmoticonPicker } from "../../components/LiveEmoticonPicker";
 import { LiveMessageContent } from "../../components/LiveMessageContent";
+import { Modal, ModalLoading } from "../../components/Modal";
+import { writeClipboardText } from "../../services/clipboard";
 import { getLiveAppearanceSettings, saveLiveRoomId } from "../../services/desktop";
 import { sendLiveDanmaku } from "../../services/liveChat";
 import {
@@ -19,20 +26,15 @@ import {
 import type { LiveConnectionPhase, LiveEvent, LiveEventType } from "../../types/events";
 import { DEFAULT_MESSAGE_BUBBLE_COLOR } from "../../styles/theme";
 import type { LiveMessageDisplayFilter } from "../../types/liveMessages";
-import { LIVE_DANMAKU_MAX_LENGTH } from "../../types/liveChat";
+import { LIVE_DANMAKU_MAX_LENGTH, type LiveEmoticon } from "../../types/liveChat";
 import type { AppView } from "../../types/navigation";
 import {
-  AnalyticsDrawer,
   AvatarImage,
-  DrawerBar,
-  DrawerClose,
-  DrawerLoading,
-  DrawerTitle,
   ChatHeader,
   ChatPanel,
   ChatToolbar,
   Composer,
-  ComposerAssist,
+  ComposerStatus,
   ComposerButton,
   ComposerCounter,
   ComposerField,
@@ -108,7 +110,6 @@ const eventFilters: Array<{ label: string; value: LiveMessageDisplayFilter }> = 
 ];
 
 const railActions: RailAction[] = [
-  { view: "rules", label: "规则", tooltip: "弹幕过滤与播报规则", icon: "sliders" },
   { view: "voices", label: "音色", tooltip: "语音角色与 TTS 引擎", icon: "waveform" },
 ];
 
@@ -132,6 +133,10 @@ const eventTypeLabels: Record<LiveEventType, string> = {
 /** 未测量消息行的保守高度；真实高度会由 ResizeObserver 写回虚拟列表。 */
 const MESSAGE_ROW_ESTIMATE_PX = 76;
 const MESSAGE_VIRTUAL_OVERSCAN = 8;
+/** 首次进入直播间只建立最新消息窗口，历史记录在用户向上滚动时分批扩展。 */
+const MESSAGE_INITIAL_HISTORY_COUNT = 60;
+const MESSAGE_HISTORY_BATCH_COUNT = 60;
+const MESSAGE_HISTORY_LOAD_THRESHOLD_PX = 48;
 
 /** 仅普通弹幕需要根据发送者 UID 提升为主播消息。 */
 function isAnchorDanmaku(event: LiveEvent, ownerUid: number | null) {
@@ -275,6 +280,8 @@ interface AnimatedMessageRowProps {
   virtualIndex: number;
   /** TanStack Virtual 的动态行高测量回调。 */
   measureElement: (node: HTMLDivElement | null) => void;
+  /** 在鼠标位置打开当前气泡的操作菜单。 */
+  onOpenContextMenu: (event: LiveEvent, clientX: number, clientY: number) => void;
 }
 
 /**
@@ -291,6 +298,7 @@ const AnimatedMessageRow = memo(function AnimatedMessageRow({
   onFilterExitComplete,
   virtualIndex,
   measureElement,
+  onOpenContextMenu,
 }: AnimatedMessageRowProps) {
   const anchorDanmaku = isAnchorDanmaku(event, ownerUid);
   const eventTag = anchorDanmaku
@@ -345,7 +353,19 @@ const AnimatedMessageRow = memo(function AnimatedMessageRow({
               </EventType>
               <EventTime>{formatEventTime(event)}</EventTime>
             </MessageMeta>
-            <MessageBubble data-type={event.type} data-liquid-glass="true">
+            <MessageBubble
+              data-type={event.type}
+              data-liquid-glass="true"
+              onContextMenu={(contextEvent) => {
+                contextEvent.preventDefault();
+                contextEvent.stopPropagation();
+                onOpenContextMenu(
+                  event,
+                  contextEvent.clientX,
+                  contextEvent.clientY,
+                );
+              }}
+            >
               {entering && filterPhase === "visible" ? (
                 <LiquidGlassSurface
                   active
@@ -367,6 +387,7 @@ const AnimatedMessageRow = memo(function AnimatedMessageRow({
   && previous.ownerUid === next.ownerUid
   && previous.filterPhase === next.filterPhase
   && previous.virtualIndex === next.virtualIndex
+  && previous.onOpenContextMenu === next.onOpenContextMenu
 ));
 
 interface MessageFilterTransitionState {
@@ -394,8 +415,14 @@ interface MessageFeedListProps {
   messageBubbleColor: string;
   /** 空状态需要区分未连接和直播间暂时安静。 */
   connected: boolean;
+  /** 当前筛选中是否还有尚未加入虚拟数据源的更早消息。 */
+  hasOlderEvents: boolean;
+  /** 滚动到顶部附近时，把下一批历史消息加入虚拟数据源。 */
+  onLoadOlder: () => void;
   /** 实际承担滚动的聊天视口。 */
   viewportRef: RefObject<HTMLDivElement | null>;
+  /** 把单条消息的右键操作交给工作台级浮层。 */
+  onOpenContextMenu: (event: LiveEvent, clientX: number, clientY: number) => void;
 }
 
 /**
@@ -412,7 +439,10 @@ const MessageFeedList = memo(function MessageFeedList({
   enteringEventId,
   messageBubbleColor,
   connected,
+  hasOlderEvents,
+  onLoadOlder,
   viewportRef,
+  onOpenContextMenu,
 }: MessageFeedListProps) {
   const feedRef = useRef<HTMLDivElement>(null);
   const previousVisibleEventIdsRef = useRef<ReadonlySet<string>>(new Set(visibleEventIds));
@@ -427,7 +457,9 @@ const MessageFeedList = memo(function MessageFeedList({
   const previousVirtualSizeRef = useRef(0);
   const previousFilterRef = useRef(filter);
   const filterScrollTargetRef = useRef<LiveMessageDisplayFilter | null>(null);
+  const initialScrollFrameRef = useRef<number | null>(null);
   const filterScrollFrameRef = useRef<number | null>(null);
+  const historyLoadPendingRef = useRef(false);
   requestedFilterRef.current = filter;
   requestedVisibleEventIdsRef.current = visibleEventIds;
   if (previousFilterRef.current !== filter) {
@@ -493,6 +525,41 @@ const MessageFeedList = memo(function MessageFeedList({
     directDomUpdatesMode: "position",
     useAnimationFrameWithResizeObserver: true,
   });
+
+  /**
+   * 虚拟列表已内置 prepend 锚点保持；这里只负责在用户真正滚到顶部时请求下一批数据。
+   * 首次置底和分类退场期间暂停请求，避免程序写入 scrollTop 时误触发历史加载。
+   */
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const requestOlderMessages = () => {
+      if (
+        initialScrollPendingRef.current
+        || transitionActive
+        || transitionRequested
+        || !hasOlderEvents
+        || historyLoadPendingRef.current
+        || viewport.scrollTop > MESSAGE_HISTORY_LOAD_THRESHOLD_PX
+      ) {
+        return;
+      }
+      historyLoadPendingRef.current = true;
+      onLoadOlder();
+    };
+    viewport.addEventListener("scroll", requestOlderMessages, { passive: true });
+    return () => viewport.removeEventListener("scroll", requestOlderMessages);
+  }, [
+    hasOlderEvents,
+    onLoadOlder,
+    transitionActive,
+    transitionRequested,
+    viewportRef,
+  ]);
+
+  useEffect(() => {
+    historyLoadPendingRef.current = false;
+  }, [filter, renderedEvents.length]);
 
   useLayoutEffect(() => {
     const allEventIds = new Set(allEvents.map((event) => event.id));
@@ -635,15 +702,46 @@ const MessageFeedList = memo(function MessageFeedList({
     return () => window.clearTimeout(timer);
   }, [settleFilterTransition, transitionState.exitingEventIds, viewportRef]);
 
+  /**
+   * 直播间视图每次重新挂载都回到最新消息。
+   *
+   * 第一次同步置底避免页面切回时短暂显示历史开头；随后用双帧校正等待虚拟行
+   * 完成挂载与动态高度测量，防止仅按预估高度滚动后仍停在倒数几条消息上方。
+   */
+  const hasInitialMessages = renderedEvents.length > 0;
   useLayoutEffect(() => {
-    if (!initialScrollPendingRef.current || renderedEvents.length === 0) return;
-    initialScrollPendingRef.current = false;
-    const frame = window.requestAnimationFrame(() => {
+    if (!initialScrollPendingRef.current || !hasInitialMessages) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const pinToLatestMessage = () => {
       rowVirtualizer.scrollToEnd({ behavior: "auto" });
-      previousVirtualSizeRef.current = rowVirtualizer.getTotalSize();
+      viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    };
+
+    pinToLatestMessage();
+    initialScrollFrameRef.current = window.requestAnimationFrame(() => {
+      pinToLatestMessage();
+      initialScrollFrameRef.current = window.requestAnimationFrame(() => {
+        pinToLatestMessage();
+        initialScrollFrameRef.current = null;
+      });
     });
-    return () => window.cancelAnimationFrame(frame);
-  }, [renderedEvents.length, rowVirtualizer]);
+    // 动态行高通过 ResizeObserver 在后续帧写回；短暂稳定期后再做一次末端校正。
+    const settleTimer = window.setTimeout(() => {
+      pinToLatestMessage();
+      previousVirtualSizeRef.current = rowVirtualizer.getTotalSize();
+      initialScrollPendingRef.current = false;
+    }, 120);
+
+    return () => {
+      window.clearTimeout(settleTimer);
+      if (initialScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(initialScrollFrameRef.current);
+        initialScrollFrameRef.current = null;
+      }
+    };
+  }, [hasInitialMessages, rowVirtualizer, viewportRef]);
 
   /**
    * 分类切换先等待旧消息完成退场，再在目标虚拟列表挂载和测量后滚到底部。
@@ -856,6 +954,7 @@ const MessageFeedList = memo(function MessageFeedList({
               onFilterExitComplete={finishFilterExit}
               virtualIndex={virtualItem.index}
               measureElement={rowVirtualizer.measureElement}
+              onOpenContextMenu={onOpenContextMenu}
             />
           );
         })}
@@ -879,7 +978,10 @@ const MessageFeedList = memo(function MessageFeedList({
   && previous.ownerUid === next.ownerUid
   && previous.messageBubbleColor === next.messageBubbleColor
   && previous.connected === next.connected
+  && previous.hasOlderEvents === next.hasOlderEvents
+  && previous.onLoadOlder === next.onLoadOlder
   && previous.viewportRef === next.viewportRef
+  && previous.onOpenContextMenu === next.onOpenContextMenu
 ));
 let dashboardFirstFrameReported = false;
 
@@ -896,10 +998,21 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const [overlayBusy, setOverlayBusy] = useState(false);
   const [overlayError, setOverlayError] = useState("");
   const [outgoingMessage, setOutgoingMessage] = useState("");
+  const [messageContextTarget, setMessageContextTarget] = useState<
+    ChatMessageContextTarget | null
+  >(null);
   const [sendPhase, setSendPhase] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [sendNotice, setSendNotice] = useState("");
   const [messageBubbleColor, setMessageBubbleColor] = useState(DEFAULT_MESSAGE_BUBBLE_COLOR);
+  const [messageHistoryWindow, setMessageHistoryWindow] = useState<{
+    filter: LiveMessageDisplayFilter;
+    limit: number;
+  }>({
+    filter: "all",
+    limit: MESSAGE_INITIAL_HISTORY_COUNT,
+  });
   const messageViewportRef = useRef<HTMLDivElement>(null);
+  const composerInputRef = useRef<HTMLInputElement>(null);
   const messageFeedReadyRef = useRef(false);
   const renderedFeedRef = useRef<{
     filter: "all" | LiveEventType;
@@ -949,10 +1062,38 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     return buckets;
   }, [sourceEvents]);
   const events = eventBuckets[filter];
-  const visibleEventIds = useMemo(
-    () => new Set(events.map((event) => event.id)),
-    [events],
+  const messageHistoryLimit = messageHistoryWindow.filter === filter
+    ? messageHistoryWindow.limit
+    : MESSAGE_INITIAL_HISTORY_COUNT;
+  const visibleEvents = useMemo(
+    () => events.slice(Math.max(0, events.length - messageHistoryLimit)),
+    [events, messageHistoryLimit],
   );
+  const visibleEventIds = useMemo(
+    () => new Set(visibleEvents.map((event) => event.id)),
+    [visibleEvents],
+  );
+  const hasOlderEvents = visibleEvents.length < events.length;
+  const loadOlderMessages = useCallback(() => {
+    setMessageHistoryWindow((current) => {
+      const currentLimit = current.filter === filter
+        ? current.limit
+        : MESSAGE_INITIAL_HISTORY_COUNT;
+      const nextLimit = Math.min(
+        events.length,
+        currentLimit + MESSAGE_HISTORY_BATCH_COUNT,
+      );
+      if (current.filter === filter && current.limit === nextLimit) return current;
+      return { filter, limit: nextLimit };
+    });
+  }, [events.length, filter]);
+  useLayoutEffect(() => {
+    setMessageHistoryWindow((current) => (
+      current.filter === filter
+        ? current
+        : { filter, limit: MESSAGE_INITIAL_HISTORY_COUNT }
+    ));
+  }, [filter]);
   const outgoingLength = Array.from(outgoingMessage.trim()).length;
   const roomTitle = live.status.state === "disconnected"
     ? "未连接"
@@ -1075,6 +1216,79 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     }
   };
 
+  const handleSendEmoticon = useCallback(async (emoticon: LiveEmoticon) => {
+    if (!connected || sendPhase === "sending") return false;
+    setSendPhase("sending");
+    setSendNotice(`正在发送表情 ${emoticon.name || emoticon.description}…`);
+    try {
+      await sendLiveDanmaku({ message: emoticon.unique, dmType: 1 });
+      setSendPhase("success");
+      setSendNotice(`表情 ${emoticon.name || emoticon.description} 已发送 · 等待长链回显`);
+      return true;
+    } catch (error) {
+      setSendPhase("error");
+      setSendNotice(errorMessage(error));
+      return false;
+    }
+  }, [connected, sendPhase]);
+
+  const openMessageContextMenu = useCallback((
+    event: LiveEvent,
+    clientX: number,
+    clientY: number,
+  ) => {
+    const user = event.user.trim();
+    setMessageContextTarget({
+      id: event.id,
+      user,
+      content: event.content,
+      canMention: event.type !== "system" && user.length > 0,
+      clientX,
+      clientY,
+    });
+  }, []);
+
+  const closeMessageContextMenu = useCallback(() => {
+    setMessageContextTarget(null);
+  }, []);
+
+  const insertComposerText = useCallback((text: string) => {
+    const input = composerInputRef.current;
+    const selectionStart = input?.selectionStart ?? outgoingMessage.length;
+    const selectionEnd = input?.selectionEnd ?? selectionStart;
+    const prefix = outgoingMessage.slice(0, selectionStart);
+    const suffix = outgoingMessage.slice(selectionEnd);
+    const nextMessage = Array.from(`${prefix}${text}${suffix}`)
+      .slice(0, LIVE_DANMAKU_MAX_LENGTH)
+      .join("");
+    const insertedPrefix = Array.from(`${prefix}${text}`)
+      .slice(0, LIVE_DANMAKU_MAX_LENGTH)
+      .join("");
+    const nextCursor = Math.min(insertedPrefix.length, nextMessage.length);
+    setOutgoingMessage(nextMessage);
+    setSendPhase("idle");
+    setSendNotice("");
+    window.requestAnimationFrame(() => {
+      composerInputRef.current?.focus();
+      composerInputRef.current?.setSelectionRange(nextCursor, nextCursor);
+    });
+  }, [outgoingMessage]);
+
+  const mentionMessageUser = useCallback((target: ChatMessageContextTarget) => {
+    if (!target.canMention) return;
+    insertComposerText(`@${target.user} `);
+  }, [insertComposerText]);
+
+  const copyMessageContent = useCallback((target: ChatMessageContextTarget) => {
+    void writeClipboardText(target.content).then(() => {
+      setSendPhase("idle");
+      setSendNotice("消息已复制");
+    }).catch((error) => {
+      setSendPhase("error");
+      setSendNotice(`复制消息失败：${errorMessage(error)}`);
+    });
+  }, []);
+
   /**
    * 直播间功能栏的悬浮组件总开关。
    * 任意悬浮窗已打开时会统一关闭；全部关闭时会同时打开弹幕层和事件栏。
@@ -1164,7 +1378,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 data-connected={connected}
                 disabled={connectionDisabled}
               >
-                <Icon name={connected ? "check" : "plug"} size={13} />
+                <Icon name={connected || reconnecting ? "power" : "plug"} size={15} />
                 {connectionAction}
               </ConnectButton>
             </ConnectForm>
@@ -1210,7 +1424,9 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 data-active={analyticsOpen}
                 data-tooltip="查看主播数据总览"
                 data-tooltip-placement="bottom"
-                onClick={() => setAnalyticsOpen((value) => !value)}
+                aria-haspopup="dialog"
+                aria-expanded={analyticsOpen}
+                onClick={() => setAnalyticsOpen(true)}
               >
                 <Icon name="dashboard" size={14} />
                 <span>数据</span>
@@ -1267,7 +1483,10 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               enteringEventId={animateLatestEvent ? latestEventId : undefined}
               messageBubbleColor={messageBubbleColor}
               connected={connected}
+              hasOlderEvents={hasOlderEvents}
+              onLoadOlder={loadOlderMessages}
               viewportRef={messageViewportRef}
+              onOpenContextMenu={openMessageContextMenu}
             />
           </MessageViewport>
 
@@ -1283,6 +1502,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 data-disabled={!connected}
               >
                 <ComposerInput
+                  ref={composerInputRef}
                   value={outgoingMessage}
                   type="text"
                   aria-label="发送直播弹幕"
@@ -1300,6 +1520,13 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                     }
                   }}
                 />
+                <LiveEmoticonPicker
+                  roomId={connected && live.status.roomId > 0 ? live.status.roomId : null}
+                  disabled={!connected}
+                  busy={sendPhase === "sending"}
+                  onInsertText={insertComposerText}
+                  onSendEmoticon={handleSendEmoticon}
+                />
                 <ComposerCounter
                   data-near-limit={outgoingLength >= LIVE_DANMAKU_MAX_LENGTH - 6}
                   aria-label={`已输入 ${outgoingLength} 个字符，最多 ${LIVE_DANMAKU_MAX_LENGTH} 个`}
@@ -1307,10 +1534,10 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                   {outgoingLength}/{LIVE_DANMAKU_MAX_LENGTH}
                 </ComposerCounter>
               </ComposerInputShell>
-              <ComposerAssist id="live-danmaku-assist" data-state={sendPhase} aria-live="polite">
-                {composerAssist}
-              </ComposerAssist>
             </ComposerField>
+            <ComposerStatus id="live-danmaku-assist" aria-live="polite">
+              {composerAssist}
+            </ComposerStatus>
             <ComposerButton
               type="submit"
               disabled={sendDisabled}
@@ -1321,22 +1548,25 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             </ComposerButton>
           </Composer>
 
-          {analyticsOpen ? (
-            <AnalyticsDrawer aria-label="主播数据抽屉">
-              <DrawerBar>
-                <DrawerTitle>主播数据</DrawerTitle>
-                <DrawerClose type="button" onClick={() => setAnalyticsOpen(false)}>
-                  <Icon name="arrow" size={11} />
-                  收起
-                </DrawerClose>
-              </DrawerBar>
-              <Suspense fallback={<DrawerLoading>正在加载主播数据…</DrawerLoading>}>
-                <AnchorAnalyticsPanel />
-              </Suspense>
-            </AnalyticsDrawer>
-          ) : null}
         </ChatPanel>
       </DashboardShell>
+      <ChatMessageContextMenu
+        target={messageContextTarget}
+        onClose={closeMessageContextMenu}
+        onMention={mentionMessageUser}
+        onCopy={copyMessageContent}
+      />
+      <Modal
+        open={analyticsOpen}
+        onClose={() => setAnalyticsOpen(false)}
+        title="直播数据"
+        size="wide"
+        padded={false}
+      >
+        <Suspense fallback={<ModalLoading>正在加载直播数据…</ModalLoading>}>
+          <AnchorAnalyticsPanel />
+        </Suspense>
+      </Modal>
     </Page>
   );
 }

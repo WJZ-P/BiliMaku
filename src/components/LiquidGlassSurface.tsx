@@ -1,6 +1,14 @@
 import { styled } from "@linaria/react";
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { theme } from "../styles/theme";
+import {
+  mixThemeRgb,
+  resolveThemeColor,
+  THEME_CHANGE_EVENT,
+  themeTransitionProgress,
+  type RgbColor,
+  type ThemeChangeDetail,
+} from "../services/theme";
 
 interface LiquidGlassSurfaceProps {
   /** 玻璃表面是否处于展示周期。 */
@@ -17,6 +25,13 @@ type LiquidGlassCssVariables = CSSProperties & {
   "--liquid-glass-radius"?: string;
   "--liquid-glass-accent"?: string;
 };
+
+interface LiquidThemePalette {
+  brand: RgbColor;
+  cyan: RgbColor;
+  deep: RgbColor;
+  surface: RgbColor;
+}
 
 interface LiquidGlassRenderer {
   /** 从当前尺寸开始一次液态弹簧渲染。 */
@@ -240,6 +255,17 @@ function createRenderer(canvas: HTMLCanvasElement): LiquidGlassRenderer | null {
   let lastElapsed = 0;
   let lastProgress = 1;
   let configuredRadius = Number.parseFloat(theme.tooltip.radius);
+  let themePalette: LiquidThemePalette = {
+    brand: [0.263, 0.561, 0.945],
+    cyan: [0.365, 0.843, 0.91],
+    deep: [0.137, 0.412, 0.773],
+    surface: [1, 1, 1],
+  };
+  let themePaletteTransition: {
+    from: LiquidThemePalette;
+    to: LiquidThemePalette;
+    detail: ThemeChangeDetail;
+  } | null = null;
 
   const resize = () => {
     const bounds = canvas.getBoundingClientRect();
@@ -253,29 +279,54 @@ function createRenderer(canvas: HTMLCanvasElement): LiquidGlassRenderer | null {
     }
   };
 
-  const updateThemeColors = () => {
+  const readThemePalette = (
+    mode?: ThemeChangeDetail["mode"],
+  ): LiquidThemePalette => {
     const styles = getComputedStyle(canvas);
     const accent = styles.getPropertyValue("--liquid-glass-accent").trim()
       || styles.getPropertyValue("--message-bubble-color").trim();
+    const read = (token: string, fallback: string) => mode
+      ? resolveThemeColor(mode, token, fallback)
+      : styles.getPropertyValue(token).trim() || fallback;
     const radius = Number.parseFloat(styles.getPropertyValue("--liquid-glass-radius"));
     configuredRadius = Number.isFinite(radius) ? Math.max(0, radius) : Number.parseFloat(theme.tooltip.radius);
-    const brand = parseCssColor(accent || styles.getPropertyValue("--bc-color-brand"), [0.263, 0.561, 0.945]);
-    const cyan = parseCssColor(styles.getPropertyValue("--bc-color-cyan"), [0.365, 0.843, 0.91]);
-    const deep = parseCssColor(styles.getPropertyValue("--bc-color-brand-deep"), [0.137, 0.412, 0.773]);
-    const surface = parseCssColor(styles.getPropertyValue("--bc-color-surface"), [1, 1, 1]);
-    gl.uniform3fv(locations.brand, brand);
-    gl.uniform3fv(locations.cyan, cyan);
-    gl.uniform3fv(locations.deep, deep);
-    gl.uniform3fv(locations.surface, surface);
+    return {
+      brand: parseCssColor(accent || read("--bc-color-brand", "#438ff1"), [0.263, 0.561, 0.945]),
+      cyan: parseCssColor(read("--bc-color-cyan", "#5dd7e8"), [0.365, 0.843, 0.91]),
+      deep: parseCssColor(read("--bc-color-brand-deep", "#2369c5"), [0.137, 0.412, 0.773]),
+      surface: parseCssColor(read("--bc-color-surface", "#ffffff"), [1, 1, 1]),
+    };
   };
 
-  const draw = (time: number, progress: number) => {
+  const applyThemePalette = (palette: LiquidThemePalette) => {
+    gl.uniform3fv(locations.brand, palette.brand);
+    gl.uniform3fv(locations.cyan, palette.cyan);
+    gl.uniform3fv(locations.deep, palette.deep);
+    gl.uniform3fv(locations.surface, palette.surface);
+  };
+
+  const sampleThemePalette = (timestamp: number) => {
+    if (themePaletteTransition) {
+      const progress = themeTransitionProgress(themePaletteTransition.detail, timestamp);
+      themePalette = {
+        brand: mixThemeRgb(themePaletteTransition.from.brand, themePaletteTransition.to.brand, progress),
+        cyan: mixThemeRgb(themePaletteTransition.from.cyan, themePaletteTransition.to.cyan, progress),
+        deep: mixThemeRgb(themePaletteTransition.from.deep, themePaletteTransition.to.deep, progress),
+        surface: mixThemeRgb(themePaletteTransition.from.surface, themePaletteTransition.to.surface, progress),
+      };
+      if (progress >= 1) themePaletteTransition = null;
+    }
+    applyThemePalette(themePalette);
+  };
+
+  const draw = (time: number, progress: number, timestamp = performance.now()) => {
     lastElapsed = time;
     lastProgress = progress;
     resize();
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(program);
+    sampleThemePalette(timestamp);
     gl.uniform2f(locations.resolution, width, height);
     gl.uniform1f(locations.radius, configuredRadius * pixelRatio);
     gl.uniform1f(locations.energy, Math.exp(-4.2 * progress) * (1 - progress));
@@ -286,11 +337,18 @@ function createRenderer(canvas: HTMLCanvasElement): LiquidGlassRenderer | null {
   };
 
   const render = (time: number) => {
+    animationFrame = 0;
     if (!active || disposed) return;
     const elapsed = time - animationStartedAt;
     const progress = Math.min(1, Math.max(0, elapsed / theme.tooltip.entranceDurationMs));
-    draw(elapsed, progress);
-    if (progress < 1) {
+    draw(elapsed, progress, time);
+    if (progress < 1 || themePaletteTransition) {
+      animationFrame = window.requestAnimationFrame(render);
+    }
+  };
+
+  const requestRender = () => {
+    if (active && !disposed && animationFrame === 0) {
       animationFrame = window.requestAnimationFrame(render);
     }
   };
@@ -298,24 +356,48 @@ function createRenderer(canvas: HTMLCanvasElement): LiquidGlassRenderer | null {
   const resizeObserver = new ResizeObserver(() => {
     if (!active || disposed) return;
     // 文案宽度变化时延续当前弹簧帧，避免首帧被最终态覆盖而闪动。
-    draw(lastElapsed, lastProgress);
+    draw(lastElapsed, lastProgress, performance.now());
   });
+  const handleThemeChange = (event: Event) => {
+    const detail = (event as CustomEvent<ThemeChangeDetail>).detail;
+    const target = readThemePalette(detail.mode);
+    if (detail.durationMs <= 0) {
+      themePalette = target;
+      themePaletteTransition = null;
+    } else {
+      themePaletteTransition = {
+        from: { ...themePalette },
+        to: target,
+        detail,
+      };
+    }
+    if (active) {
+      draw(lastElapsed, lastProgress, performance.now());
+      requestRender();
+    }
+  };
+
   resizeObserver.observe(canvas);
-  updateThemeColors();
+  window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange);
+  themePalette = readThemePalette();
+  applyThemePalette(themePalette);
 
   return {
     start() {
       active = true;
       window.cancelAnimationFrame(animationFrame);
-      updateThemeColors();
+      animationFrame = 0;
+      themePalette = readThemePalette();
+      themePaletteTransition = null;
+      applyThemePalette(themePalette);
       resize();
       animationStartedAt = performance.now();
-      draw(0, 0);
+      draw(0, 0, animationStartedAt);
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        draw(theme.tooltip.entranceDurationMs, 1);
+        draw(theme.tooltip.entranceDurationMs, 1, performance.now());
         return;
       }
-      animationFrame = window.requestAnimationFrame(render);
+      requestRender();
     },
     stop() {
       active = false;
@@ -327,6 +409,7 @@ function createRenderer(canvas: HTMLCanvasElement): LiquidGlassRenderer | null {
       disposed = true;
       active = false;
       resizeObserver.disconnect();
+      window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange);
       window.cancelAnimationFrame(animationFrame);
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);

@@ -782,6 +782,48 @@ export const PipelineGroup = styled.span`
 `;
 
 
+export const AnchorAnalyticsSurface = styled.section`
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
+  background:
+    linear-gradient(138deg, color-mix(in srgb, ${theme.colors.highlight} 30%, transparent), transparent 46%),
+    color-mix(in srgb, ${theme.colors.prismBase} 82%, transparent);
+  -webkit-backdrop-filter: blur(${theme.prismGlass.strongBlur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.strongBlur}) saturate(${theme.prismGlass.saturation});
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+
+  &::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    background:
+      radial-gradient(circle at 18% 28%, color-mix(in srgb, ${theme.colors.brandSoft} 38%, transparent), transparent 38%),
+      radial-gradient(circle at 82% 68%, color-mix(in srgb, ${theme.colors.cyanSoft} 42%, transparent), transparent 42%),
+      linear-gradient(112deg, transparent 18%, color-mix(in srgb, ${theme.colors.highlight} 44%, transparent) 42%, transparent 64%);
+    background-position: 0% 20%, 100% 78%, 0% 50%;
+    background-size: 142% 142%, 148% 148%, 176% 100%;
+    content: "";
+    pointer-events: none;
+    animation: bilimaku-anchor-prism-flow 14s ease-in-out infinite alternate;
+  }
+
+  @keyframes bilimaku-anchor-prism-flow {
+    to {
+      background-position: 24% 36%, 72% 54%, 100% 50%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before {
+      animation: none;
+    }
+  }
+`;
+
 export const AnchorPanelBody = styled.div`
   display: grid;
   gap: 14px;
@@ -790,60 +832,81 @@ export const AnchorPanelBody = styled.div`
 
 export const AnchorToolbar = styled.div`
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
 `;
 
 export const AnchorRangeSelector = styled.div`
   display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px;
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.surfaceMuted};
+  overflow: hidden;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: 0;
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 82%, transparent);
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
 `;
 
 export const AnchorRangeButton = styled.button`
-  height: 28px;
+  height: 34px;
   padding: 0 10px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 0;
   background: transparent;
   color: ${theme.colors.textMuted};
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 750;
-  transition: all ${theme.motion.fast};
+  transition:
+    color ${theme.motion.fast},
+    background-color ${theme.motion.fast},
+    box-shadow ${theme.motion.fast};
+
+  & + & {
+    border-left: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 62%, transparent);
+  }
 
   &:hover {
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 58%, transparent);
     color: ${theme.colors.brand};
   }
 
   &[data-active="true"] {
-    background: ${theme.colors.surface};
+    background:
+      linear-gradient(180deg, color-mix(in srgb, ${theme.colors.highlight} 54%, transparent), transparent),
+      color-mix(in srgb, ${theme.colors.brandSubtle} 76%, transparent);
     color: ${theme.colors.brandDeep};
-    box-shadow: 0 3px 9px ${theme.colors.shadow};
+    box-shadow: inset 0 -2px 0 ${theme.colors.brand};
   }
 `;
 
 export const AnchorRefreshButton = styled.button`
   display: inline-flex;
-  height: 34px;
+  height: 36px;
   align-items: center;
   justify-content: center;
   gap: 6px;
   padding: 0 11px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.surface};
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: 0;
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 82%, transparent);
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
   color: ${theme.colors.textSecondary};
-  font-size: 9px;
+  font-size: 14px;
   font-weight: 750;
-  transition: all ${theme.motion.fast};
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  backdrop-filter: blur(18px) saturate(1.15);
+  transition:
+    border-color ${theme.motion.fast},
+    background-color ${theme.motion.fast},
+    color ${theme.motion.fast};
 
   &:hover:not(:disabled) {
     border-color: ${theme.colors.brandSoft};
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 64%, transparent);
     color: ${theme.colors.brand};
-    transform: translateY(-1px);
   }
 
   &:disabled {
@@ -857,35 +920,53 @@ export const AnchorMetricGrid = styled.div`
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 
-  @media (max-width: 1040px) {
+  @media (max-width: 720px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 470px) {
+    grid-template-columns: 1fr;
   }
 `;
 
 export const AnchorMetricCard = styled.button`
-  display: grid;
+  display: flex;
   min-width: 0;
-  grid-template-columns: 34px minmax(0, 1fr);
+  min-height: 96px;
+  align-items: center;
+  justify-content: center;
   gap: 10px;
-  padding: 13px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.radius.md};
-  background: ${theme.colors.surface};
+  padding: 13px 11px;
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: 0;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, ${theme.colors.highlight} 44%, transparent), transparent 62%),
+    color-mix(in srgb, ${theme.colors.prismSurface} 88%, transparent);
   color: inherit;
   text-align: left;
-  box-shadow: ${theme.shadows.inset};
-  transition: all ${theme.motion.fast};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  transition:
+    border-color ${theme.motion.fast},
+    background-color ${theme.motion.fast},
+    box-shadow ${theme.motion.fast};
 
   &:hover {
     border-color: ${theme.colors.brandSoft};
-    transform: translateY(-1px);
+    background:
+      linear-gradient(145deg, color-mix(in srgb, ${theme.colors.highlight} 46%, transparent), transparent 62%),
+      color-mix(in srgb, ${theme.colors.brandSubtle} 48%, transparent);
   }
 
   &[data-active="true"] {
-    border-color: color-mix(in srgb, ${theme.colors.brand} 42%, ${theme.colors.border});
-    background: ${theme.colors.brandSubtle};
+    border-color: color-mix(in srgb, ${theme.colors.brand} 48%, ${theme.colors.border});
+    background:
+      linear-gradient(145deg, color-mix(in srgb, ${theme.colors.highlight} 48%, transparent), transparent 58%),
+      color-mix(in srgb, ${theme.colors.brandSubtle} 66%, transparent);
     box-shadow:
-      0 8px 22px color-mix(in srgb, ${theme.colors.brand} 10%, transparent),
+      inset 3px 0 0 ${theme.colors.brand},
+      0 8px 22px color-mix(in srgb, ${theme.colors.brand} 9%, transparent),
       ${theme.shadows.inset};
   }
 `;
@@ -894,8 +975,9 @@ export const AnchorMetricIcon = styled.span`
   display: grid;
   width: 34px;
   height: 34px;
+  flex: 0 0 34px;
   place-items: center;
-  border-radius: 11px;
+  border-radius: 2px;
   background: ${theme.colors.brandSubtle};
   color: ${theme.colors.brand};
 
@@ -916,14 +998,16 @@ export const AnchorMetricIcon = styled.span`
 `;
 
 export const AnchorMetricContent = styled.span`
-  display: block;
+  display: grid;
   min-width: 0;
+  flex: 0 1 auto;
+  justify-items: start;
 `;
 
 export const AnchorMetricLabel = styled.span`
   display: block;
   color: ${theme.colors.textMuted};
-  font-size: 9px;
+  font-size: 16px;
   font-weight: 700;
 `;
 
@@ -945,7 +1029,7 @@ export const AnchorMetricDelta = styled.span`
   overflow: hidden;
   margin-top: 5px;
   color: ${theme.colors.textMuted};
-  font-size: 8px;
+  font-size: 13px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -965,12 +1049,14 @@ export const AnchorPanelState = styled.div`
   place-items: center;
   padding: 24px;
   border: 1px dashed ${theme.colors.borderStrong};
-  border-radius: ${theme.radius.md};
-  background: ${theme.colors.surfaceMuted};
+  border-radius: 0;
+  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 34%, transparent);
   color: ${theme.colors.textMuted};
   font-size: 10px;
   line-height: 1.6;
   text-align: center;
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+  backdrop-filter: blur(18px) saturate(1.12);
 
   strong {
     display: block;
@@ -981,16 +1067,21 @@ export const AnchorPanelState = styled.div`
 
   &[data-error="true"] {
     border-color: color-mix(in srgb, ${theme.colors.danger} 28%, ${theme.colors.border});
-    background: ${theme.colors.dangerSoft};
+    background: color-mix(in srgb, ${theme.colors.dangerSoft} 62%, transparent);
     color: ${theme.colors.danger};
   }
 `;
 
 export const AnchorChart = styled.section`
   padding: 13px 14px 11px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.radius.md};
-  background: ${theme.colors.surfaceMuted};
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: 0;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, ${theme.colors.highlight} 38%, transparent), transparent 62%),
+    color-mix(in srgb, ${theme.colors.prismSurface} 86%, transparent);
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
 `;
 
 export const AnchorChartHeader = styled.header`
@@ -1003,14 +1094,14 @@ export const AnchorChartHeader = styled.header`
 
 export const AnchorChartTitle = styled.div`
   color: ${theme.colors.textPrimary};
-  font-size: 11px;
+  font-size: 16px;
   font-weight: 800;
 
   span {
     display: block;
     margin-top: 3px;
     color: ${theme.colors.textMuted};
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 600;
   }
 `;
@@ -1019,35 +1110,49 @@ export const AnchorMetricTabs = styled.div`
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 0;
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 62%, transparent);
 `;
 
 export const AnchorMetricTab = styled.button`
   height: 24px;
   padding: 0 8px;
-  border: 1px solid transparent;
-  border-radius: ${theme.radius.pill};
+  border: 0;
+  border-radius: 0;
   background: transparent;
   color: ${theme.colors.textMuted};
-  font-size: 8px;
+  font-size: 13px;
   font-weight: 750;
+  transition:
+    background-color ${theme.motion.fast},
+    color ${theme.motion.fast};
+
+  & + & {
+    border-left: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 56%, transparent);
+  }
 
   &:hover {
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 52%, transparent);
     color: ${theme.colors.brand};
   }
 
   &[data-active="true"] {
-    border-color: ${theme.colors.brandSoft};
-    background: ${theme.colors.brandSubtle};
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 74%, transparent);
     color: ${theme.colors.brandDeep};
+    box-shadow: inset 0 -2px 0 ${theme.colors.brand};
   }
 `;
 
 export const AnchorChartCanvas = styled.div`
-  overflow: hidden;
+  position: relative;
+  overflow: visible;
   min-height: 164px;
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.surface};
+  border-radius: 0;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, ${theme.colors.highlight} 24%, transparent), transparent 72%),
+    color-mix(in srgb, ${theme.colors.prismSurface} 72%, transparent);
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
 `;
 
 export const AnchorTrendSvg = styled.svg`
@@ -1063,7 +1168,7 @@ export const AnchorTrendSvg = styled.svg`
   }
 
   .area {
-    fill: color-mix(in srgb, ${theme.colors.brand} 13%, transparent);
+    fill: color-mix(in srgb, ${theme.colors.brand} 12%, transparent);
   }
 
   .line {
@@ -1071,15 +1176,131 @@ export const AnchorTrendSvg = styled.svg`
     stroke: currentColor;
     stroke-linecap: round;
     stroke-linejoin: round;
-    stroke-width: 3;
+    stroke-width: 2.4;
     vector-effect: non-scaling-stroke;
+  }
+
+  .point-target {
+    outline: 0;
+    cursor: crosshair;
+  }
+
+  .point-hit-area {
+    fill: transparent;
+    pointer-events: all;
   }
 
   .point {
     fill: ${theme.colors.surface};
     stroke: currentColor;
     stroke-width: 2;
+    transition:
+      fill 140ms ease,
+      filter 140ms ease,
+      r 140ms ease,
+      stroke-width 140ms ease;
     vector-effect: non-scaling-stroke;
+  }
+
+  .point-target:hover .point,
+  .point-target:focus .point,
+  .point[data-active="true"] {
+    fill: ${theme.colors.brand};
+    filter: drop-shadow(0 0 4px color-mix(in srgb, ${theme.colors.brand} 48%, transparent));
+    stroke: ${theme.colors.highlight};
+    stroke-width: 2.2;
+    transform: scale(1.35);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+`;
+
+export const AnchorChartTooltip = styled.div`
+  position: absolute;
+  z-index: 3;
+  top: var(--chart-tooltip-y);
+  left: var(--chart-tooltip-x);
+  min-width: 126px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.highlight} 68%, ${theme.colors.borderStrong});
+  border-radius: 5px;
+  background: linear-gradient(
+    142deg,
+    color-mix(in srgb, ${theme.colors.surface} 72%, transparent),
+    color-mix(in srgb, ${theme.colors.canvasAccent} 58%, transparent)
+  );
+  box-shadow:
+    0 12px 28px color-mix(in srgb, ${theme.colors.brandDeep} 16%, transparent),
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 74%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.28);
+  backdrop-filter: blur(18px) saturate(1.28);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 10px)) translateY(4px) scale(0.97);
+  transform-origin: center bottom;
+  animation: bilimaku-chart-tooltip-in 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+
+  &[data-edge="start"] {
+    transform: translate(0, calc(-100% - 10px)) translateY(4px) scale(0.97);
+    transform-origin: left bottom;
+    animation-name: bilimaku-chart-tooltip-start-in;
+  }
+
+  &[data-edge="end"] {
+    transform: translate(-100%, calc(-100% - 10px)) translateY(4px) scale(0.97);
+    transform-origin: right bottom;
+    animation-name: bilimaku-chart-tooltip-end-in;
+  }
+
+  @keyframes bilimaku-chart-tooltip-in {
+    to {
+      opacity: 1;
+      transform: translate(-50%, calc(-100% - 10px)) translateY(0) scale(1);
+    }
+  }
+
+  @keyframes bilimaku-chart-tooltip-start-in {
+    to {
+      opacity: 1;
+      transform: translate(0, calc(-100% - 10px)) translateY(0) scale(1);
+    }
+  }
+
+  @keyframes bilimaku-chart-tooltip-end-in {
+    to {
+      opacity: 1;
+      transform: translate(-100%, calc(-100% - 10px)) translateY(0) scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-duration: 1ms;
+  }
+`;
+
+export const AnchorChartTooltipDate = styled.div`
+  margin-bottom: 3px;
+  color: ${theme.colors.textMuted};
+  font-family: ${theme.typography.mono};
+  font-size: 9px;
+  font-weight: 650;
+  white-space: nowrap;
+`;
+
+export const AnchorChartTooltipValue = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: ${theme.colors.textPrimary};
+  font-size: 13px;
+  font-weight: 840;
+  white-space: nowrap;
+
+  span {
+    color: ${theme.colors.brandDeep};
+    font-size: 10px;
+    font-weight: 720;
   }
 `;
 
@@ -1091,7 +1312,7 @@ export const AnchorChartAxis = styled.div`
   padding: 0 10px 8px;
   color: ${theme.colors.textMuted};
   font-family: ${theme.typography.mono};
-  font-size: 7px;
+  font-size: 11px;
   text-align: center;
 
   span {
@@ -1107,7 +1328,7 @@ export const AnchorChartLegend = styled.div`
   gap: 6px;
   margin-top: 7px;
   color: ${theme.colors.textMuted};
-  font-size: 8px;
+  font-size: 13px;
 
   &::before {
     width: 14px;

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// 当前统一配置文件结构版本。
-pub const CONFIG_SCHEMA_VERSION: u32 = 3;
+pub const CONFIG_SCHEMA_VERSION: u32 = 4;
 
 /// bilimaku 统一配置文件。
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -15,6 +15,8 @@ pub struct AppConfig {
     pub schema_version: u32,
     /// 哔哩哔哩账号与 Cookie 配置。
     pub account: AccountStorageConfig,
+    /// 软件界面外观配置。
+    pub appearance: AppearanceStorageConfig,
     /// 直播间连接配置。
     pub live: LiveStorageConfig,
     /// TTS 模型、共享资源与播报偏好。
@@ -30,10 +32,27 @@ impl Default for AppConfig {
         Self {
             schema_version: CONFIG_SCHEMA_VERSION,
             account: AccountStorageConfig::default(),
+            appearance: AppearanceStorageConfig::default(),
             live: LiveStorageConfig::default(),
             tts: TtsStorageConfig::default(),
             overlay: OverlayStorageConfig::default(),
             updated_at: 0,
+        }
+    }
+}
+
+/// 软件界面外观配置。
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct AppearanceStorageConfig {
+    /// 当前主题模式，可选 light 或 dark。
+    pub theme: String,
+}
+
+impl Default for AppearanceStorageConfig {
+    fn default() -> Self {
+        Self {
+            theme: "light".to_string(),
         }
     }
 }

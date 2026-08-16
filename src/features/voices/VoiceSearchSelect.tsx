@@ -72,7 +72,7 @@ const SearchInput = styled.input`
   background: transparent;
   color: ${theme.colors.textPrimary};
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--voice-font-control, 14px);
   font-weight: 680;
 
   &::placeholder {
@@ -89,7 +89,7 @@ const ResultCount = styled.span`
   flex: 0 0 auto;
   color: ${theme.colors.textMuted};
   font-family: ${theme.typography.mono};
-  font-size: 9px;
+  font-size: var(--voice-font-meta, 12px);
   font-weight: 760;
   white-space: nowrap;
 `;
@@ -172,7 +172,7 @@ const VoiceCopy = styled.span`
 
 const VoiceName = styled.span`
   overflow: hidden;
-  font-size: 11px;
+  font-size: var(--voice-font-control, 14px);
   font-weight: 780;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -182,7 +182,7 @@ const VoiceMeta = styled.span`
   overflow: hidden;
   color: ${theme.colors.textMuted};
   font-family: ${theme.typography.mono};
-  font-size: 9px;
+  font-size: var(--voice-font-meta, 12px);
   font-weight: 620;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -202,7 +202,7 @@ const EmptyResult = styled.div`
   place-items: center;
   padding: 12px;
   color: ${theme.colors.textMuted};
-  font-size: 10px;
+  font-size: var(--voice-font-body, 13px);
   font-weight: 660;
   text-align: center;
 `;

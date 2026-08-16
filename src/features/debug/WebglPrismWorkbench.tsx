@@ -6,7 +6,7 @@ import {
   createFullscreenWebglRuntime,
   createVisibilityAwareFrameLoop,
   mountWebglWhenNearViewport,
-  parseCssColor,
+  createThemeUniformPalette,
 } from "./webglRuntime";
 
 type PrismTone = "ice" | "pearl" | "neon";
@@ -37,10 +37,10 @@ const Workbench = styled.article`
   overflow: hidden;
   border: 1px solid color-mix(in srgb, ${theme.colors.brand} 22%, ${theme.colors.borderStrong});
   border-radius: 12px;
-  background: #eaf1f7;
+  background: ${theme.colors.prismBase};
   box-shadow:
     0 20px 52px color-mix(in srgb, ${theme.colors.textPrimary} 12%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    inset 0 1px 0 ${theme.colors.prismRim};
 `;
 
 const PrismCanvas = styled.canvas`
@@ -113,12 +113,12 @@ const ToneTabs = styled.div`
   display: inline-flex;
   gap: 4px;
   padding: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.62);
+  border: 1px solid ${theme.colors.prismBorder};
   border-radius: 8px;
-  background: rgba(238, 244, 249, 0.42);
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 70%, transparent);
   box-shadow:
     0 8px 24px rgba(42, 75, 108, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    inset 0 1px 0 ${theme.colors.prismRim};
   max-width: 100%;
   overflow-x: auto;
   backdrop-filter: blur(22px) saturate(1.18);
@@ -147,11 +147,11 @@ const ToneButton = styled.button`
   &:hover,
   &:focus-visible,
   &[data-active="true"] {
-    border-color: rgba(255, 255, 255, 0.72);
-    background: rgba(255, 255, 255, 0.48);
+    border-color: ${theme.colors.prismBorder};
+    background: color-mix(in srgb, ${theme.colors.surface} 48%, transparent);
     box-shadow:
       0 5px 16px rgba(42, 75, 108, 0.08),
-      inset 0 1px 0 white;
+      inset 0 1px 0 ${theme.colors.prismRim};
     color: ${theme.colors.textPrimary};
     outline: 0;
   }
@@ -187,12 +187,12 @@ const ModuleCard = styled.button`
   align-items: center;
   gap: 9px;
   padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.52);
+  border: 1px solid ${theme.colors.prismBorderSoft};
   border-radius: 8px;
-  background: rgba(240, 246, 251, 0.43);
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 76%, transparent);
   box-shadow:
     0 7px 22px rgba(38, 73, 108, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    inset 0 1px 0 ${theme.colors.prismRim};
   color: ${theme.colors.textSecondary};
   text-align: left;
   backdrop-filter: blur(22px) saturate(1.2);
@@ -213,11 +213,11 @@ const ModuleCard = styled.button`
   &:hover,
   &:focus-visible,
   &[data-active="true"] {
-    border-color: color-mix(in srgb, var(--module-accent) 42%, white);
-    background: rgba(255, 255, 255, 0.56);
+    border-color: color-mix(in srgb, var(--module-accent) 42%, ${theme.colors.prismRim});
+    background: color-mix(in srgb, ${theme.colors.surface} 56%, transparent);
     box-shadow:
       0 10px 28px color-mix(in srgb, var(--module-accent) 13%, transparent),
-      inset 0 1px 0 white;
+      inset 0 1px 0 ${theme.colors.prismRim};
     outline: 0;
     transform: translateX(3px);
   }
@@ -229,8 +229,8 @@ const ModuleIcon = styled.span`
   height: 32px;
   place-items: center;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--module-accent) 12%, rgba(255, 255, 255, 0.58));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--module-accent) 12%, ${theme.colors.prismSurfaceStrong});
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
   color: color-mix(in srgb, var(--module-accent) 82%, ${theme.colors.textPrimary});
 `;
 
@@ -260,7 +260,7 @@ const ModuleCopy = styled.span`
 const ModuleState = styled.span`
   width: 8px;
   height: 8px;
-  border: 2px solid rgba(255, 255, 255, 0.8);
+  border: 2px solid ${theme.colors.prismRim};
   border-radius: 50%;
   background: ${theme.colors.textMuted};
   box-shadow: 0 0 0 1px rgba(75, 100, 124, 0.12);
@@ -281,14 +281,14 @@ const GlassConsole = styled.div`
   gap: 14px;
   overflow: hidden;
   padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.64);
+  border: 1px solid ${theme.colors.prismBorder};
   border-radius: 10px;
   background:
-    linear-gradient(138deg, rgba(255, 255, 255, 0.52), rgba(229, 238, 246, 0.3)),
-    rgba(236, 243, 248, 0.28);
+    linear-gradient(138deg, color-mix(in srgb, ${theme.colors.surface} 52%, transparent), color-mix(in srgb, ${theme.colors.canvasAccent} 30%, transparent)),
+    color-mix(in srgb, ${theme.colors.prismSurface} 52%, transparent);
   box-shadow:
     0 16px 42px rgba(44, 77, 108, 0.11),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 1px 0 ${theme.colors.prismRim},
     inset 0 -1px 0 rgba(80, 112, 143, 0.08);
   backdrop-filter: blur(30px) saturate(1.26) brightness(1.04);
 
@@ -298,7 +298,7 @@ const GlassConsole = styled.div`
     right: 14px;
     left: 14px;
     height: 1px;
-    background: linear-gradient(90deg, transparent, white, transparent);
+    background: linear-gradient(90deg, transparent, ${theme.colors.prismRim}, transparent);
     content: "";
     opacity: 0.9;
   }
@@ -329,14 +329,14 @@ const ConsoleTitle = styled.div`
 
 const ConsoleBadge = styled.span`
   padding: 5px 7px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: 1px solid ${theme.colors.prismBorder};
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.42);
+  background: color-mix(in srgb, ${theme.colors.surface} 42%, transparent);
   color: ${theme.colors.brandDeep};
   font-family: ${theme.typography.mono};
   font-size: 7px;
   font-weight: 820;
-  box-shadow: inset 0 1px 0 white;
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
 `;
 
 const PreviewMessage = styled.div`
@@ -345,12 +345,12 @@ const PreviewMessage = styled.div`
   align-items: center;
   gap: 9px;
   padding: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid ${theme.colors.prismBorder};
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.32);
+  background: color-mix(in srgb, ${theme.colors.surface} 32%, transparent);
   box-shadow:
     0 7px 20px rgba(43, 76, 108, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    inset 0 1px 0 ${theme.colors.prismRim};
 `;
 
 const PreviewAvatar = styled.span`
@@ -361,7 +361,7 @@ const PreviewAvatar = styled.span`
   border-radius: 50%;
   background: linear-gradient(145deg, ${theme.colors.brand}, ${theme.colors.cyan});
   box-shadow: 0 5px 14px color-mix(in srgb, ${theme.colors.brand} 22%, transparent);
-  color: white;
+  color: ${theme.colors.textOnBrand};
   font-size: 9px;
   font-weight: 880;
 `;
@@ -419,7 +419,7 @@ const IntensityRange = styled.input`
     height: 14px;
     margin-top: -4.5px;
     appearance: none;
-    border: 2px solid white;
+    border: 2px solid ${theme.colors.prismRim};
     border-radius: 50%;
     background: ${theme.colors.brand};
     box-shadow: 0 3px 10px color-mix(in srgb, ${theme.colors.brand} 30%, transparent);
@@ -432,7 +432,7 @@ const WorkbenchFooter = styled.footer`
   justify-content: space-between;
   gap: 12px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.52);
+  border-top: 1px solid ${theme.colors.prismBorderSoft};
 
   @media (max-width: 480px) {
     align-items: stretch;
@@ -457,13 +457,13 @@ const ApplyButton = styled.button`
   align-items: center;
   gap: 7px;
   padding: 0 13px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.brand} 36%, white);
+  border: 1px solid color-mix(in srgb, ${theme.colors.brand} 36%, ${theme.colors.prismRim});
   border-radius: 7px;
   background: linear-gradient(135deg, ${theme.colors.brandDeep}, ${theme.colors.brand});
   box-shadow:
     0 8px 20px color-mix(in srgb, ${theme.colors.brand} 24%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  color: white;
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.textOnBrand} 28%, transparent);
+  color: ${theme.colors.textOnBrand};
   font-size: 9px;
   font-weight: 820;
   transition:
@@ -478,7 +478,7 @@ const ApplyButton = styled.button`
     transform: translateY(-1px) scale(1.03);
     box-shadow:
       0 11px 26px color-mix(in srgb, ${theme.colors.brand} 32%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.34);
+      inset 0 1px 0 color-mix(in srgb, ${theme.colors.textOnBrand} 34%, transparent);
   }
 `;
 
@@ -495,6 +495,8 @@ const FRAGMENT_SHADER = `
   uniform vec3 u_brand;
   uniform vec3 u_cyan;
   uniform vec3 u_danger;
+  uniform vec3 u_surface;
+  uniform vec3 u_canvas;
 
   float hash21(vec2 point) {
     point = fract(point * vec2(123.34, 456.21));
@@ -525,9 +527,9 @@ const FRAGMENT_SHADER = `
     float caustic = pow(max(0.0, wave * 0.5 + 0.5), 7.0) * (blobA + blobB + pointerBlob * 0.7);
     float lensRing = exp(-abs(length(point - pointer) - 0.16) * 26.0);
 
-    vec3 baseIce = vec3(0.83, 0.9, 0.95);
-    vec3 basePearl = vec3(0.92, 0.91, 0.9);
-    vec3 baseNeon = vec3(0.88, 0.84, 0.93);
+    vec3 baseIce = mix(mix(u_canvas, u_surface, 0.42), u_brand, 0.07);
+    vec3 basePearl = mix(u_canvas, u_surface, 0.72);
+    vec3 baseNeon = mix(mix(u_canvas, u_surface, 0.48), u_danger, 0.08);
     vec3 base = mix(baseIce, basePearl, smoothstep(0.4, 1.0, u_tone));
     base = mix(base, baseNeon, smoothstep(1.35, 2.0, u_tone));
 
@@ -545,7 +547,7 @@ const FRAGMENT_SHADER = `
   }
 `;
 
-/** 明亮主题下使用程序化折射背景和真实毛玻璃采样的 UI 实验。 */
+/** 可随深浅主题连续变色的程序化折射背景与真实毛玻璃 UI 实验。 */
 export function WebglPrismWorkbench({ density, onAction }: WebglPrismWorkbenchProps) {
   const hostRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -601,20 +603,16 @@ export function WebglPrismWorkbench({ density, onAction }: WebglPrismWorkbenchPr
         brand: gl.getUniformLocation(program, "u_brand"),
         cyan: gl.getUniformLocation(program, "u_cyan"),
         danger: gl.getUniformLocation(program, "u_danger"),
+        surface: gl.getUniformLocation(program, "u_surface"),
+        canvas: gl.getUniformLocation(program, "u_canvas"),
       };
-      const styles = getComputedStyle(host);
-      gl.uniform3fv(
-        uniforms.brand,
-        parseCssColor(styles.getPropertyValue("--bc-color-brand"), [0.26, 0.56, 0.95]),
-      );
-      gl.uniform3fv(
-        uniforms.cyan,
-        parseCssColor(styles.getPropertyValue("--bc-color-cyan"), [0.36, 0.84, 0.91]),
-      );
-      gl.uniform3fv(
-        uniforms.danger,
-        parseCssColor(styles.getPropertyValue("--bc-color-danger"), [0.91, 0.38, 0.49]),
-      );
+      const themeUniformPalette = createThemeUniformPalette(host, {
+        brand: { token: "--bc-color-brand", fallback: [0.26, 0.56, 0.95] },
+        cyan: { token: "--bc-color-cyan", fallback: [0.36, 0.84, 0.91] },
+        danger: { token: "--bc-color-danger", fallback: [0.91, 0.38, 0.49] },
+        surface: { token: "--bc-color-surface", fallback: [1, 1, 1] },
+        canvas: { token: "--bc-color-canvas", fallback: [0.957, 0.976, 1] },
+      });
 
       let width = 1;
       let height = 1;
@@ -642,6 +640,12 @@ export function WebglPrismWorkbench({ density, onAction }: WebglPrismWorkbenchPr
         currentTone += (toneRef.current - currentTone) * 0.045;
         currentIntensity += (intensityRef.current - currentIntensity) * 0.06;
         gl.useProgram(program);
+        const themeColors = themeUniformPalette.sample(time);
+        gl.uniform3fv(uniforms.brand, themeColors.brand);
+        gl.uniform3fv(uniforms.cyan, themeColors.cyan);
+        gl.uniform3fv(uniforms.danger, themeColors.danger);
+        gl.uniform3fv(uniforms.surface, themeColors.surface);
+        gl.uniform3fv(uniforms.canvas, themeColors.canvas);
         gl.uniform2f(uniforms.resolution, width, height);
         gl.uniform2f(uniforms.pointer, pointerX, 1 - pointerY);
         gl.uniform1f(uniforms.time, (time - startedAt) / 1000);
@@ -659,6 +663,7 @@ export function WebglPrismWorkbench({ density, onAction }: WebglPrismWorkbenchPr
       return () => {
         stopFrameLoop();
         observer.disconnect();
+        themeUniformPalette.dispose();
         runtime.dispose();
       };
     });

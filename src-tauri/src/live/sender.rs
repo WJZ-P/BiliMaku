@@ -18,6 +18,7 @@ const SEND_DANMAKU_URL: &str = "https://api.live.bilibili.com/msg/send";
 const LIVE_ORIGIN: &str = "https://live.bilibili.com";
 const LIVE_WEB_LOCATION: &str = "444.8";
 const ACCOUNT_NOT_LOGGED_IN: i64 = -101;
+const LIVE_EMOTICON_MAX_CHARS: usize = 160;
 
 #[derive(Debug, Deserialize)]
 struct SendDanmakuApiResponse {
@@ -67,6 +68,24 @@ fn normalize_message(message: String) -> Result<String, String> {
     Ok(message)
 }
 
+fn normalize_request(request: SendLiveDanmakuRequest) -> Result<(String, u8), String> {
+    match request.dm_type {
+        0 => normalize_message(request.message).map(|message| (message, 0)),
+        1 => {
+            let unique = request.message.trim().to_string();
+            let length = unique.chars().count();
+            if length == 0 {
+                return Err("表情唯一标识为空，请重新打开表情面板".to_string());
+            }
+            if length > LIVE_EMOTICON_MAX_CHARS {
+                return Err("表情唯一标识异常，请刷新账号表情目录".to_string());
+            }
+            Ok((unique, 1))
+        }
+        _ => Err("当前仅支持普通弹幕和图片表情".to_string()),
+    }
+}
+
 fn response_excerpt(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes)
         .chars()
@@ -84,7 +103,7 @@ pub(super) async fn send(
     store: &AppConfigStore,
     request: SendLiveDanmakuRequest,
 ) -> Result<SendLiveDanmakuResult, String> {
-    let message = normalize_message(request.message)?;
+    let (message, dm_type) = normalize_request(request)?;
     let login = ensure_bilibili_session_initialized(app, account, store).await?;
     if login.profile.is_none() {
         return Err("发送弹幕需要先完成扫码登录".to_string());
@@ -101,7 +120,7 @@ pub(super) async fn send(
         &context.wbi_mixin_key,
     )?;
     let referer = format!("{LIVE_ORIGIN}/{}", context.room_id);
-    let form = Form::new()
+    let mut form = Form::new()
         .text("bubble", "0")
         .text("msg", message.clone())
         .text("color", "16777215")
@@ -120,6 +139,10 @@ pub(super) async fn send(
         .text("roomid", context.room_id.to_string())
         .text("csrf", csrf.clone())
         .text("csrf_token", csrf);
+    // 官方网页只在发送独立图片表情时显式提交 dm_type=1；普通文本保持原请求结构。
+    if dm_type == 1 {
+        form = form.text("dm_type", "1");
+    }
 
     let response = session
         .client
@@ -168,6 +191,7 @@ pub(super) async fn send(
     Ok(SendLiveDanmakuResult {
         room_id: context.room_id,
         message,
+        dm_type,
         sent_at,
     })
 }
@@ -203,6 +227,27 @@ mod tests {
     #[test]
     fn rejects_blank_danmaku() {
         assert!(normalize_message(" \n\t ".to_string()).is_err());
+    }
+
+    #[test]
+    fn accepts_platform_emoticon_unique_without_text_limit() {
+        let request = SendLiveDanmakuRequest {
+            message: "upower_[测试表情_开心]".to_string(),
+            dm_type: 1,
+        };
+        assert_eq!(
+            normalize_request(request).expect("image emoticon"),
+            ("upower_[测试表情_开心]".to_string(), 1)
+        );
+    }
+
+    #[test]
+    fn rejects_unknown_danmaku_type() {
+        let request = SendLiveDanmakuRequest {
+            message: "test".to_string(),
+            dm_type: 9,
+        };
+        assert!(normalize_request(request).is_err());
     }
 
     #[test]

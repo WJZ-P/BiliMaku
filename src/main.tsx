@@ -4,8 +4,14 @@ import {
   flushStartupMetrics,
   markStartup,
 } from "./services/startupPerformance";
+import { initializeThemeMode } from "./services/theme";
+import { themePalettes } from "./styles/theme";
 
 markStartup("frontend-entry-evaluated");
+
+// 在任何 React 节点出现前应用主题，深色模式不会先闪过浅色启动页。
+const initialThemeMode = initializeThemeMode();
+const startupColors = themePalettes[initialThemeMode].colors;
 
 const App = lazy(() => {
   markStartup("app-module-requested");
@@ -33,8 +39,8 @@ function StartupFallback({ transparent = false }: { transparent?: boolean }) {
         minHeight: "100vh",
         placeItems: "center",
         background:
-          "radial-gradient(circle at 18% 12%, #dff2ff 0, transparent 33%), linear-gradient(145deg, #f8fcff 0%, #eef7ff 100%)",
-        color: "#315775",
+          `radial-gradient(circle at 18% 12%, ${startupColors.brandSoft} 0, transparent 33%), linear-gradient(145deg, ${startupColors.surface} 0%, ${startupColors.canvas} 100%)`,
+        color: startupColors.textSecondary,
         fontFamily:
           'Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
         fontSize: 14,

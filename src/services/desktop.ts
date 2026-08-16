@@ -14,6 +14,7 @@ import type {
   RoomConnectionInfo,
 } from "../types/events";
 import type { DesktopStatus } from "../types/app";
+import { DEFAULT_THEME_MODE, type ThemeMode } from "../types/theme";
 import { DEFAULT_MESSAGE_BUBBLE_COLOR } from "../styles/theme";
 import type { LiveAppearanceSettings } from "../types/liveAppearance";
 import {
@@ -46,6 +47,18 @@ export async function getDesktopStatus(): Promise<DesktopStatus | null> {
 export async function getConfigFilePath(): Promise<string> {
   if (!isDesktopRuntime()) return "";
   return invoke<string>("get_config_file_path");
+}
+
+/** 读取 Rust 统一配置中的界面主题。 */
+export async function getAppTheme(): Promise<ThemeMode> {
+  if (!isDesktopRuntime()) return DEFAULT_THEME_MODE;
+  return invoke<ThemeMode>("get_app_theme");
+}
+
+/** 保存界面主题；Rust 会校验只允许 light 或 dark。 */
+export async function saveAppTheme(mode: ThemeMode): Promise<void> {
+  if (!isDesktopRuntime()) return;
+  await invoke("update_app_theme", { mode });
 }
 
 /** 读取 Rust 统一配置中的直播间聊天区外观。 */

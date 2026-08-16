@@ -90,6 +90,14 @@ fn validate_live_message_settings(
     Ok(settings)
 }
 
+fn normalize_app_theme(value: &str) -> Result<String, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "light" => Ok("light".to_string()),
+        "dark" => Ok("dark".to_string()),
+        _ => Err("界面主题只支持 light 或 dark".to_string()),
+    }
+}
+
 fn normalize_hex_color(value: &str) -> Result<String, String> {
     let color = value.trim();
     if color.len() != 7
@@ -155,6 +163,12 @@ impl AppConfigStore {
         let normalized_messages = normalize_live_message_settings(config.live.messages.clone());
         if config.live.messages != normalized_messages {
             config.live.messages = normalized_messages;
+            should_persist = true;
+        }
+        let normalized_theme =
+            normalize_app_theme(&config.appearance.theme).unwrap_or_else(|_| "light".to_string());
+        if config.appearance.theme != normalized_theme {
+            config.appearance.theme = normalized_theme;
             should_persist = true;
         }
         if should_persist {
@@ -241,6 +255,17 @@ impl AppConfigStore {
     /// 清除账号登录态，不影响其他配置。
     pub fn clear_account_session(&self) -> Result<bool, String> {
         self.update(|config| config.account = AccountStorageConfig::default())
+    }
+
+    /// 读取内存中的界面主题。
+    pub fn app_theme(&self) -> Result<String, String> {
+        normalize_app_theme(&self.snapshot()?.appearance.theme)
+    }
+
+    /// 校验并保存界面主题。
+    pub fn set_app_theme(&self, mode: String) -> Result<bool, String> {
+        let mode = normalize_app_theme(&mode)?;
+        self.update(|config| config.appearance.theme = mode)
     }
 
     /// 读取最近一次保存的房间号。
@@ -501,6 +526,18 @@ pub fn get_config_file_path(store: State<'_, AppConfigStore>) -> Result<String, 
     Ok(store.config_path()?.to_string_lossy().to_string())
 }
 
+/// 读取内存中的界面主题。
+#[tauri::command]
+pub fn get_app_theme(store: State<'_, AppConfigStore>) -> Result<String, String> {
+    store.app_theme()
+}
+
+/// 更新界面主题，并在实际变化时写入统一配置。
+#[tauri::command]
+pub fn update_app_theme(store: State<'_, AppConfigStore>, mode: String) -> Result<bool, String> {
+    store.set_app_theme(mode)
+}
+
 /// 读取内存中的 TTS 播报偏好。
 #[tauri::command]
 pub fn get_tts_settings(store: State<'_, AppConfigStore>) -> Result<TtsUserSettings, String> {
@@ -650,6 +687,36 @@ mod tests {
             serde_json::from_str(&fs::read_to_string(&path).expect("read persisted config"))
                 .expect("parse persisted config");
         assert_eq!(persisted["live"]["autoConnect"], false);
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn persists_and_validates_app_theme() {
+        let directory = test_directory("app-theme");
+        let path = directory.join(CONFIG_FILE_NAME);
+        let store = AppConfigStore::default();
+        store
+            .initialize_from_path(path.clone())
+            .expect("initialize store");
+
+        assert_eq!(store.app_theme().expect("read default theme"), "light");
+        assert!(store
+            .set_app_theme("dark".to_string())
+            .expect("save dark theme"));
+        assert!(!store
+            .set_app_theme("dark".to_string())
+            .expect("skip unchanged theme"));
+        assert!(store.set_app_theme("amoled".to_string()).is_err());
+
+        let reloaded = AppConfigStore::default();
+        reloaded
+            .initialize_from_path(path.clone())
+            .expect("reload store");
+        assert_eq!(reloaded.app_theme().expect("read persisted theme"), "dark");
+        let persisted: Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("read persisted config"))
+                .expect("parse persisted config");
+        assert_eq!(persisted["appearance"]["theme"], "dark");
         let _ = fs::remove_dir_all(directory);
     }
 

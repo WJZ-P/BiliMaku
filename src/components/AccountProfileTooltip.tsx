@@ -126,23 +126,11 @@ const TooltipArrow = styled.span`
   left: var(--profile-tooltip-arrow-x);
   width: 10px;
   height: 10px;
-  border-top: 1px solid
-    color-mix(in srgb, ${theme.colors.highlight} 62%, ${theme.colors.borderStrong});
-  border-left: 1px solid
-    color-mix(in srgb, ${theme.colors.highlight} 62%, ${theme.colors.borderStrong});
-  background: color-mix(
-    in srgb,
-    ${theme.colors.popoverSurface} ${theme.frostedGlass.surfaceMix},
-    transparent
-  );
-  -webkit-backdrop-filter: blur(${theme.frostedGlass.blur})
-    saturate(${theme.frostedGlass.saturation})
-    brightness(${theme.frostedGlass.brightness})
-    contrast(${theme.frostedGlass.contrast});
-  backdrop-filter: blur(${theme.frostedGlass.blur})
-    saturate(${theme.frostedGlass.saturation})
-    brightness(${theme.frostedGlass.brightness})
-    contrast(${theme.frostedGlass.contrast});
+  border-top: 1px solid ${theme.colors.prismBorder};
+  border-left: 1px solid ${theme.colors.prismBorder};
+  background: ${theme.colors.prismSurface};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
   box-shadow: -2px -2px 5px color-mix(in srgb, ${theme.colors.highlight} 34%, transparent);
   opacity: 0;
   transform: translateX(-50%) rotate(45deg);
@@ -165,40 +153,24 @@ const GlassCard = styled.div`
     opacity ${theme.tooltip.exitDurationMs}ms ease,
     transform ${theme.tooltip.exitDurationMs}ms ease;
   will-change: opacity, transform;
-  border: 1px solid
-    color-mix(in srgb, ${theme.colors.highlight} 62%, ${theme.colors.borderStrong});
+  border: 1px solid ${theme.colors.prismBorder};
   border-radius: ${theme.tooltip.radius};
   background-image:
-    radial-gradient(
-      circle at 14% -8%,
-      color-mix(in srgb, ${theme.colors.highlight} 50%, transparent),
-      transparent 44%
-    ),
-    linear-gradient(
-      138deg,
-      color-mix(in srgb, ${theme.colors.surface} 22%, transparent) 0%,
-      color-mix(in srgb, ${theme.colors.popoverSurface} 8%, transparent) 48%,
-      color-mix(in srgb, ${theme.colors.textMuted} 6%, transparent) 100%
-    );
-  background-color: color-mix(
-    in srgb,
-    ${theme.colors.popoverSurface} ${theme.frostedGlass.surfaceMix},
-    transparent
-  );
+    radial-gradient(circle at 14% -8%, color-mix(in srgb, ${theme.colors.highlight} 56%, transparent), transparent 44%),
+    linear-gradient(138deg, color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 80%, transparent), color-mix(in srgb, ${theme.colors.prismSurface} 84%, transparent));
+  background-color: color-mix(in srgb, ${theme.colors.prismBase} 22%, transparent);
   box-shadow:
-    0 24px 64px color-mix(in srgb, ${theme.colors.textPrimary} 20%, transparent),
-    0 7px 20px color-mix(in srgb, ${theme.colors.textPrimary} 9%, transparent),
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 92%, transparent),
+    0 24px 64px color-mix(in srgb, ${theme.colors.textPrimary} 16%, transparent),
+    0 7px 20px ${theme.colors.prismShadow},
+    inset 0 1px 0 ${theme.colors.prismRim},
     inset 1px 0 0 color-mix(in srgb, ${theme.colors.highlight} 34%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.textMuted} 13%, transparent);
-  -webkit-backdrop-filter: blur(${theme.frostedGlass.blur})
-    saturate(${theme.frostedGlass.saturation})
-    brightness(${theme.frostedGlass.brightness})
-    contrast(${theme.frostedGlass.contrast});
-  backdrop-filter: blur(${theme.frostedGlass.blur})
-    saturate(${theme.frostedGlass.saturation})
-    brightness(${theme.frostedGlass.brightness})
-    contrast(${theme.frostedGlass.contrast});
+    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.brandDeep} 8%, transparent);
+  -webkit-backdrop-filter: blur(${theme.prismGlass.strongBlur})
+    saturate(${theme.prismGlass.saturation})
+    brightness(${theme.prismGlass.brightness});
+  backdrop-filter: blur(${theme.prismGlass.strongBlur})
+    saturate(${theme.prismGlass.saturation})
+    brightness(${theme.prismGlass.brightness});
 
   &::before {
     position: absolute;
@@ -412,7 +384,7 @@ const MetricGrid = styled.div`
   padding: 10px 12px;
   border-block: 1px solid
     color-mix(in srgb, ${theme.colors.highlight} 28%, ${theme.colors.border});
-  background: color-mix(in srgb, ${theme.colors.popoverSurface} 48%, transparent);
+  background: color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 66%, transparent);
 `;
 
 const Metric = styled.div`

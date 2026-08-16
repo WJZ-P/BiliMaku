@@ -7,6 +7,14 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { theme } from "../styles/theme";
+import {
+  mixThemeRgb,
+  resolveThemeColor,
+  THEME_CHANGE_EVENT,
+  themeTransitionProgress,
+  type RgbColor,
+  type ThemeChangeDetail,
+} from "../services/theme";
 
 export type WebglParticleButtonKind = "primary" | "secondary" | "danger";
 
@@ -28,7 +36,8 @@ interface Particle {
   lifetime: number;
   exitElapsedMs: number;
   exitDurationMs: number;
-  color: readonly [number, number, number];
+  color: RgbColor;
+  paletteIndex: number;
 }
 
 interface PointerSnapshot {
@@ -432,23 +441,35 @@ export function WebglParticleButton({
     const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
     const pixelRatioLocation = gl.getUniformLocation(program, "u_pixel_ratio");
     const stride = 7 * Float32Array.BYTES_PER_ELEMENT;
-    const documentStyle = getComputedStyle(document.documentElement);
-    const fallbackAccent = parseColor(
-      documentStyle.getPropertyValue(
-        kind === "danger" ? "--bc-color-danger" : "--bc-color-brand",
-      ),
-    );
-    const buttonStyle = getComputedStyle(root);
-    const accent = parseColor(
-      buttonStyle.getPropertyValue("--particle-button-accent"),
-      fallbackAccent,
-    );
-    const palette = [
-      accent,
-      mixColor(accent, [1, 1, 1], 0.28),
-      mixColor(accent, [1, 1, 1], 0.54),
-      mixColor(accent, [0.08, 0.12, 0.18], 0.16),
-    ];
+    const readParticlePalette = (
+      mode?: ThemeChangeDetail["mode"],
+    ): RgbColor[] => {
+      const documentStyle = getComputedStyle(document.documentElement);
+      const semanticToken = kind === "danger" ? "--bc-color-danger" : "--bc-color-brand";
+      const semanticValue = mode
+        ? resolveThemeColor(mode, semanticToken, "#438ff1")
+        : documentStyle.getPropertyValue(semanticToken);
+      const fallbackAccent = parseColor(semanticValue);
+      const buttonStyle = getComputedStyle(root);
+      const accent = mode
+        ? fallbackAccent
+        : parseColor(
+            buttonStyle.getPropertyValue("--particle-button-accent"),
+            fallbackAccent,
+          );
+      return [
+        accent,
+        mixColor(accent, [1, 1, 1], 0.28),
+        mixColor(accent, [1, 1, 1], 0.54),
+        mixColor(accent, [0.08, 0.12, 0.18], 0.16),
+      ];
+    };
+    let palette = readParticlePalette();
+    let paletteTransition: {
+      from: RgbColor[];
+      to: RgbColor[];
+      detail: ThemeChangeDetail;
+    } | null = null;
 
     let width = 1;
     let height = 1;
@@ -496,6 +517,7 @@ export function WebglParticleButton({
       const deltaY = targetY - y;
       const distance = Math.max(0.001, Math.hypot(deltaX, deltaY));
       const speed = randomBetween(24, 58);
+      const paletteIndex = Math.floor(Math.random() * palette.length);
       particles.push({
         x,
         y,
@@ -507,7 +529,8 @@ export function WebglParticleButton({
         lifetime: randomBetween(0.72, 1.55),
         exitElapsedMs: 0,
         exitDurationMs: randomBetween(180, 620),
-        color: palette[Math.floor(Math.random() * palette.length)],
+        color: palette[paletteIndex],
+        paletteIndex,
       });
     };
 
@@ -565,6 +588,16 @@ export function WebglParticleButton({
 
     const render = (time: number) => {
       if (disposed) return;
+      if (paletteTransition) {
+        const progress = themeTransitionProgress(paletteTransition.detail, time);
+        palette = paletteTransition.from.map((color, index) => (
+          mixThemeRgb(color, paletteTransition?.to[index] ?? color, progress)
+        ));
+        for (const particle of particles) {
+          particle.color = palette[particle.paletteIndex] ?? particle.color;
+        }
+        if (progress >= 1) paletteTransition = null;
+      }
       const elapsedMs = Math.min(34, Math.max(0, time - previousTime));
       const elapsedSeconds = elapsedMs / 1000;
       previousTime = time;
@@ -619,16 +652,36 @@ export function WebglParticleButton({
       frame = window.requestAnimationFrame(render);
     };
 
+    const handleThemeChange = (event: Event) => {
+      const detail = (event as CustomEvent<ThemeChangeDetail>).detail;
+      const target = readParticlePalette(detail.mode);
+      if (detail.durationMs <= 0) {
+        palette = target;
+        paletteTransition = null;
+        for (const particle of particles) {
+          particle.color = palette[particle.paletteIndex] ?? particle.color;
+        }
+      } else {
+        paletteTransition = {
+          from: palette.map((color) => [...color] as RgbColor),
+          to: target,
+          detail,
+        };
+      }
+    };
+
     resize();
     emitBurst();
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(canvas);
+    window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange);
     frame = window.requestAnimationFrame(render);
 
     return () => {
       disposed = true;
       resizeObserver.disconnect();
       window.cancelAnimationFrame(frame);
+      window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange);
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
     };

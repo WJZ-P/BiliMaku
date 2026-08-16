@@ -1,4 +1,4 @@
-import { lazy, startTransition, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { WindowTitleBar } from "./components/WindowTitleBar";
 import { WorkspaceFlowCanvas } from "./components/WorkspaceFlowCanvas";
@@ -8,6 +8,7 @@ import {
   flushStartupMetrics,
   markStartup,
 } from "./services/startupPerformance";
+import { hydrateThemeMode } from "./services/theme";
 import { configureMainWindow, revealMainWindowOnce } from "./services/window";
 import { AppFrame, Main, ViewLoading } from "./styles/AppStyles";
 import { GlobalStyles } from "./styles/GlobalStyles";
@@ -36,19 +37,9 @@ const WorkspaceTitleBar = lazy(() =>
     default: module.WorkspaceTitleBar,
   })),
 );
-const DebugPage = lazy(() =>
-  import("./features/debug/DebugPage").then((module) => ({
-    default: module.DebugPage,
-  })),
-);
 const OverlaySettingsPage = lazy(() =>
   import("./features/overlays/OverlaySettingsPage").then((module) => ({
     default: module.OverlaySettingsPage,
-  })),
-);
-const FeaturePage = lazy(() =>
-  import("./features/shared/FeaturePage").then((module) => ({
-    default: module.FeaturePage,
   })),
 );
 const VoiceStudioPage = lazy(() =>
@@ -65,18 +56,14 @@ const SettingsPage = lazy(() =>
 /** 工作台页面按独立分块构建，并在首帧后依次预取。 */
 const viewPreloaders: Record<AppView, () => Promise<unknown>> = {
   dashboard: () => import("./features/dashboard/DashboardPage"),
-  debug: () => import("./features/debug/DebugPage"),
-  rules: () => import("./features/shared/FeaturePage"),
   voices: () => import("./features/voices/VoiceStudioPage"),
   overlays: () => import("./features/overlays/OverlaySettingsPage"),
   settings: () => import("./features/settings/SettingsPage"),
 };
 
 const secondaryViews: AppView[] = [
-  "debug",
   "overlays",
   "voices",
-  "rules",
   "settings",
 ];
 
@@ -220,7 +207,8 @@ function Workspace({ accountStatus, onAccountStatusChange }: WorkspaceProps) {
 
   const navigate = (view: AppView) => {
     void preloadView(view);
-    startTransition(() => setActiveView(view));
+    // 工作台切换属于用户直接操作；实时弹幕持续更新时，Transition 可能反复让路并拖慢页面提交。
+    setActiveView(view);
   };
 
   return (
@@ -239,8 +227,6 @@ function Workspace({ accountStatus, onAccountStatusChange }: WorkspaceProps) {
             <Main data-view={activeView}>
               <Suspense fallback={<ViewLoading>正在加载功能模块…</ViewLoading>}>
                 {activeView === "dashboard" && <DashboardPage onNavigate={navigate} />}
-                {activeView === "debug" && <DebugPage />}
-                {activeView === "rules" && <FeaturePage view="rules" />}
                 {activeView === "voices" && <VoiceStudioPage />}
                 {activeView === "overlays" && <OverlaySettingsPage />}
                 {activeView === "settings" && (
@@ -280,6 +266,12 @@ export default function App() {
   const checkingSession = status.phase === "checking";
   const authenticated = status.phase === "authenticated" && status.profile !== null;
   const windowMode = authenticated ? "workspace" : "login";
+
+  useEffect(() => {
+    void hydrateThemeMode().catch((reason) => {
+      console.warn("bilimaku theme hydration failed", reason);
+    });
+  }, []);
 
   useEffect(() => {
     if (!checkingSession) return;

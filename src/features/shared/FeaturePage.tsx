@@ -10,7 +10,6 @@ import {
   SubtleButton,
 } from "../../components/ui";
 import { theme } from "../../styles/theme";
-import type { AppView } from "../../types/navigation";
 
 interface FeatureConfig {
   icon: IconName;
@@ -26,11 +25,13 @@ interface FeatureConfig {
   }>;
 }
 
+type FeatureView = "rules";
+
 interface FeaturePageProps {
-  view: Extract<AppView, "rules">;
+  view: FeatureView;
 }
 
-const configs: Record<Extract<AppView, "rules">, FeatureConfig> = {
+const configs: Record<FeatureView, FeatureConfig> = {
   rules: {
     icon: "sliders",
     kicker: "EVENT PIPELINE",

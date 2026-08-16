@@ -1,3 +1,4 @@
+use crate::performance::StartupPerformanceState;
 use crate::store::AppConfigStore;
 use crate::types::tts::{
     default_audio_format, default_builtin_timeout_seconds, default_python_program,
@@ -9,12 +10,12 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
+use std::process::{ExitStatus, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex as StandardMutex;
+use std::sync::{Arc, Mutex as StandardMutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
@@ -27,9 +28,10 @@ const LEGACY_MANIFEST_FILE: &str = "bilicast-tts.json";
 const CHINESE_BERT_DIRECTORY: &str = "chinese-roberta-wwm-ext-large";
 const MAX_AUDIO_BYTES: u64 = 100 * 1024 * 1024;
 const BERT_VITS2_ADAPTER_ID: &str = "bert-vits2";
-const BERT_VITS2_ADAPTER_CACHE_VERSION: &str = "bert-vits2-v2";
+const BERT_VITS2_ADAPTER_CACHE_VERSION: &str = "bert-vits2-v3";
 const TTS_ENVIRONMENT_CACHE_VERSION: &str = "tts-environment-v2";
 const TTS_WORKER_IPC_PREFIX: &str = "BILIMAKU_TTS_IPC:";
+const TTS_WORKER_STDERR_TAIL_LINES: usize = 80;
 /// TTS 后台预热状态事件名。
 pub const TTS_PRELOAD_EVENT_NAME: &str = "tts://preload-status";
 static OUTPUT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -142,6 +144,8 @@ struct BuiltinTtsWorker {
     stdin: ChildStdin,
     stdout: Lines<BufReader<ChildStdout>>,
     preparation: TtsPreparationResult,
+    pid: Option<u32>,
+    stderr_tail: Arc<StandardMutex<VecDeque<String>>>,
 }
 
 struct BuiltinTtsWorkerConfig {
@@ -529,8 +533,13 @@ fn data_url(bytes: Vec<u8>, format: &str) -> Result<TtsSynthesisResult, String> 
         return Err("TTS 单次音频超过 100 MiB 上限".to_string());
     }
     let mime_type = audio_mime(format).to_string();
+    let prefix = format!("data:{mime_type};base64,");
+    let encoded_length = bytes.len().div_ceil(3) * 4;
+    let mut audio_data_url = String::with_capacity(prefix.len() + encoded_length);
+    audio_data_url.push_str(&prefix);
+    STANDARD.encode_string(&bytes, &mut audio_data_url);
     Ok(TtsSynthesisResult {
-        audio_data_url: format!("data:{mime_type};base64,{}", STANDARD.encode(&bytes)),
+        audio_data_url,
         mime_type,
         bytes: bytes.len(),
     })
@@ -608,6 +617,55 @@ fn builtin_worker_config(
     })
 }
 
+fn record_tts_diagnostic(app: &AppHandle, stage: &str, duration_ms: Option<f64>, detail: String) {
+    let logger = app.state::<StartupPerformanceState>();
+    if let Err(error) = logger.mark("tts", stage, duration_ms, Some(detail)) {
+        eprintln!("bilimaku TTS diagnostic log warning: {error}");
+    }
+}
+
+fn worker_stderr_snapshot(tail: &Arc<StandardMutex<VecDeque<String>>>) -> String {
+    tail.lock()
+        .map(|lines| lines.iter().cloned().collect::<Vec<_>>().join(" | "))
+        .unwrap_or_else(|_| "stderr tail lock poisoned".to_string())
+}
+
+fn worker_exit_status(status: &ExitStatus) -> String {
+    status
+        .code()
+        .map(|code| format!("exit-code={code}"))
+        .unwrap_or_else(|| format!("status={status}"))
+}
+
+async fn worker_failure_detail(worker: &mut BuiltinTtsWorker, cause: &str) -> String {
+    let status = match worker.child.try_wait() {
+        Ok(Some(status)) => worker_exit_status(&status),
+        Ok(None) => {
+            // stdout 关闭与进程状态更新之间可能存在一个很短的竞态窗口。
+            tokio::time::sleep(Duration::from_millis(25)).await;
+            match worker.child.try_wait() {
+                Ok(Some(status)) => worker_exit_status(&status),
+                Ok(None) => "worker-still-running".to_string(),
+                Err(error) => format!("status-check-error={error}"),
+            }
+        }
+        Err(error) => format!("status-check-error={error}"),
+    };
+    let stderr = worker_stderr_snapshot(&worker.stderr_tail);
+    format!(
+        "{cause}；worker_pid={}；{status}；stderr_tail={}",
+        worker
+            .pid
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "unknown".to_string()),
+        if stderr.is_empty() {
+            "<empty>"
+        } else {
+            &stderr
+        }
+    )
+}
+
 async fn read_tts_worker_message(
     stdout: &mut Lines<BufReader<ChildStdout>>,
     timeout_seconds: u64,
@@ -658,6 +716,10 @@ async fn spawn_builtin_worker(
     let mut child = command
         .spawn()
         .map_err(|error| format!("启动常驻 TTS worker 失败：{error}"))?;
+    let pid = child.id();
+    let stderr_tail = Arc::new(StandardMutex::new(VecDeque::with_capacity(
+        TTS_WORKER_STDERR_TAIL_LINES,
+    )));
     let stdin = child
         .stdin
         .take()
@@ -667,10 +729,17 @@ async fn spawn_builtin_worker(
         .take()
         .ok_or_else(|| "TTS worker stdout 初始化失败".to_string())?;
     if let Some(stderr) = child.stderr.take() {
+        let captured_tail = Arc::clone(&stderr_tail);
         tauri::async_runtime::spawn(async move {
             let mut lines = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 eprintln!("bilimaku TTS worker: {line}");
+                if let Ok(mut tail) = captured_tail.lock() {
+                    if tail.len() == TTS_WORKER_STDERR_TAIL_LINES {
+                        tail.pop_front();
+                    }
+                    tail.push_back(line);
+                }
             }
         });
     }
@@ -732,33 +801,86 @@ async fn spawn_builtin_worker(
         stdin,
         stdout,
         preparation,
+        pid,
+        stderr_tail,
     })
 }
 
 async fn ensure_builtin_worker(
+    app: &AppHandle,
     slot: &mut Option<BuiltinTtsWorker>,
     model_id: &str,
     config: BuiltinTtsWorkerConfig,
     timeout_seconds: u64,
 ) -> Result<TtsPreparationResult, String> {
     if let Some(worker) = slot.as_mut() {
-        let running = worker
+        let status = worker
             .child
             .try_wait()
-            .map_err(|error| format!("检查 TTS worker 状态失败：{error}"))?
-            .is_none();
-        if running && worker.key == config.key {
+            .map_err(|error| format!("检查 TTS worker 状态失败：{error}"))?;
+        if status.is_none() && worker.key == config.key {
             let mut result = worker.preparation.clone();
             result.reused = true;
             return Ok(result);
         }
+        let stderr = worker_stderr_snapshot(&worker.stderr_tail);
+        let detail = if let Some(status) = status {
+            format!(
+                "model={model_id}, worker_pid={}, {}, stderr_tail={}",
+                worker
+                    .pid
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "unknown".into()),
+                worker_exit_status(&status),
+                if stderr.is_empty() {
+                    "<empty>"
+                } else {
+                    &stderr
+                }
+            )
+        } else {
+            format!(
+                "model={model_id}, worker_pid={}, reason=model-or-runtime-changed",
+                worker
+                    .pid
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "unknown".into())
+            )
+        };
+        record_tts_diagnostic(app, "tts-worker-replaced", None, detail);
     }
 
     if let Some(mut previous) = slot.take() {
         let _ = previous.child.kill().await;
     }
-    let worker = spawn_builtin_worker(model_id, config, timeout_seconds).await?;
+    let worker = match spawn_builtin_worker(model_id, config, timeout_seconds).await {
+        Ok(worker) => worker,
+        Err(error) => {
+            record_tts_diagnostic(
+                app,
+                "tts-worker-start-failed",
+                None,
+                format!("model={model_id}, error={error}"),
+            );
+            return Err(error);
+        }
+    };
     let result = worker.preparation.clone();
+    record_tts_diagnostic(
+        app,
+        "tts-worker-ready",
+        Some(result.load_ms as f64),
+        format!(
+            "model={model_id}, worker_pid={}, device={}, gpu={}, gpu_allocated_mb={}",
+            worker
+                .pid
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "unknown".into()),
+            result.device,
+            result.gpu,
+            result.gpu_memory_mb
+        ),
+    );
     *slot = Some(worker);
     Ok(result)
 }
@@ -808,8 +930,30 @@ async fn synthesize_with_builtin_worker(
     };
 
     let mut slot = state.worker.lock().await;
-    let preparation =
-        ensure_builtin_worker(&mut slot, &installed.descriptor.id, config, timeout_seconds).await?;
+    let preparation = ensure_builtin_worker(
+        app,
+        &mut slot,
+        &installed.descriptor.id,
+        config,
+        timeout_seconds,
+    )
+    .await?;
+    let worker_pid = slot.as_ref().and_then(|worker| worker.pid);
+    let text_chars = request.text.chars().count();
+    record_tts_diagnostic(
+        app,
+        "tts-inference-started",
+        None,
+        format!(
+            "model={}, request_id={request_id}, worker_pid={}, text_chars={text_chars}, device={}",
+            installed.descriptor.id,
+            worker_pid
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "unknown".to_string()),
+            preparation.device
+        ),
+    );
+
     let payload = json!({
         "type": "synthesize",
         "id": request_id,
@@ -848,33 +992,154 @@ async fn synthesize_with_builtin_worker(
         Ok(value) => value,
         Err(error) => {
             let _ = fs::remove_file(&output);
-            if let Some(mut broken) = slot.take() {
+            let detail = if let Some(mut broken) = slot.take() {
+                let detail = worker_failure_detail(&mut broken, &error).await;
                 let _ = broken.child.kill().await;
-            }
-            return Err(error);
+                detail
+            } else {
+                error
+            };
+            record_tts_diagnostic(
+                app,
+                "tts-worker-io-failed",
+                None,
+                format!(
+                    "model={}, request_id={request_id}, {detail}",
+                    installed.descriptor.id
+                ),
+            );
+            return Err(detail);
         }
     };
     if response.get("id").and_then(Value::as_u64) != Some(request_id) {
         let _ = fs::remove_file(&output);
-        return Err("TTS worker 返回了不匹配的请求编号".to_string());
+        let error = "TTS worker 返回了不匹配的请求编号".to_string();
+        record_tts_diagnostic(
+            app,
+            "tts-worker-protocol-failed",
+            None,
+            format!("model={}, request_id={request_id}", installed.descriptor.id),
+        );
+        if let Some(mut broken) = slot.take() {
+            let _ = broken.child.kill().await;
+        }
+        return Err(error);
     }
     if response.get("ok").and_then(Value::as_bool) != Some(true) {
         let _ = fs::remove_file(&output);
-        return Err(response
+        let error = response
             .get("error")
             .and_then(Value::as_str)
             .unwrap_or("TTS worker 推理失败")
-            .to_string());
+            .to_string();
+        let memory = response
+            .get("memory")
+            .map(Value::to_string)
+            .unwrap_or_else(|| "null".to_string());
+        record_tts_diagnostic(
+            app,
+            "tts-inference-failed",
+            None,
+            format!(
+                "model={}, request_id={request_id}, error={error}, memory={memory}",
+                installed.descriptor.id
+            ),
+        );
+        return Err(error);
     }
+
     let inference_ms = response
         .pointer("/timings/inferenceMs")
         .and_then(Value::as_u64)
         .unwrap_or_default();
-    eprintln!(
-        "bilimaku TTS inference: model={}, device={}, warm_worker={}, inference_ms={}",
-        installed.descriptor.id, preparation.device, preparation.reused, inference_ms
+    let total_ms = response
+        .pointer("/timings/totalMs")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    let gpu_allocated_mb = response
+        .pointer("/timings/memory/after/gpuAllocatedMb")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    let gpu_reserved_mb = response
+        .pointer("/timings/memory/after/gpuReservedMb")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    let gpu_peak_mb = response
+        .pointer("/timings/memory/after/gpuPeakAllocatedMb")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    let gpu_free_mb = response
+        .pointer("/timings/memory/after/gpuFreeMb")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    let commit_available_mb = response
+        .pointer("/timings/memory/after/commitAvailableMb")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    let commit_used_percent = response
+        .pointer("/timings/memory/after/commitUsedPercent")
+        .and_then(Value::as_f64)
+        .unwrap_or_default();
+    let cache_released = response
+        .pointer("/timings/memory/after/cacheReleased")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    record_tts_diagnostic(
+        app,
+        "tts-worker-response-received",
+        Some(inference_ms as f64),
+        format!(
+            "model={}, request_id={request_id}, worker_pid={}, inference_ms={inference_ms}, total_ms={total_ms}, gpu_allocated_mb={gpu_allocated_mb}, gpu_reserved_mb={gpu_reserved_mb}, gpu_peak_mb={gpu_peak_mb}, gpu_free_mb={gpu_free_mb}, commit_available_mb={commit_available_mb}, commit_used_percent={commit_used_percent:.1}, cache_released={cache_released}",
+            installed.descriptor.id,
+            worker_pid
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "unknown".to_string())
+        ),
     );
-    read_tts_output(&output, output_format)
+
+    match read_tts_output(&output, output_format) {
+        Ok(result) => {
+            record_tts_diagnostic(
+                app,
+                "tts-inference-finished",
+                Some(total_ms as f64),
+                format!(
+                    "model={}, request_id={request_id}, worker_pid={}, audio_bytes={}",
+                    installed.descriptor.id,
+                    worker_pid
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    result.bytes
+                ),
+            );
+            eprintln!(
+                "bilimaku TTS inference: model={}, device={}, warm_worker={}, inference_ms={}, gpu_allocated_mb={}, gpu_reserved_mb={}, gpu_peak_mb={}, gpu_free_mb={}, commit_available_mb={}, cache_released={}",
+                installed.descriptor.id,
+                preparation.device,
+                preparation.reused,
+                inference_ms,
+                gpu_allocated_mb,
+                gpu_reserved_mb,
+                gpu_peak_mb,
+                gpu_free_mb,
+                commit_available_mb,
+                cache_released
+            );
+            Ok(result)
+        }
+        Err(error) => {
+            record_tts_diagnostic(
+                app,
+                "tts-output-read-failed",
+                None,
+                format!(
+                    "model={}, request_id={request_id}, error={error}",
+                    installed.descriptor.id
+                ),
+            );
+            Err(error)
+        }
+    }
 }
 
 async fn synthesize_command(
@@ -2017,6 +2282,7 @@ async fn prepare_tts_model_inner(
             let config = builtin_worker_config(&app, &store, installed, adapter, python_program)?;
             let mut slot = state.worker.lock().await;
             ensure_builtin_worker(
+                app,
                 &mut slot,
                 &installed.descriptor.id,
                 config,

@@ -1,5 +1,12 @@
 import { styled } from "@linaria/react";
 import { memo, useEffect, useRef } from "react";
+import {
+  mixThemeColor,
+  resolveThemeColor,
+  THEME_CHANGE_EVENT,
+  themeTransitionProgress,
+  type ThemeChangeDetail,
+} from "../services/theme";
 
 const ParticleCanvas = styled.canvas`
   position: absolute;
@@ -86,10 +93,26 @@ function colorWithAlpha(color: string, alpha: number) {
   return `rgba(102, 204, 255, ${alpha})`;
 }
 
-function readPalette(canvas: HTMLCanvasElement): ParticlePalette {
+function mixPalette(
+  from: ParticlePalette,
+  to: ParticlePalette,
+  progress: number,
+): ParticlePalette {
+  return {
+    colors: from.colors.map((color, index) => (
+      mixThemeColor(color, to.colors[index] ?? color, progress)
+    )),
+  };
+}
+
+function readPalette(
+  canvas: HTMLCanvasElement,
+  mode?: ThemeChangeDetail["mode"],
+): ParticlePalette {
   const styles = getComputedStyle(canvas);
-  const read = (token: string, fallback: string) =>
-    styles.getPropertyValue(token).trim() || fallback;
+  const read = (token: string, fallback: string) => mode
+    ? resolveThemeColor(mode, token, fallback)
+    : styles.getPropertyValue(token).trim() || fallback;
   return {
     colors: [
       read("--bc-color-brand", "#438ff1"),
@@ -143,6 +166,11 @@ export const CardDanmakuParticles = memo(function CardDanmakuParticles({
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const frameInterval = 1000 / CARD_DANMAKU_TUNING.framesPerSecond;
     let palette = readPalette(canvas);
+    let paletteTransition: {
+      from: ParticlePalette;
+      to: ParticlePalette;
+      detail: ThemeChangeDetail;
+    } | null = null;
     let particles: RisingParticle[] = [];
     let random = createRandom(seed);
     let cssWidth = 1;
@@ -294,7 +322,16 @@ export const CardDanmakuParticles = memo(function CardDanmakuParticles({
       context.restore();
     };
 
-    const draw = (deltaSeconds: number, elapsedSeconds: number) => {
+    const draw = (
+      deltaSeconds: number,
+      elapsedSeconds: number,
+      timestamp: number,
+    ) => {
+      if (paletteTransition) {
+        const progress = themeTransitionProgress(paletteTransition.detail, timestamp);
+        palette = mixPalette(paletteTransition.from, paletteTransition.to, progress);
+        if (progress >= 1) paletteTransition = null;
+      }
       context.clearRect(0, 0, cssWidth, cssHeight);
       const horizontalPadding = 18;
       for (const particle of particles) {
@@ -320,7 +357,7 @@ export const CardDanmakuParticles = memo(function CardDanmakuParticles({
       if (lastFrameTime === 0 || elapsed >= frameInterval) {
         const deltaSeconds = lastFrameTime === 0 ? 0 : Math.min(elapsed / 1000, 0.1);
         lastFrameTime = timestamp;
-        draw(deltaSeconds, timestamp / 1000);
+        draw(deltaSeconds, timestamp / 1000, timestamp);
       }
       animationFrame = window.requestAnimationFrame(tick);
     };
@@ -329,7 +366,7 @@ export const CardDanmakuParticles = memo(function CardDanmakuParticles({
       stop();
       lastFrameTime = 0;
       if (reducedMotion.matches || document.hidden || !visible) {
-        draw(0, 0);
+        draw(0, 0, performance.now());
         return;
       }
       animationFrame = window.requestAnimationFrame(tick);
@@ -345,11 +382,27 @@ export const CardDanmakuParticles = memo(function CardDanmakuParticles({
     }, { rootMargin: "120px" });
     const handleVisibility = () => start();
     const handleMotionPreference = () => start();
+    const handleThemeChange = (event: Event) => {
+      const detail = (event as CustomEvent<ThemeChangeDetail>).detail;
+      const target = readPalette(canvas, detail.mode);
+      if (detail.durationMs <= 0) {
+        palette = target;
+        paletteTransition = null;
+      } else {
+        paletteTransition = {
+          from: { colors: [...palette.colors] },
+          to: target,
+          detail,
+        };
+      }
+      start();
+    };
 
     resizeObserver.observe(canvas);
     intersectionObserver.observe(canvas);
     document.addEventListener("visibilitychange", handleVisibility);
     reducedMotion.addEventListener("change", handleMotionPreference);
+    window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange);
     resize();
     start();
 
@@ -359,6 +412,7 @@ export const CardDanmakuParticles = memo(function CardDanmakuParticles({
       intersectionObserver.disconnect();
       document.removeEventListener("visibilitychange", handleVisibility);
       reducedMotion.removeEventListener("change", handleMotionPreference);
+      window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange);
     };
   }, [seed]);
 

@@ -1,5 +1,12 @@
 import { styled } from "@linaria/react";
 import { useEffect, useRef } from "react";
+import {
+  mixThemeColor,
+  resolveThemeColor,
+  THEME_CHANGE_EVENT,
+  themeTransitionProgress,
+  type ThemeChangeDetail,
+} from "../../services/theme";
 
 const ParticleCanvas = styled.canvas`
   position: absolute;
@@ -66,10 +73,22 @@ function colorWithAlpha(color: string, alpha: number) {
   return `rgba(67, 143, 241, ${alpha})`;
 }
 
-function readPalette(canvas: HTMLCanvasElement): ParticlePalette {
+function mixPalette(from: ParticlePalette, to: ParticlePalette, progress: number): ParticlePalette {
+  return {
+    brand: mixThemeColor(from.brand, to.brand, progress),
+    cyan: mixThemeColor(from.cyan, to.cyan, progress),
+    brandDeep: mixThemeColor(from.brandDeep, to.brandDeep, progress),
+  };
+}
+
+function readPalette(
+  canvas: HTMLCanvasElement,
+  mode?: ThemeChangeDetail["mode"],
+): ParticlePalette {
   const styles = getComputedStyle(canvas);
-  const read = (token: string, fallback: string) =>
-    styles.getPropertyValue(token).trim() || fallback;
+  const read = (token: string, fallback: string) => mode
+    ? resolveThemeColor(mode, token, fallback)
+    : styles.getPropertyValue(token).trim() || fallback;
   return {
     brand: read("--bc-color-brand", "#438ff1"),
     cyan: read("--bc-color-cyan", "#5dd7e8"),
@@ -90,6 +109,11 @@ export function OverlayCardParticles({ seed }: OverlayCardParticlesProps) {
     const random = createRandom(seed);
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let palette = readPalette(canvas);
+    let paletteTransition: {
+      from: ParticlePalette;
+      to: ParticlePalette;
+      detail: ThemeChangeDetail;
+    } | null = null;
     let particles: Particle[] = [];
     let cssWidth = 1;
     let cssHeight = 1;
@@ -128,7 +152,16 @@ export function OverlayCardParticles({ seed }: OverlayCardParticlesProps) {
       createParticles();
     };
 
-    const draw = (deltaSeconds: number, elapsedSeconds: number) => {
+    const draw = (
+      deltaSeconds: number,
+      elapsedSeconds: number,
+      timestamp: number,
+    ) => {
+      if (paletteTransition) {
+        const progress = themeTransitionProgress(paletteTransition.detail, timestamp);
+        palette = mixPalette(paletteTransition.from, paletteTransition.to, progress);
+        if (progress >= 1) paletteTransition = null;
+      }
       context.clearRect(0, 0, cssWidth, cssHeight);
       const padding = 14;
       for (const particle of particles) {
@@ -183,7 +216,7 @@ export function OverlayCardParticles({ seed }: OverlayCardParticlesProps) {
       if (lastFrameTime === 0 || elapsed >= TARGET_FRAME_INTERVAL_MS) {
         const deltaSeconds = lastFrameTime === 0 ? 0 : Math.min(elapsed / 1000, 0.08);
         lastFrameTime = timestamp;
-        draw(deltaSeconds, timestamp / 1000);
+        draw(deltaSeconds, timestamp / 1000, timestamp);
       }
       frame = window.requestAnimationFrame(tick);
     };
@@ -192,7 +225,7 @@ export function OverlayCardParticles({ seed }: OverlayCardParticlesProps) {
       stop();
       lastFrameTime = 0;
       if (reducedMotion.matches || document.hidden || !visible) {
-        draw(0, 0);
+        draw(0, 0, performance.now());
         return;
       }
       frame = window.requestAnimationFrame(tick);
@@ -208,11 +241,23 @@ export function OverlayCardParticles({ seed }: OverlayCardParticlesProps) {
     }, { rootMargin: "120px" });
     const handleVisibility = () => start();
     const handleMotionPreference = () => start();
+    const handleThemeChange = (event: Event) => {
+      const detail = (event as CustomEvent<ThemeChangeDetail>).detail;
+      const target = readPalette(canvas, detail.mode);
+      if (detail.durationMs <= 0) {
+        palette = target;
+        paletteTransition = null;
+      } else {
+        paletteTransition = { from: { ...palette }, to: target, detail };
+      }
+      start();
+    };
 
     resizeObserver.observe(canvas);
     intersectionObserver.observe(canvas);
     document.addEventListener("visibilitychange", handleVisibility);
     reducedMotion.addEventListener("change", handleMotionPreference);
+    window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange);
     resize();
     start();
 
@@ -222,6 +267,7 @@ export function OverlayCardParticles({ seed }: OverlayCardParticlesProps) {
       intersectionObserver.disconnect();
       document.removeEventListener("visibilitychange", handleVisibility);
       reducedMotion.removeEventListener("change", handleMotionPreference);
+      window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange);
     };
   }, [seed]);
 

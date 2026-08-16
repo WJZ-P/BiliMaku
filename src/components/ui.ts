@@ -2,12 +2,41 @@ import { styled } from "@linaria/react";
 import { theme } from "../styles/theme";
 
 export const Panel = styled.section`
+  position: relative;
+  isolation: isolate;
   overflow: hidden;
-  border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.radius.lg};
-  background: color-mix(in srgb, ${theme.colors.surface} 93%, transparent);
-  box-shadow: ${theme.shadows.card}, ${theme.shadows.inset};
-  backdrop-filter: blur(16px);
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.panelRadius};
+  background:
+    linear-gradient(138deg, color-mix(in srgb, ${theme.colors.highlight} 44%, transparent), transparent 58%),
+    ${theme.colors.prismSurface};
+  box-shadow:
+    0 14px 38px ${theme.colors.prismShadow},
+    inset 0 1px 0 ${theme.colors.prismRim},
+    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.brandDeep} 7%, transparent);
+  -webkit-backdrop-filter: blur(${theme.prismGlass.strongBlur})
+    saturate(${theme.prismGlass.saturation})
+    brightness(${theme.prismGlass.brightness});
+  backdrop-filter: blur(${theme.prismGlass.strongBlur})
+    saturate(${theme.prismGlass.saturation})
+    brightness(${theme.prismGlass.brightness});
+
+  &::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background-image: url("/textures/frosted-noise.svg");
+    background-size: 96px 96px;
+    content: "";
+    mix-blend-mode: soft-light;
+    opacity: ${theme.prismGlass.noiseOpacity};
+    pointer-events: none;
+  }
+
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
 `;
 
 /**
@@ -18,12 +47,13 @@ export const FrostedPanel = styled.section`
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 86%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, ${theme.colors.surface} 15%, transparent);
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.panelRadius};
+  background: color-mix(in srgb, ${theme.colors.prismBase} 26%, transparent);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 72%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.textMuted} 9%, transparent);
+    0 12px 34px ${theme.colors.prismShadow},
+    inset 0 1px 0 ${theme.colors.prismRim},
+    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.brandDeep} 7%, transparent);
 `;
 
 /** 设置型面板位于粒子 Canvas 上方的真实玻璃表层。 */
@@ -32,24 +62,14 @@ export const FrostedPanelSurface = styled.div`
   z-index: 1;
   min-height: 100%;
   background:
-    linear-gradient(
-      132deg,
-      color-mix(in srgb, ${theme.colors.highlight} 14%, transparent),
-      transparent 42%
-    ),
-    color-mix(
-      in srgb,
-      ${theme.colors.surface} ${theme.frostedGlass.surfaceMix},
-      transparent
-    );
-  -webkit-backdrop-filter: blur(${theme.frostedGlass.blur})
-    saturate(${theme.frostedGlass.saturation})
-    brightness(${theme.frostedGlass.brightness})
-    contrast(${theme.frostedGlass.contrast});
-  backdrop-filter: blur(${theme.frostedGlass.blur})
-    saturate(${theme.frostedGlass.saturation})
-    brightness(${theme.frostedGlass.brightness})
-    contrast(${theme.frostedGlass.contrast});
+    radial-gradient(circle at 12% -10%, color-mix(in srgb, ${theme.colors.highlight} 48%, transparent), transparent 42%),
+    linear-gradient(138deg, color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 72%, transparent), color-mix(in srgb, ${theme.colors.prismSurface} 74%, transparent));
+  -webkit-backdrop-filter: blur(${theme.prismGlass.strongBlur})
+    saturate(${theme.prismGlass.saturation})
+    brightness(${theme.prismGlass.brightness});
+  backdrop-filter: blur(${theme.prismGlass.strongBlur})
+    saturate(${theme.prismGlass.saturation})
+    brightness(${theme.prismGlass.brightness});
 
   &::before {
     position: absolute;
@@ -59,7 +79,7 @@ export const FrostedPanelSurface = styled.div`
     background-size: 96px 96px;
     content: "";
     mix-blend-mode: soft-light;
-    opacity: ${theme.frostedGlass.noiseOpacity};
+    opacity: ${theme.prismGlass.noiseOpacity};
     pointer-events: none;
   }
 
@@ -95,7 +115,7 @@ export const PanelHeading = styled.div`
 export const PanelTitle = styled.h2`
   margin: 0;
   color: ${theme.colors.textPrimary};
-  font-size: 14px;
+  font-size: 21px;
   font-weight: 800;
   letter-spacing: -0.01em;
 `;
@@ -103,7 +123,7 @@ export const PanelTitle = styled.h2`
 export const PanelDescription = styled.p`
   margin: 3px 0 0;
   color: ${theme.colors.textMuted};
-  font-size: 10px;
+  font-size: 14px;
 `;
 
 /** 面板标题栏右侧的轻量状态文字，避免再套一层胶囊容器。 */
@@ -176,9 +196,12 @@ export const SubtleButton = styled.button`
   justify-content: center;
   gap: 7px;
   padding: 0 12px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.surfaceMuted};
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.controlRadius};
+  background: ${theme.colors.prismSurface};
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
   color: ${theme.colors.textSecondary};
   font-size: 10px;
   font-weight: 700;

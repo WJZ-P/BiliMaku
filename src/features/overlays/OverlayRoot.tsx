@@ -1,3 +1,4 @@
+import { GlobalStyles } from "../../styles/GlobalStyles";
 import { DanmakuOverlayWindow } from "./DanmakuOverlayWindow";
 import { EventSidebarOverlayWindow } from "./EventSidebarOverlayWindow";
 
@@ -6,5 +7,9 @@ interface OverlayRootProps {
 }
 
 export function OverlayRoot({ mode }: OverlayRootProps) {
-  return mode === "danmaku" ? <DanmakuOverlayWindow /> : <EventSidebarOverlayWindow />;
+  return (
+    <GlobalStyles windowMode="overlay">
+      {mode === "danmaku" ? <DanmakuOverlayWindow /> : <EventSidebarOverlayWindow />}
+    </GlobalStyles>
+  );
 }

@@ -64,25 +64,22 @@ const GlassBody = styled.div`
   will-change: opacity, transform;
   overflow: hidden;
   padding: 4px 6px;
-  border: 1px solid
-    color-mix(in srgb, ${theme.colors.highlight} 42%, ${theme.colors.border});
+  border: 1px solid ${theme.colors.prismBorder};
   border-radius: ${theme.tooltip.radius};
   background:
-    radial-gradient(circle at 16% 0%, color-mix(in srgb, ${theme.colors.highlight} 20%, transparent), transparent 52%),
-    linear-gradient(145deg, color-mix(in srgb, ${theme.colors.surface} ${theme.tooltip.surfaceMix}, transparent), color-mix(in srgb, ${theme.colors.brandSubtle} ${theme.tooltip.accentMix}, transparent));
+    radial-gradient(circle at 16% 0%, color-mix(in srgb, ${theme.colors.highlight} 46%, transparent), transparent 52%),
+    linear-gradient(145deg, color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 78%, transparent), color-mix(in srgb, ${theme.colors.prismSurface} 82%, transparent));
   box-shadow:
-    0 14px 34px color-mix(in srgb, ${theme.colors.brandDeep} 13%, transparent),
-    0 3px 12px color-mix(in srgb, ${theme.colors.shadowStrong} 30%, transparent),
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 48%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.brand} 10%, transparent);
-  -webkit-backdrop-filter: blur(${theme.tooltip.blur})
-    saturate(${theme.tooltip.backdropSaturation})
-    brightness(${theme.tooltip.backdropBrightness})
-    contrast(${theme.tooltip.backdropContrast});
-  backdrop-filter: blur(${theme.tooltip.blur})
-    saturate(${theme.tooltip.backdropSaturation})
-    brightness(${theme.tooltip.backdropBrightness})
-    contrast(${theme.tooltip.backdropContrast});
+    0 14px 34px color-mix(in srgb, ${theme.colors.brandDeep} 12%, transparent),
+    0 3px 12px ${theme.colors.prismShadow},
+    inset 0 1px 0 ${theme.colors.prismRim},
+    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.brand} 8%, transparent);
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur})
+    saturate(${theme.prismGlass.saturation})
+    brightness(${theme.prismGlass.brightness});
+  backdrop-filter: blur(${theme.prismGlass.blur})
+    saturate(${theme.prismGlass.saturation})
+    brightness(${theme.prismGlass.brightness});
 
   &::before {
     position: absolute;
@@ -148,8 +145,8 @@ const TooltipArrow = styled.span`
   z-index: 1;
   width: 9px;
   height: 9px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.highlight} 24%, transparent);
-  background: color-mix(in srgb, ${theme.colors.surface} 30%, transparent);
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  background: ${theme.colors.prismSurface};
   box-shadow: 2px 2px 6px color-mix(in srgb, ${theme.colors.shadowStrong} 12%, transparent);
   opacity: 0;
   backdrop-filter: blur(8px) saturate(1.3);

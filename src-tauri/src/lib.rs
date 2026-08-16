@@ -1,6 +1,6 @@
 use crate::types::app::AppStatus;
 use std::time::Instant;
-use tauri::Manager;
+use tauri::{Manager, RunEvent};
 
 mod account;
 mod anchor_analytics;
@@ -23,7 +23,7 @@ fn get_app_status() -> AppStatus {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let startup_performance = performance::StartupPerformanceState::default();
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(account::BiliAccountState::default())
         .manage(anchor_analytics::AnchorAnalyticsState::default())
@@ -33,9 +33,10 @@ pub fn run() {
         .manage(tts::TtsWorkerState::default())
         .setup(|app| {
             let startup = app.state::<performance::StartupPerformanceState>();
-            startup
+            let log_path = startup
                 .initialize(app.handle())
                 .map_err(std::io::Error::other)?;
+            performance::install_process_panic_hook(log_path);
             startup
                 .mark("rust", "setup-enter", None, None)
                 .map_err(std::io::Error::other)?;
@@ -101,8 +102,11 @@ pub fn run() {
             live::get_live_connection_status,
             live::update_live_auto_connect,
             live::get_live_online_rank,
+            live::get_live_emoticons,
             live::send_live_danmaku,
             store::get_config_file_path,
+            store::get_app_theme,
+            store::update_app_theme,
             store::get_live_appearance_settings,
             store::update_live_appearance_settings,
             store::get_live_activity_totals,
@@ -132,6 +136,26 @@ pub fn run() {
             overlay::update_overlay_settings,
             overlay::preview_overlay_event
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running bilimaku");
+
+    app.run(|handle, event| match event {
+        RunEvent::ExitRequested { code, .. } => {
+            let _ = handle.state::<performance::StartupPerformanceState>().mark(
+                "rust",
+                "process-exit-requested",
+                None,
+                Some(format!("code={code:?}")),
+            );
+        }
+        RunEvent::Exit => {
+            let _ = handle.state::<performance::StartupPerformanceState>().mark(
+                "rust",
+                "process-exit",
+                None,
+                None,
+            );
+        }
+        _ => {}
+    });
 }

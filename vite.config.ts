@@ -4,7 +4,7 @@ import process from "node:process";
 import react from "@vitejs/plugin-react";
 import wyw from "@wyw-in-js/vite";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
-import { lightTheme, theme } from "./src/styles/theme.ts";
+import { darkTheme, lightTheme, theme } from "./src/styles/theme.ts";
 import { createStartupProfiler } from "./vite.startup-profiler.ts";
 
 const host = process.env.TAURI_DEV_HOST;
@@ -159,7 +159,7 @@ export default defineConfig(({ command }) => ({
       sourceMap: false,
       configFile: false,
       staticBindings: {
-        [themeModulePath]: { lightTheme, theme },
+        [themeModulePath]: { darkTheme, lightTheme, theme },
       },
       eval: { resolver: "native" },
     }),

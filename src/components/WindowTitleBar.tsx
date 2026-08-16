@@ -60,20 +60,16 @@ const Bar = styled.header`
   align-items: center;
   justify-content: space-between;
   padding: 0 0 0 6px;
-  border-bottom: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 66%, transparent);
+  border-bottom: 1px solid ${theme.colors.prismBorderSoft};
   background:
-    linear-gradient(
-      105deg,
-      color-mix(in srgb, ${theme.colors.surface} 57%, transparent),
-      color-mix(in srgb, ${theme.colors.brandSubtle} 29%, transparent) 56%,
-      color-mix(in srgb, ${theme.colors.surface} 45%, transparent)
-    );
+    linear-gradient(105deg, color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 72%, transparent), color-mix(in srgb, ${theme.colors.prismSurface} 78%, transparent) 56%, color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 60%, transparent));
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 82%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.brandSoft} 18%, transparent);
+    inset 0 1px 0 ${theme.colors.prismRim},
+    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.brandSoft} 20%, transparent),
+    0 8px 24px ${theme.colors.prismShadow};
   user-select: none;
-  backdrop-filter: blur(32px) saturate(1.44) brightness(1.035);
-  -webkit-backdrop-filter: blur(32px) saturate(1.44) brightness(1.035);
+  backdrop-filter: blur(${theme.prismGlass.strongBlur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
+  -webkit-backdrop-filter: blur(${theme.prismGlass.strongBlur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
 
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     background: color-mix(in srgb, ${theme.colors.surface} 91%, ${theme.colors.canvasAccent});
@@ -120,8 +116,9 @@ const SummaryRail = styled.div`
   align-items: stretch;
   gap: 0;
   overflow: hidden;
-  border: 0;
-  background: color-mix(in srgb, ${theme.colors.surface} 18%, transparent);
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 74%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.prismRim} 74%, transparent);
 
   @media (max-width: 980px) {
     [data-metric-label-text="true"] {

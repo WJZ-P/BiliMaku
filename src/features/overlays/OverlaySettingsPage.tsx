@@ -1,5 +1,8 @@
 import { styled } from "@linaria/react";
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { Icon } from "../../components/Icon";
+import { PrismSelect } from "../../components/PrismSelect";
 import { OverlayCardParticles } from "./OverlayCardParticles";
 import { AnimatedSwitchTrack } from "../../components/ui";
 import {
@@ -21,74 +24,105 @@ import type {
 } from "../../types/overlay";
 
 const Page = styled.div`
+  /* 悬浮组件页的字号与间距基线，与直播数据面板保持一致。 */
+  --overlay-font-module: 20px;
+  --overlay-font-section: 16px;
+  --overlay-font-control: 14px;
+  --overlay-font-body: 13px;
+  --overlay-font-meta: 12px;
+
   display: grid;
-  gap: 18px;
-  padding: 12px 24px 30px;
+  gap: 14px;
+  padding: 14px 20px 28px;
 
   @media (max-width: 700px) {
-    padding: 10px 12px 24px;
+    padding: 10px 12px 22px;
   }
 `;
 
 const Grid = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: 24px;
-
-  @media (max-width: 1180px) {
-    grid-template-columns: 1fr;
-  }
+  gap: 18px;
 `;
 
 const OverlayModule = styled.section`
-  display: grid;
   min-width: 0;
-  gap: 9px;
 `;
 
 const ModuleTitle = styled.h2`
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   margin: 0;
-  padding: 0 2px;
   color: ${theme.colors.textPrimary};
-  font-size: 19px;
-  font-weight: 880;
-  letter-spacing: -0.025em;
+  font-size: var(--overlay-font-module);
+  font-weight: 860;
+  letter-spacing: -0.02em;
   line-height: 1.2;
 
   &::before {
     width: 3px;
-    height: 19px;
+    height: 21px;
     flex: 0 0 3px;
     border-radius: 2px;
     background: linear-gradient(180deg, ${theme.colors.cyan}, ${theme.colors.brand});
-    box-shadow: 0 0 10px color-mix(in srgb, ${theme.colors.brand} 28%, transparent);
+    box-shadow: 0 0 10px color-mix(in srgb, ${theme.colors.brand} 24%, transparent);
     content: "";
   }
 `;
+
+const ModuleHeader = styled.header`
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-height: 78px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 20px;
+  background: linear-gradient(112deg, color-mix(in srgb, ${theme.colors.highlight} 34%, transparent), transparent 58%);
+
+  @media (max-width: 700px) {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 13px;
+  }
+`;
+
+const ModuleHeading = styled.div`
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+`;
+
+const ModuleDescription = styled.p`
+  margin: 0 0 0 13px;
+  color: ${theme.colors.textMuted};
+  font-size: var(--overlay-font-body);
+  line-height: 1.5;
+
+  @media (max-width: 700px) {
+    margin-left: 0;
+  }
+`;
+
 
 const OverlayCard = styled.div`
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 74%, transparent);
-  border-radius: 4px;
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.panelRadius};
   background:
-    linear-gradient(
-      138deg,
-      color-mix(in srgb, ${theme.colors.surface} 54%, transparent),
-      color-mix(in srgb, ${theme.colors.brandSubtle} 27%, transparent) 52%,
-      color-mix(in srgb, ${theme.colors.surface} 38%, transparent)
-    );
+    linear-gradient(138deg, color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 74%, transparent), color-mix(in srgb, ${theme.colors.prismSurface} 84%, transparent));
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 78%, transparent),
-    inset 1px 0 0 color-mix(in srgb, ${theme.colors.highlight} 34%, transparent),
-    0 12px 30px color-mix(in srgb, ${theme.colors.brandDeep} 7%, transparent);
-  -webkit-backdrop-filter: blur(22px) saturate(1.34) brightness(1.025);
-  backdrop-filter: blur(22px) saturate(1.34) brightness(1.025);
+    inset 0 1px 0 ${theme.colors.prismRim},
+    0 8px 22px color-mix(in srgb, ${theme.colors.brandDeep} 7%, transparent);
+  -webkit-backdrop-filter: blur(${theme.prismGlass.strongBlur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
+  backdrop-filter: blur(${theme.prismGlass.strongBlur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
 
   &::before {
     position: absolute;
@@ -98,7 +132,7 @@ const OverlayCard = styled.div`
     background-size: 96px 96px;
     content: "";
     mix-blend-mode: soft-light;
-    opacity: 0.035;
+    opacity: ${theme.prismGlass.noiseOpacity};
     pointer-events: none;
   }
 
@@ -111,47 +145,73 @@ const Body = styled.div`
   position: relative;
   z-index: 2;
   display: grid;
-  gap: 18px;
-  padding: 18px 20px 21px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 26px;
+  padding: 0 20px 19px;
+
+  @media (max-width: 920px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 
   @media (max-width: 700px) {
-    padding: 15px 13px 18px;
+    padding: 0 13px 16px;
   }
 `;
 
 const Section = styled.section`
   display: grid;
-  gap: 11px;
-  padding-top: 4px;
+  min-width: 0;
+  align-content: start;
+  gap: 13px;
+  padding: 18px 0 2px;
+  border-top: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 48%, transparent);
 
-  & + & {
-    padding-top: 17px;
-    border-top: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 56%, transparent);
+  &[data-wide="true"] {
+    grid-column: 1 / -1;
+    padding-bottom: 16px;
   }
 `;
 
 const SectionTitle = styled.h3`
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin: 0;
   color: ${theme.colors.textPrimary};
-  font-size: 11px;
-  font-weight: 840;
-  letter-spacing: 0.015em;
+  font-size: var(--overlay-font-section);
+  font-weight: 830;
+  letter-spacing: 0.005em;
+
+  &::after {
+    height: 1px;
+    flex: 1;
+    background: linear-gradient(90deg, color-mix(in srgb, ${theme.colors.brandSoft} 54%, transparent), transparent);
+    content: "";
+  }
 `;
 
 const Fields = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 11px;
+  gap: 13px 14px;
 
   @media (max-width: 620px) {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 `;
 
 const Field = styled.label`
   display: grid;
   min-width: 0;
-  gap: 7px;
+  align-content: start;
+  gap: 8px;
+`;
+
+const SelectFieldRoot = styled.div`
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 8px;
 `;
 
 const FieldTop = styled.span`
@@ -160,43 +220,24 @@ const FieldTop = styled.span`
   justify-content: space-between;
   gap: 8px;
   color: ${theme.colors.textSecondary};
-  font-size: 9px;
-  font-weight: 730;
+  font-size: var(--overlay-font-body);
+  font-weight: 740;
+  line-height: 1.4;
 `;
 
 const Value = styled.span`
-  color: ${theme.colors.brand};
+  color: ${theme.colors.brandDeep};
   font-family: ${theme.typography.mono};
-  font-size: 8px;
-`;
-
-const Select = styled.select`
-  width: 100%;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 72%, transparent);
-  border-radius: 4px;
-  outline: 0;
-  background: color-mix(in srgb, ${theme.colors.surface} 48%, transparent);
-  color: ${theme.colors.textPrimary};
-  font-size: 9px;
-  -webkit-backdrop-filter: blur(10px) saturate(1.2);
-  backdrop-filter: blur(10px) saturate(1.2);
-  transition: border-color ${theme.motion.fast}, background ${theme.motion.fast};
-
-  &:hover,
-  &:focus-visible {
-    border-color: color-mix(in srgb, ${theme.colors.brand} 56%, ${theme.colors.border});
-    background: color-mix(in srgb, ${theme.colors.surface} 66%, transparent);
-  }
+  font-size: var(--overlay-font-meta);
+  font-weight: 760;
 `;
 
 const Range = styled.input`
-  --overlay-range-height: 4px;
-  --overlay-range-thumb: 13px;
+  --overlay-range-height: 5px;
+  --overlay-range-thumb: 16px;
 
   width: 100%;
-  height: 22px;
+  height: 28px;
   margin: 0;
   appearance: none;
   background: transparent;
@@ -206,7 +247,7 @@ const Range = styled.input`
     height: var(--overlay-range-height);
     border-radius: 3px;
     background: linear-gradient(90deg, ${theme.colors.brand}, ${theme.colors.cyan});
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, ${theme.colors.borderStrong} 62%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, ${theme.colors.borderStrong} 58%, transparent);
     transition: height 190ms cubic-bezier(0.18, 1.3, 0.34, 1);
   }
 
@@ -216,30 +257,24 @@ const Range = styled.input`
     margin-top: calc((var(--overlay-range-height) - var(--overlay-range-thumb)) / 2);
     appearance: none;
     border: 2px solid ${theme.colors.brandDeep};
-    border-radius: 3px;
-    background: ${theme.colors.surface};
-    box-shadow: 0 3px 9px color-mix(in srgb, ${theme.colors.brandDeep} 20%, transparent);
+    border-radius: 4px;
+    background: linear-gradient(145deg, ${theme.colors.surface}, ${theme.colors.cyanSoft});
+    box-shadow: 0 3px 9px color-mix(in srgb, ${theme.colors.brandDeep} 18%, transparent);
     transition: margin-top 190ms cubic-bezier(0.18, 1.3, 0.34, 1), transform ${theme.motion.spring};
   }
 
-  &:hover {
-    --overlay-range-height: 6px;
-  }
-
+  &:hover { --overlay-range-height: 7px; }
   &:active {
-    --overlay-range-height: 8px;
+    --overlay-range-height: 9px;
     cursor: grabbing;
   }
-
-  &:active::-webkit-slider-thumb {
-    transform: scale(1.13);
-  }
+  &:active::-webkit-slider-thumb { transform: scale(1.12); }
 `;
 
 const ColorGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 9px;
 
   @media (max-width: 620px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -248,25 +283,54 @@ const ColorGrid = styled.div`
 
 const ColorField = styled.label`
   display: flex;
+  min-width: 0;
+  min-height: 42px;
   align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 65%, transparent);
+  gap: 9px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 56%, transparent);
   border-radius: 4px;
-  background: color-mix(in srgb, ${theme.colors.surface} 43%, transparent);
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 58%, transparent);
   color: ${theme.colors.textSecondary};
-  font-size: 8px;
+  font-size: var(--overlay-font-body);
   font-weight: 700;
-  -webkit-backdrop-filter: blur(8px) saturate(1.18);
-  backdrop-filter: blur(8px) saturate(1.18);
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(10px) saturate(1.18);
+  backdrop-filter: blur(10px) saturate(1.18);
+  transition:
+    border-color ${theme.motion.fast},
+    background ${theme.motion.fast},
+    box-shadow ${theme.motion.fast},
+    color ${theme.motion.fast},
+    transform ${theme.motion.spring};
+
+  &:hover,
+  &:focus-within {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 48%, ${theme.colors.borderStrong});
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 46%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 68%, transparent),
+      0 6px 16px color-mix(in srgb, ${theme.colors.brand} 12%, transparent);
+    color: ${theme.colors.brandDeep};
+    transform: translateY(-2px);
+  }
 
   input {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
     padding: 0;
     border: 0;
     border-radius: 4px;
     background: transparent;
+    cursor: pointer;
+    transition: filter ${theme.motion.fast}, transform ${theme.motion.spring};
+  }
+
+  &:hover input,
+  &:focus-within input {
+    filter: saturate(1.14) brightness(1.04);
+    transform: scale(1.08);
   }
 `;
 
@@ -275,67 +339,40 @@ const ToggleGrid = styled.div`
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 
+  & > :only-child {
+    grid-column: 1 / -1;
+  }
+
   @media (max-width: 620px) {
     grid-template-columns: minmax(0, 1fr);
   }
 `;
 
 const Toggle = styled.label`
-  display: flex;
-  min-height: 42px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 13px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 68%, transparent);
-  border-radius: 4px;
-  background: color-mix(in srgb, ${theme.colors.surface} 44%, transparent);
-  color: ${theme.colors.textSecondary};
-  font-size: 10px;
-  font-weight: 740;
-  cursor: pointer;
-  transition:
-    border-color ${theme.motion.fast},
-    background ${theme.motion.fast},
-    color ${theme.motion.fast};
-
-  &:hover {
-    border-color: color-mix(in srgb, ${theme.colors.brand} 38%, ${theme.colors.borderStrong});
-    background: color-mix(in srgb, ${theme.colors.brandSubtle} 32%, transparent);
-    color: ${theme.colors.textPrimary};
-  }
-
-  &:focus-within {
-    outline: 2px solid color-mix(in srgb, ${theme.colors.brand} 22%, transparent);
-    outline-offset: 1px;
-  }
-
-  input {
-    width: 16px;
-    height: 16px;
-    margin: 0;
-    accent-color: ${theme.colors.brand};
-    cursor: pointer;
-  }
-`;
-
-const WindowSwitchGrid = styled.div`
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
-`;
-
-const WindowSwitch = styled.label`
-  display: grid;
-  min-height: 56px;
+  min-height: 48px;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  padding: 9px 11px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 66%, transparent);
-  border-radius: 4px;
-  background: color-mix(in srgb, ${theme.colors.surface} 42%, transparent);
+  padding: 8px 11px;
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.controlRadius};
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 72%, transparent);
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  color: ${theme.colors.textSecondary};
+  font-size: var(--overlay-font-control);
+  font-weight: 740;
   cursor: pointer;
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  transition: border-color ${theme.motion.fast}, background ${theme.motion.fast}, color ${theme.motion.fast};
+
+  &:hover {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 38%, ${theme.colors.borderStrong});
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 36%, transparent);
+    color: ${theme.colors.textPrimary};
+  }
 
   input {
     position: absolute;
@@ -348,49 +385,112 @@ const WindowSwitch = styled.label`
 
   input:checked + span {
     border-color: color-mix(in srgb, ${theme.colors.brand} 58%, transparent);
-    box-shadow: 0 4px 12px color-mix(in srgb, ${theme.colors.brand} 28%, transparent);
   }
 
-  input:checked + span::before {
-    opacity: 1;
-  }
-
-  input:checked + span::after {
-    transform: translateX(17px);
-  }
+  input:checked + span::before { opacity: 1; }
+  input:checked + span::after { transform: translateX(20px) rotate(90deg); }
 
   &:focus-within {
-    outline: 2px solid color-mix(in srgb, ${theme.colors.brand} 25%, transparent);
+    outline: 2px solid color-mix(in srgb, ${theme.colors.brand} 22%, transparent);
+    outline-offset: 1px;
+  }
+`;
+
+const WindowSwitchGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+
+  & > :only-child {
+    grid-column: 1 / -1;
+  }
+
+  @media (max-width: 760px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`;
+
+const WindowSwitch = styled.label`
+  position: relative;
+  display: grid;
+  min-height: 64px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.controlRadius};
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 72%, transparent);
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  cursor: pointer;
+  transition: border-color ${theme.motion.fast}, background ${theme.motion.fast};
+
+  &:hover {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 38%, ${theme.colors.borderStrong});
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 32%, transparent);
+  }
+
+  input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  input:checked + span {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 58%, transparent);
+    box-shadow: 0 4px 12px color-mix(in srgb, ${theme.colors.brand} 22%, transparent);
+  }
+  input:checked + span::before { opacity: 1; }
+  input:checked + span::after { transform: translateX(18px) rotate(90deg); }
+
+  &:focus-within {
+    outline: 2px solid color-mix(in srgb, ${theme.colors.brand} 22%, transparent);
     outline-offset: 1px;
   }
 `;
 
 const WindowSwitchCopy = styled.span`
   display: grid;
-  gap: 3px;
+  min-width: 0;
+  gap: 4px;
 `;
 
 const WindowSwitchTitle = styled.strong`
   color: ${theme.colors.textPrimary};
-  font-size: 9px;
+  font-size: var(--overlay-font-control);
   font-weight: 800;
 `;
 
 const WindowSwitchHint = styled.span`
   color: ${theme.colors.textMuted};
-  font-size: 7px;
-  font-weight: 600;
-  line-height: 1.45;
+  font-size: var(--overlay-font-meta);
+  font-weight: 620;
+  line-height: 1.5;
 `;
 
 const WindowSwitchTrack = styled(AnimatedSwitchTrack)`
-  --switch-width: 35px;
-  --switch-height: 19px;
-  --switch-thumb-size: 13px;
+  --switch-width: 40px;
+  --switch-height: 22px;
+  --switch-thumb-size: 16px;
   --switch-thumb-offset: 2px;
   --switch-thumb-radius: 3px;
   --switch-radius: 4px;
 `;
+
+const CompactSwitchTrack = styled(AnimatedSwitchTrack)`
+  --switch-width: 38px;
+  --switch-height: 20px;
+  --switch-thumb-size: 14px;
+  --switch-thumb-offset: 2px;
+  --switch-thumb-radius: 3px;
+  --switch-radius: 4px;
+`;
+
 
 const TypeGrid = styled.div`
   display: flex;
@@ -399,51 +499,39 @@ const TypeGrid = styled.div`
 `;
 
 const TypeToggle = styled.label`
+  position: relative;
   display: inline-flex;
-  min-width: 54px;
-  height: 38px;
+  min-width: 72px;
+  height: 42px;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 0 14px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 72%, transparent);
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 62%, transparent);
   border-radius: 5px;
-  background: color-mix(in srgb, ${theme.colors.surface} 46%, transparent);
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 58%, transparent);
   color: ${theme.colors.textSecondary};
-  font-size: 11px;
-  font-weight: 780;
+  font-size: var(--overlay-font-control);
+  font-weight: 770;
   cursor: pointer;
-  -webkit-backdrop-filter: blur(8px) saturate(1.18);
-  backdrop-filter: blur(8px) saturate(1.18);
-  transition:
-    border-color ${theme.motion.fast},
-    background ${theme.motion.fast},
-    color ${theme.motion.fast},
-    box-shadow ${theme.motion.fast},
-    transform ${theme.motion.fast};
+  -webkit-backdrop-filter: blur(10px) saturate(1.18);
+  backdrop-filter: blur(10px) saturate(1.18);
+  transition: border-color ${theme.motion.fast}, background ${theme.motion.fast}, color ${theme.motion.fast}, box-shadow ${theme.motion.fast}, transform ${theme.motion.fast};
 
   &:hover {
     border-color: color-mix(in srgb, ${theme.colors.brand} 42%, ${theme.colors.borderStrong});
     background: color-mix(in srgb, ${theme.colors.brandSubtle} 38%, transparent);
     color: ${theme.colors.brandDeep};
   }
-
-  &:active {
-    transform: scale(0.97);
-  }
-
+  &:active { transform: scale(0.97); }
   &:focus-within {
     outline: 2px solid color-mix(in srgb, ${theme.colors.brand} 24%, transparent);
     outline-offset: 1px;
   }
-
   &:has(input:checked) {
     border-color: color-mix(in srgb, ${theme.colors.brand} 52%, ${theme.colors.border});
     background: color-mix(in srgb, ${theme.colors.brandSubtle} 72%, transparent);
     color: ${theme.colors.brandDeep};
-    box-shadow:
-      inset 0 -2px 0 color-mix(in srgb, ${theme.colors.brand} 72%, transparent),
-      0 4px 12px color-mix(in srgb, ${theme.colors.brand} 10%, transparent);
+    box-shadow: inset 0 -2px 0 color-mix(in srgb, ${theme.colors.brand} 72%, transparent);
   }
 
   input {
@@ -458,64 +546,72 @@ const TypeToggle = styled.label`
 
 const PanelActions = styled.div`
   display: flex;
+  flex: 0 0 auto;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
-  padding-top: 2px;
+
+  @media (max-width: 700px) {
+    justify-content: flex-start;
+  }
 `;
 
 const PrimaryButton = styled.button`
   display: inline-flex;
-  min-height: 36px;
+  min-height: 40px;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 7px;
   padding: 0 14px;
   border: 1px solid color-mix(in srgb, ${theme.colors.brandDeep} 32%, transparent);
-  border-radius: 6px;
+  border-radius: 5px;
   background: linear-gradient(135deg, ${theme.colors.brand}, ${theme.colors.brandDeep});
   color: ${theme.colors.textOnBrand};
-  font-size: 10px;
+  font-size: var(--overlay-font-control);
   font-weight: 800;
-  box-shadow: 0 7px 18px color-mix(in srgb, ${theme.colors.brand} 20%, transparent);
+  box-shadow: 0 6px 16px color-mix(in srgb, ${theme.colors.brand} 18%, transparent);
   transition: transform ${theme.motion.spring}, filter ${theme.motion.fast};
 
   &:hover {
-    filter: saturate(1.12) brightness(1.04);
-    transform: translateY(-1px);
+    filter: saturate(1.1) brightness(1.04);
+    transform: scale(1.015);
   }
+  &:active { transform: scale(0.97); }
 `;
 
 const SecondaryButton = styled.button`
   display: inline-flex;
-  min-height: 36px;
+  min-height: 40px;
   align-items: center;
   justify-content: center;
+  gap: 7px;
   padding: 0 13px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 76%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, ${theme.colors.surface} 43%, transparent);
+  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 68%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 58%, transparent);
   color: ${theme.colors.textSecondary};
-  font-size: 10px;
+  font-size: var(--overlay-font-control);
   font-weight: 720;
-  -webkit-backdrop-filter: blur(10px) saturate(1.18);
-  backdrop-filter: blur(10px) saturate(1.18);
-  transition: border-color ${theme.motion.fast}, color ${theme.motion.fast}, transform ${theme.motion.spring};
+  -webkit-backdrop-filter: blur(12px) saturate(1.18);
+  backdrop-filter: blur(12px) saturate(1.18);
+  transition: border-color ${theme.motion.fast}, color ${theme.motion.fast}, background ${theme.motion.fast}, transform ${theme.motion.spring};
 
   &:hover {
-    border-color: color-mix(in srgb, ${theme.colors.brand} 46%, ${theme.colors.border});
+    border-color: color-mix(in srgb, ${theme.colors.brand} 42%, ${theme.colors.border});
+    background: color-mix(in srgb, ${theme.colors.brandSubtle} 34%, transparent);
     color: ${theme.colors.brandDeep};
-    transform: translateY(-1px);
   }
+  &:active { transform: scale(0.97); }
 `;
 
 const Notice = styled.div`
-  padding: 10px 12px;
+  padding: 11px 13px;
   border: 1px solid color-mix(in srgb, ${theme.colors.brand} 18%, transparent);
   border-radius: 4px;
   background: color-mix(in srgb, ${theme.colors.brandSubtle} 44%, transparent);
   color: ${theme.colors.textSecondary};
-  font-size: 9px;
-  line-height: 1.6;
+  font-size: var(--overlay-font-body);
+  line-height: 1.55;
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
   backdrop-filter: blur(14px) saturate(1.2);
 
@@ -534,6 +630,24 @@ const eventTypes: Array<{ value: LiveEventType; label: string }> = [
   { value: "guard", label: "大航海" },
   { value: "system", label: "系统" },
 ];
+
+const danmakuFontOptions = [
+  { value: '\u0022Microsoft YaHei\u0022, \u0022PingFang SC\u0022, sans-serif', label: "微软雅黑 / 苹方" },
+  { value: '\u0022SimHei\u0022, sans-serif', label: "黑体" },
+  { value: '\u0022KaiTi\u0022, serif', label: "楷体" },
+  { value: "Inter, sans-serif", label: "Inter" },
+] as const;
+
+const motionModeOptions = [
+  { value: "speed", label: "按像素速度" },
+  { value: "duration", label: "按总时长" },
+] as const;
+
+const sidebarFontOptions = [
+  { value: '\u0022Microsoft YaHei\u0022, \u0022PingFang SC\u0022, sans-serif', label: "微软雅黑 / 苹方" },
+  { value: '\u0022SimHei\u0022, sans-serif', label: "黑体" },
+  { value: "Inter, sans-serif", label: "Inter" },
+] as const;
 
 const colorLabels: Array<{ key: keyof EventColorMap; label: string }> = [
   { key: "message", label: "弹幕" },
@@ -595,7 +709,15 @@ function EventTypeToggles({
   );
 }
 
-function ColorControls({ value, onChange }: { value: EventColorMap; onChange: (value: EventColorMap) => void }) {
+function ColorControls({
+  value,
+  onChange,
+  children,
+}: {
+  value: EventColorMap;
+  onChange: (value: EventColorMap) => void;
+  children?: ReactNode;
+}) {
   return (
     <ColorGrid>
       {colorLabels.map((item) => (
@@ -608,6 +730,7 @@ function ColorControls({ value, onChange }: { value: EventColorMap; onChange: (v
           {item.label}
         </ColorField>
       ))}
+      {children}
     </ColorGrid>
   );
 }
@@ -641,17 +764,18 @@ function OverlaySelectField<T extends string>({
   onChange,
 }: OverlaySelectFieldProps<T>) {
   return (
-    <Field>
+    <SelectFieldRoot>
       <FieldTop>
         {label}
         {hint ? <Value>{hint}</Value> : null}
       </FieldTop>
-      <Select value={value} onChange={(event) => onChange(event.target.value as T)}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </Select>
-    </Field>
+      <PrismSelect
+        ariaLabel={label}
+        value={value}
+        options={options}
+        onChange={onChange}
+      />
+    </SelectFieldRoot>
   );
 }
 
@@ -682,7 +806,7 @@ function errorText(error: unknown) {
 
 export function OverlaySettingsPage() {
   const [settings, setSettings] = useState<OverlaySettings>(() => loadOverlaySettings());
-  const [notice, setNotice] = useState("参数会自动保存并同步到已经打开的悬浮窗。");
+  const [notice, setNotice] = useState("");
   const [error, setError] = useState(false);
   const initial = useRef(true);
 
@@ -736,52 +860,65 @@ export function OverlaySettingsPage() {
     <Page>
       <Grid>
         <OverlayModule>
-          <ModuleTitle>全屏滚动弹幕</ModuleTitle>
           <OverlayCard>
             <OverlayCardParticles seed={0x4d414b55} />
+            <ModuleHeader>
+              <ModuleHeading>
+                <ModuleTitle>全屏滚动弹幕</ModuleTitle>
+                <ModuleDescription>按屏幕轨道展示实时弹幕，集中调整内容、字形与运动节奏。</ModuleDescription>
+              </ModuleHeading>
+              <PanelActions>
+                <PrimaryButton type="button" onClick={() => void showOverlay("danmaku", true)}>
+                  <Icon name="play" size={15} />
+                  打开并预览
+                </PrimaryButton>
+                <SecondaryButton type="button" onClick={() => void closeOverlay("danmaku")}>
+                  <Icon name="close" size={14} />
+                  关闭窗口
+                </SecondaryButton>
+              </PanelActions>
+            </ModuleHeader>
             <Body>
-              <Section>
-              <SectionTitle>内容与交互</SectionTitle>
+              <Section data-wide="true">
+                <SectionTitle>内容与交互</SectionTitle>
               <EventTypeToggles
                 value={settings.danmaku.enabledEventTypes}
                 onChange={(enabledEventTypes) => updateDanmaku({ enabledEventTypes })}
               />
               <ToggleGrid>
-                <Toggle>显示用户名<input type="checkbox" checked={settings.danmaku.showUsername} onChange={(event) => updateDanmaku({ showUsername: event.target.checked })} /></Toggle>
-                <Toggle>显示头像<input type="checkbox" checked={settings.danmaku.showAvatar} onChange={(event) => updateDanmaku({ showAvatar: event.target.checked })} /></Toggle>
+                <Toggle>
+                  <span>显示用户名</span>
+                  <input type="checkbox" checked={settings.danmaku.showUsername} onChange={(event) => updateDanmaku({ showUsername: event.target.checked })} />
+                  <CompactSwitchTrack aria-hidden="true" />
+                </Toggle>
+                <Toggle>
+                  <span>显示头像</span>
+                  <input type="checkbox" checked={settings.danmaku.showAvatar} onChange={(event) => updateDanmaku({ showAvatar: event.target.checked })} />
+                  <CompactSwitchTrack aria-hidden="true" />
+                </Toggle>
               </ToggleGrid>
             </Section>
 
             <Section>
               <SectionTitle>字体</SectionTitle>
               <Fields>
-                <Field>
-                  <FieldTop>字体族</FieldTop>
-                  <Select value={settings.danmaku.fontFamily} onChange={(event) => updateDanmaku({ fontFamily: event.target.value })}>
-                    <option value={'"Microsoft YaHei", "PingFang SC", sans-serif'}>微软雅黑 / 苹方</option>
-                    <option value={'"SimHei", sans-serif'}>黑体</option>
-                    <option value={'"KaiTi", serif'}>楷体</option>
-                    <option value={'Inter, sans-serif'}>Inter</option>
-                  </Select>
-                </Field>
-                <Field>
-                  <FieldTop>动画计时方式</FieldTop>
-                  <Select value={settings.danmaku.motionMode} onChange={(event) => updateDanmaku({ motionMode: event.target.value as "speed" | "duration" })}>
-                    <option value="speed">按像素速度</option>
-                    <option value="duration">按总时长</option>
-                  </Select>
-                </Field>
+                <OverlaySelectField
+                  label="字体族"
+                  value={settings.danmaku.fontFamily}
+                  options={danmakuFontOptions}
+                  onChange={(fontFamily) => updateDanmaku({ fontFamily })}
+                />
+                <OverlaySelectField<"speed" | "duration">
+                  label="动画计时方式"
+                  value={settings.danmaku.motionMode}
+                  options={motionModeOptions}
+                  onChange={(motionMode) => updateDanmaku({ motionMode })}
+                />
                 <NumberField label="字号" value={settings.danmaku.fontSize} min={18} max={72} step={1} suffix="px" onChange={(fontSize) => updateDanmaku({ fontSize })} />
                 <NumberField label="字重" value={settings.danmaku.fontWeight} min={300} max={900} step={100} onChange={(fontWeight) => updateDanmaku({ fontWeight })} />
                 <NumberField label="透明度" value={settings.danmaku.opacity} min={0.2} max={1} step={0.05} onChange={(opacity) => updateDanmaku({ opacity })} />
                 <NumberField label="描边" value={settings.danmaku.outlineWidth} min={0} max={4} step={0.5} suffix="px" onChange={(outlineWidth) => updateDanmaku({ outlineWidth })} />
                 <NumberField label="阴影模糊" value={settings.danmaku.shadowBlur} min={0} max={24} step={1} suffix="px" onChange={(shadowBlur) => updateDanmaku({ shadowBlur })} />
-              </Fields>
-              <ColorControls value={settings.danmaku.colors} onChange={(colors) => updateDanmaku({ colors })} />
-              <Fields>
-                <ColorField><input type="color" value={settings.danmaku.usernameColor} onChange={(event) => updateDanmaku({ usernameColor: event.target.value })} />昵称色</ColorField>
-                <ColorField><input type="color" value={settings.danmaku.outlineColor} onChange={(event) => updateDanmaku({ outlineColor: event.target.value })} />描边色</ColorField>
-                <ColorField><input type="color" value={settings.danmaku.shadowColor} onChange={(event) => updateDanmaku({ shadowColor: event.target.value })} />阴影色</ColorField>
               </Fields>
             </Section>
 
@@ -799,21 +936,41 @@ export function OverlaySettingsPage() {
               </Fields>
             </Section>
 
-            <PanelActions>
-              <PrimaryButton type="button" onClick={() => void showOverlay("danmaku", true)}>应用并预览</PrimaryButton>
-              <SecondaryButton type="button" onClick={() => void closeOverlay("danmaku")}>关闭弹幕层</SecondaryButton>
-            </PanelActions>
+            <Section data-wide="true">
+              <SectionTitle>颜色</SectionTitle>
+              <ColorControls value={settings.danmaku.colors} onChange={(colors) => updateDanmaku({ colors })}>
+                <ColorField><input type="color" value={settings.danmaku.usernameColor} onChange={(event) => updateDanmaku({ usernameColor: event.target.value })} />昵称色</ColorField>
+                <ColorField><input type="color" value={settings.danmaku.outlineColor} onChange={(event) => updateDanmaku({ outlineColor: event.target.value })} />描边色</ColorField>
+                <ColorField><input type="color" value={settings.danmaku.shadowColor} onChange={(event) => updateDanmaku({ shadowColor: event.target.value })} />阴影色</ColorField>
+              </ColorControls>
+            </Section>
+
             </Body>
           </OverlayCard>
         </OverlayModule>
 
         <OverlayModule>
-          <ModuleTitle>侧边栏弹幕</ModuleTitle>
           <OverlayCard>
             <OverlayCardParticles seed={0x53494445} />
+            <ModuleHeader>
+              <ModuleHeading>
+                <ModuleTitle>侧边栏弹幕</ModuleTitle>
+                <ModuleDescription>以轻量事件流展示进场、弹幕与礼物，支持跨屏定位与玻璃背景。</ModuleDescription>
+              </ModuleHeading>
+              <PanelActions>
+                <PrimaryButton type="button" onClick={() => void showOverlay("sidebar", true)}>
+                  <Icon name="play" size={15} />
+                  打开并预览
+                </PrimaryButton>
+                <SecondaryButton type="button" onClick={() => void closeOverlay("sidebar")}>
+                  <Icon name="close" size={14} />
+                  关闭窗口
+                </SecondaryButton>
+              </PanelActions>
+            </ModuleHeader>
             <Body>
-              <Section>
-              <SectionTitle>内容与窗口</SectionTitle>
+              <Section data-wide="true">
+                <SectionTitle>内容与窗口</SectionTitle>
               <EventTypeToggles
                 value={settings.sidebar.enabledEventTypes}
                 onChange={(enabledEventTypes) => updateSidebar({ enabledEventTypes })}
@@ -830,24 +987,27 @@ export function OverlaySettingsPage() {
 
                 <WindowSwitch>
                   <WindowSwitchCopy>
-                    <WindowSwitchTitle>边缘范围包含任务栏</WindowSwitchTitle>
-                    <WindowSwitchHint>开启后可贴到显示器完整底边；关闭时自动避让 Windows 任务栏</WindowSwitchHint>
+                    <WindowSwitchTitle>是否避开任务栏</WindowSwitchTitle>
+                    <WindowSwitchHint>开启后自动避让 Windows 任务栏；关闭后可贴到显示器完整底边</WindowSwitchHint>
                   </WindowSwitchCopy>
                   <input
                     type="checkbox"
-                    checked={settings.sidebar.includeTaskbarInBounds}
-                    onChange={(event) => updateSidebar({ includeTaskbarInBounds: event.target.checked })}
+                    checked={!settings.sidebar.includeTaskbarInBounds}
+                    onChange={(event) => updateSidebar({ includeTaskbarInBounds: !event.target.checked })}
                   />
                   <WindowSwitchTrack aria-hidden="true" />
                 </WindowSwitch>
               </WindowSwitchGrid>
               <ToggleGrid>
-                <Toggle>显示头像<input type="checkbox" checked={settings.sidebar.showAvatar} onChange={(event) => updateSidebar({ showAvatar: event.target.checked })} /></Toggle>
+                <Toggle>
+                  <span>显示头像</span>
+                  <input type="checkbox" checked={settings.sidebar.showAvatar} onChange={(event) => updateSidebar({ showAvatar: event.target.checked })} />
+                  <CompactSwitchTrack aria-hidden="true" />
+                </Toggle>
               </ToggleGrid>
               <Fields>
                 <OverlaySelectField<SidebarVerticalAlignment>
                   label="播报停靠位置"
-                  hint="默认靠下"
                   value={settings.sidebar.verticalAlignment}
                   options={[
                     { value: "bottom", label: "靠下显示" },
@@ -857,7 +1017,6 @@ export function OverlaySettingsPage() {
                 />
                 <OverlaySelectField<SidebarEntryDirection>
                   label="新消息进入方向"
-                  hint="默认从下方"
                   value={settings.sidebar.entryDirection}
                   options={[
                     { value: "bottom", label: "从下方进入" },
@@ -865,14 +1024,12 @@ export function OverlaySettingsPage() {
                   ]}
                   onChange={(entryDirection) => updateSidebar({ entryDirection })}
                 />
-                <Field>
-                  <FieldTop>字体族</FieldTop>
-                  <Select value={settings.sidebar.fontFamily} onChange={(event) => updateSidebar({ fontFamily: event.target.value })}>
-                    <option value={'"Microsoft YaHei", "PingFang SC", sans-serif'}>微软雅黑 / 苹方</option>
-                    <option value={'"SimHei", sans-serif'}>黑体</option>
-                    <option value={'Inter, sans-serif'}>Inter</option>
-                  </Select>
-                </Field>
+                <OverlaySelectField
+                  label="字体族"
+                  value={settings.sidebar.fontFamily}
+                  options={sidebarFontOptions}
+                  onChange={(fontFamily) => updateSidebar({ fontFamily })}
+                />
                 <NumberField label="窗口宽度" value={settings.sidebar.width} min={280} max={720} step={10} suffix="px" onChange={(width) => updateSidebar({ width })} />
                 <NumberField label="窗口高度" value={settings.sidebar.height} min={360} max={1200} step={10} suffix="px" onChange={(height) => updateSidebar({ height })} />
                 <NumberField label="字号" value={settings.sidebar.fontSize} min={10} max={28} step={1} suffix="px" onChange={(fontSize) => updateSidebar({ fontSize })} />
@@ -898,11 +1055,7 @@ export function OverlaySettingsPage() {
                   <WindowSwitchTrack aria-hidden="true" />
                 </WindowSwitch>
               </WindowSwitchGrid>
-              <ColorControls value={settings.sidebar.colors} onChange={(colors) => updateSidebar({ colors })} />
               <Fields>
-                <ColorField><input type="color" value={settings.sidebar.usernameColor} onChange={(event) => updateSidebar({ usernameColor: event.target.value })} />昵称色</ColorField>
-                <ColorField><input type="color" value={settings.sidebar.backgroundColor} onChange={(event) => updateSidebar({ backgroundColor: event.target.value })} />气泡底色</ColorField>
-                <ColorField><input type="color" value={settings.sidebar.textColor} onChange={(event) => updateSidebar({ textColor: event.target.value })} />文字色</ColorField>
                 <NumberField label="背景不透明度" value={settings.sidebar.cardOpacity} min={0} max={1} step={0.05} onChange={(cardOpacity) => updateSidebar({ cardOpacity })} />
                 <NumberField label="背景模糊" value={settings.sidebar.blur} min={0} max={40} step={1} suffix="px" onChange={(blur) => updateSidebar({ blur })} />
                 <NumberField label="气泡圆角" value={settings.sidebar.radius} min={0} max={20} step={1} suffix="px" onChange={(radius) => updateSidebar({ radius })} />
@@ -919,16 +1072,21 @@ export function OverlaySettingsPage() {
               </Fields>
             </Section>
 
-            <PanelActions>
-              <PrimaryButton type="button" onClick={() => void showOverlay("sidebar", true)}>应用并预览</PrimaryButton>
-              <SecondaryButton type="button" onClick={() => void closeOverlay("sidebar")}>关闭事件栏</SecondaryButton>
-            </PanelActions>
+            <Section data-wide="true">
+              <SectionTitle>颜色</SectionTitle>
+              <ColorControls value={settings.sidebar.colors} onChange={(colors) => updateSidebar({ colors })}>
+                <ColorField><input type="color" value={settings.sidebar.usernameColor} onChange={(event) => updateSidebar({ usernameColor: event.target.value })} />昵称色</ColorField>
+                <ColorField><input type="color" value={settings.sidebar.backgroundColor} onChange={(event) => updateSidebar({ backgroundColor: event.target.value })} />气泡底色</ColorField>
+                <ColorField><input type="color" value={settings.sidebar.textColor} onChange={(event) => updateSidebar({ textColor: event.target.value })} />文字色</ColorField>
+              </ColorControls>
+            </Section>
+
             </Body>
           </OverlayCard>
         </OverlayModule>
       </Grid>
 
-      <Notice data-error={error}>{notice}</Notice>
+      {notice ? <Notice data-error={error}>{notice}</Notice> : null}
     </Page>
   );
 }

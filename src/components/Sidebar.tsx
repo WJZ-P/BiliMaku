@@ -20,18 +20,6 @@ const navigation: NavigationItem[] = [
     icon: "dashboard",
   },
   {
-    id: "debug",
-    label: "UI 调试",
-    description: "组件与动效实验",
-    icon: "sparkles",
-  },
-  {
-    id: "rules",
-    label: "弹幕规则",
-    description: "过滤与模板",
-    icon: "sliders",
-  },
-  {
     id: "voices",
     label: "语音角色",
     description: "音色与引擎",
@@ -63,19 +51,16 @@ const Aside = styled.aside`
   overflow-x: hidden;
   overflow-y: auto;
   padding: 12px 8px 8px;
-  border-right: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 72%, transparent);
+  border-right: 1px solid ${theme.colors.prismBorderSoft};
   border-radius: 0;
   background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, ${theme.colors.surface} 54%, transparent),
-      color-mix(in srgb, ${theme.colors.canvasAccent} 39%, transparent)
-    );
+    linear-gradient(180deg, color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 66%, transparent), color-mix(in srgb, ${theme.colors.prismSurface} 72%, transparent));
   box-shadow:
-    inset -1px 0 0 color-mix(in srgb, ${theme.colors.highlight} 58%, transparent),
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 72%, transparent);
-  -webkit-backdrop-filter: blur(${theme.frostedGlass.blur}) saturate(1.38) brightness(1.035);
-  backdrop-filter: blur(${theme.frostedGlass.blur}) saturate(1.38) brightness(1.035);
+    inset -1px 0 0 ${theme.colors.prismRim},
+    inset 0 1px 0 color-mix(in srgb, ${theme.colors.prismRim} 82%, transparent),
+    8px 0 28px ${theme.colors.prismShadow};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.strongBlur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
+  backdrop-filter: blur(${theme.prismGlass.strongBlur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
 
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     background: color-mix(in srgb, ${theme.colors.surface} 90%, ${theme.colors.canvasAccent});
@@ -191,19 +176,15 @@ const NavButton = styled.button`
   overflow: hidden;
   isolation: isolate;
   padding: 5px 6px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 70%, transparent);
-  border-radius: 2px;
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: 4px;
   background:
-    linear-gradient(
-      145deg,
-      color-mix(in srgb, ${theme.colors.surface} 54%, transparent),
-      color-mix(in srgb, ${theme.colors.surface} 25%, transparent)
-    );
+    linear-gradient(145deg, color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 60%, transparent), color-mix(in srgb, ${theme.colors.prismSurface} 76%, transparent));
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 74%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.brandSoft} 24%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(1.34) brightness(1.025);
-  backdrop-filter: blur(16px) saturate(1.34) brightness(1.025);
+    inset 0 1px 0 ${theme.colors.prismRim},
+    inset 0 -1px 0 color-mix(in srgb, ${theme.colors.brandSoft} 20%, transparent);
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
   color: ${theme.colors.textSecondary};
   text-align: left;
   transition:
@@ -404,17 +385,13 @@ const CollapseButton = styled.button`
   overflow: hidden;
   isolation: isolate;
   padding: 5px 8px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 70%, transparent);
-  border-radius: 2px;
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: 4px;
   background:
-    linear-gradient(
-      145deg,
-      color-mix(in srgb, ${theme.colors.surface} 56%, transparent),
-      color-mix(in srgb, ${theme.colors.surface} 27%, transparent)
-    );
-  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 76%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(1.34) brightness(1.025);
-  backdrop-filter: blur(16px) saturate(1.34) brightness(1.025);
+    linear-gradient(145deg, color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 60%, transparent), color-mix(in srgb, ${theme.colors.prismSurface} 76%, transparent));
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
   color: ${theme.colors.textSecondary};
   text-align: left;
   transition:

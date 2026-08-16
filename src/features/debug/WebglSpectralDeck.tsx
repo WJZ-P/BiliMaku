@@ -6,7 +6,7 @@ import {
   createFullscreenWebglRuntime,
   createVisibilityAwareFrameLoop,
   mountWebglWhenNearViewport,
-  parseCssColor,
+  createThemeUniformPalette,
 } from "./webglRuntime";
 
 type SpectralMode = "flow" | "pulse" | "warp";
@@ -578,13 +578,11 @@ export function WebglSpectralDeck({ density, onAction }: WebglSpectralDeckProps)
         danger: gl.getUniformLocation(program, "u_danger"),
       };
 
-      const styles = getComputedStyle(host);
-      const brand = parseCssColor(styles.getPropertyValue("--bc-color-brand"), [0.26, 0.56, 0.95]);
-      const cyan = parseCssColor(styles.getPropertyValue("--bc-color-cyan"), [0.36, 0.84, 0.91]);
-      const danger = parseCssColor(styles.getPropertyValue("--bc-color-danger"), [0.91, 0.38, 0.49]);
-      gl.uniform3fv(uniforms.brand, brand);
-      gl.uniform3fv(uniforms.cyan, cyan);
-      gl.uniform3fv(uniforms.danger, danger);
+      const themeUniformPalette = createThemeUniformPalette(host, {
+        brand: { token: "--bc-color-brand", fallback: [0.26, 0.56, 0.95] },
+        cyan: { token: "--bc-color-cyan", fallback: [0.36, 0.84, 0.91] },
+        danger: { token: "--bc-color-danger", fallback: [0.91, 0.38, 0.49] },
+      });
 
       let width = 1;
       let height = 1;
@@ -612,6 +610,10 @@ export function WebglSpectralDeck({ density, onAction }: WebglSpectralDeckProps)
         currentEnergy += (energyRef.current - currentEnergy) * 0.065;
         currentMode += (modeRef.current - currentMode) * 0.06;
         gl.useProgram(program);
+        const themeColors = themeUniformPalette.sample(time);
+        gl.uniform3fv(uniforms.brand, themeColors.brand);
+        gl.uniform3fv(uniforms.cyan, themeColors.cyan);
+        gl.uniform3fv(uniforms.danger, themeColors.danger);
         gl.uniform2f(uniforms.resolution, width, height);
         gl.uniform2f(uniforms.pointer, currentX, 1 - currentY);
         gl.uniform1f(uniforms.time, (time - startedAt) / 1000);
@@ -631,6 +633,7 @@ export function WebglSpectralDeck({ density, onAction }: WebglSpectralDeckProps)
         setReady(false);
         stopFrameLoop();
         resizeObserver.disconnect();
+        themeUniformPalette.dispose();
         runtime.dispose();
       };
     });

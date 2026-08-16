@@ -1,3 +1,12 @@
+import {
+  mixThemeRgb,
+  resolveThemeColor,
+  THEME_CHANGE_EVENT,
+  themeTransitionProgress,
+  type RgbColor,
+  type ThemeChangeDetail,
+} from "../../services/theme";
+
 /** WebGL 全屏片元实验共用的顶点 Shader。 */
 export const FULLSCREEN_VERTEX_SHADER = `
   attribute vec2 a_position;
@@ -109,6 +118,76 @@ export function parseCssColor(
     Number.parseInt(hex.slice(4, 6), 16) / 255,
   ] as const;
 }
+interface ThemeUniformSpecification {
+  /** 对应的全局 CSS 主题变量。 */
+  token: string;
+  /** 变量不可用时的 0-1 RGB 兜底值。 */
+  fallback: RgbColor;
+}
+
+/**
+ * 为长驻 WebGL 场景创建可插值的主题 Uniform 调色板。
+ * 每帧只计算少量 RGB 数值，不重新编译 Shader，也不触发 React 重渲染。
+ */
+export function createThemeUniformPalette<Key extends string>(
+  target: Element,
+  specification: Record<Key, ThemeUniformSpecification>,
+) {
+  const readPalette = (mode?: ThemeChangeDetail["mode"]) => {
+    const styles = getComputedStyle(target);
+    const palette = {} as Record<Key, RgbColor>;
+    for (const key of Object.keys(specification) as Key[]) {
+      const entry = specification[key];
+      const fallback = `rgb(${entry.fallback[0] * 255}, ${entry.fallback[1] * 255}, ${entry.fallback[2] * 255})`;
+      const value = mode
+        ? resolveThemeColor(mode, entry.token, fallback)
+        : styles.getPropertyValue(entry.token);
+      palette[key] = parseCssColor(value, entry.fallback);
+    }
+    return palette;
+  };
+
+  let current = readPalette();
+  let transition: {
+    from: Record<Key, RgbColor>;
+    to: Record<Key, RgbColor>;
+    detail: ThemeChangeDetail;
+  } | null = null;
+
+  const handleThemeChange = (event: Event) => {
+    const detail = (event as CustomEvent<ThemeChangeDetail>).detail;
+    const targetPalette = readPalette(detail.mode);
+    if (detail.durationMs <= 0) {
+      current = targetPalette;
+      transition = null;
+      return;
+    }
+    transition = {
+      from: { ...current },
+      to: targetPalette,
+      detail,
+    };
+  };
+  window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange);
+
+  return {
+    sample(timestamp: number) {
+      if (!transition) return current;
+      const progress = themeTransitionProgress(transition.detail, timestamp);
+      const next = {} as Record<Key, RgbColor>;
+      for (const key of Object.keys(specification) as Key[]) {
+        next[key] = mixThemeRgb(transition.from[key], transition.to[key], progress);
+      }
+      current = next;
+      if (progress >= 1) transition = null;
+      return current;
+    },
+    dispose() {
+      window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange);
+    },
+  };
+}
+
 interface VisibilityAwareFrameLoopOptions {
   /** 在系统启用“减少动态”时使用的最高帧率。 */
   reducedMotionFps?: number;

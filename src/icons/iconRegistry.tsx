@@ -38,6 +38,12 @@ export const ICON_REGISTRY = {
   ),
   waveform: () => <path d="M3 12h2l2-6 4 12 3-9 3 6 2-3h2" />,
   plug: () => <path d="m12 22 1-7-5-2 7-11-1 8 5 2-7 10Z" />,
+  power: () => (
+    <>
+      <path d="M12 2v10" />
+      <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+    </>
+  ),
   settings: () => (
     <>
       <circle cx="12" cy="12" r="3" />
@@ -120,6 +126,19 @@ export const ICON_REGISTRY = {
     <>
       <path d="M8 8V5h11v11h-3" />
       <rect x="5" y="8" width="11" height="11" rx="1" />
+    </>
+  ),
+  at: () => (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M16 8v5.25a2.75 2.75 0 0 0 5.5 0V12A9.5 9.5 0 1 0 18 19.35" />
+    </>
+  ),
+  emoji: () => (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8.6 9h.01M15.4 9h.01" strokeWidth="2.6" />
+      <path d="M8.25 14.2c.85 1.15 2.1 1.8 3.75 1.8s2.9-.65 3.75-1.8" />
     </>
   ),
   arrow: () => <path d="M5 12h14M14 7l5 5-5 5" />,

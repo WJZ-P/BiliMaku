@@ -7,6 +7,13 @@ import {
   type PropsWithChildren,
 } from "react";
 import { lightTheme, theme } from "../styles/theme";
+import {
+  mixThemeColor,
+  resolveThemeColor,
+  THEME_CHANGE_EVENT,
+  themeTransitionProgress,
+  type ThemeChangeDetail,
+} from "../services/theme";
 
 type SidebarHoverPhase = "idle" | "entering" | "active" | "exiting";
 
@@ -40,6 +47,7 @@ interface GlowParticle {
   exitFadeElapsedMs: number;
   /** 从统一主题变量读取的粒子颜色。 */
   color: string;
+  paletteIndex: number;
   alpha: number;
   /** 延迟用于错开同一批粒子的入场时间。 */
   delay: number;
@@ -233,14 +241,25 @@ export function ParticleGlowHover({ children }: ParticleGlowHoverProps) {
     let emissionElapsedMs = 0;
     let nextEmissionInMs = 0;
 
-    const styles = getComputedStyle(surface);
-    const palette = [
-      styles.getPropertyValue("--sidebar-particle-blue").trim(),
-      styles.getPropertyValue("--sidebar-particle-cyan").trim(),
-      styles.getPropertyValue("--sidebar-particle-deep").trim(),
-      styles.getPropertyValue("--sidebar-particle-soft").trim(),
-      styles.getPropertyValue("--sidebar-particle-highlight").trim(),
-    ].filter(Boolean);
+    const readParticlePalette = (mode?: ThemeChangeDetail["mode"]) => {
+      const styles = getComputedStyle(surface);
+      const entries = [
+        ["--sidebar-particle-blue", "--bc-color-brand", "#438ff1"],
+        ["--sidebar-particle-cyan", "--bc-color-cyan", "#5dd7e8"],
+        ["--sidebar-particle-deep", "--bc-color-brand-deep", "#2369c5"],
+        ["--sidebar-particle-soft", "--bc-color-brand-soft", "#dcecff"],
+        ["--sidebar-particle-highlight", "--bc-color-highlight", "#ffffff"],
+      ] as const;
+      return entries.map(([localToken, semanticToken, fallback]) => mode
+        ? resolveThemeColor(mode, semanticToken, fallback)
+        : styles.getPropertyValue(localToken).trim() || fallback);
+    };
+    let palette = readParticlePalette();
+    let paletteTransition: {
+      from: string[];
+      to: string[];
+      detail: ThemeChangeDetail;
+    } | null = null;
 
     const resize = () => {
       const bounds = canvas.getBoundingClientRect();
@@ -304,6 +323,7 @@ export function ParticleGlowHover({ children }: ParticleGlowHoverProps) {
       const velocityX = directionX * speed;
       const velocityY = directionY * speed;
 
+      const paletteIndex = Math.floor(Math.random() * palette.length);
       return {
         x: spawnX,
         y: spawnY,
@@ -326,9 +346,8 @@ export function ParticleGlowHover({ children }: ParticleGlowHoverProps) {
           theme.sidebarEffects.particleExitFadeMaxMs,
         ),
         exitFadeElapsedMs: 0,
-        color:
-          palette[Math.floor(Math.random() * palette.length)] ||
-          lightTheme.colors.brand,
+        color: palette[paletteIndex] || lightTheme.colors.brand,
+        paletteIndex,
         alpha: randomBetween(0.5, 0.94),
         delay: randomBetween(0, delayMaximum),
         age: 0,
@@ -416,6 +435,16 @@ export function ParticleGlowHover({ children }: ParticleGlowHoverProps) {
 
     const render = (time: number) => {
       if (disposed) return;
+      if (paletteTransition) {
+        const progress = themeTransitionProgress(paletteTransition.detail, time);
+        palette = paletteTransition.from.map((color, index) => (
+          mixThemeColor(color, paletteTransition?.to[index] ?? color, progress)
+        ));
+        for (const particle of particles) {
+          particle.color = palette[particle.paletteIndex] ?? particle.color;
+        }
+        if (progress >= 1) paletteTransition = null;
+      }
       const elapsed = Math.min(32, Math.max(0, time - previousTime));
       const elapsedSeconds = elapsed / 1000;
       previousTime = time;
@@ -475,17 +504,33 @@ export function ParticleGlowHover({ children }: ParticleGlowHoverProps) {
       }
     };
 
+    const handleThemeChange = (event: Event) => {
+      const detail = (event as CustomEvent<ThemeChangeDetail>).detail;
+      const target = readParticlePalette(detail.mode);
+      if (detail.durationMs <= 0) {
+        palette = target;
+        paletteTransition = null;
+        for (const particle of particles) {
+          particle.color = palette[particle.paletteIndex] ?? particle.color;
+        }
+      } else {
+        paletteTransition = { from: [...palette], to: target, detail };
+      }
+    };
+
     resize();
     emitParticles(theme.sidebarEffects.particleBurstCount, 0.2);
     nextEmissionInMs = createEmissionDelay();
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(canvas);
+    window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange);
     frame = window.requestAnimationFrame(render);
 
     return () => {
       disposed = true;
       resizeObserver.disconnect();
       window.cancelAnimationFrame(frame);
+      window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange);
       context.clearRect(0, 0, width, height);
     };
   }, [rendererRunning, machine.session]);

@@ -13,7 +13,7 @@ import {
   createFullscreenWebglRuntime,
   createVisibilityAwareFrameLoop,
   mountWebglWhenNearViewport,
-  parseCssColor,
+  createThemeUniformPalette,
 } from "./webglRuntime";
 
 type FlowAlignment = "top" | "bottom";
@@ -523,19 +523,11 @@ export function WebglDanmakuFlow({
         cyan: gl.getUniformLocation(program, "u_cyan"),
         danger: gl.getUniformLocation(program, "u_danger"),
       };
-      const styles = getComputedStyle(host);
-      gl.uniform3fv(
-        uniforms.brand,
-        parseCssColor(styles.getPropertyValue("--bc-color-brand"), [0.26, 0.56, 0.95]),
-      );
-      gl.uniform3fv(
-        uniforms.cyan,
-        parseCssColor(styles.getPropertyValue("--bc-color-cyan"), [0.36, 0.84, 0.91]),
-      );
-      gl.uniform3fv(
-        uniforms.danger,
-        parseCssColor(styles.getPropertyValue("--bc-color-danger"), [0.91, 0.38, 0.49]),
-      );
+      const themeUniformPalette = createThemeUniformPalette(host, {
+        brand: { token: "--bc-color-brand", fallback: [0.26, 0.56, 0.95] },
+        cyan: { token: "--bc-color-cyan", fallback: [0.36, 0.84, 0.91] },
+        danger: { token: "--bc-color-danger", fallback: [0.91, 0.38, 0.49] },
+      });
 
       let width = 1;
       let height = 1;
@@ -562,6 +554,10 @@ export function WebglDanmakuFlow({
         currentAlignment += (alignmentRef.current - currentAlignment) * 0.075;
         burstRef.current *= 0.94;
         gl.useProgram(program);
+        const themeColors = themeUniformPalette.sample(time);
+        gl.uniform3fv(uniforms.brand, themeColors.brand);
+        gl.uniform3fv(uniforms.cyan, themeColors.cyan);
+        gl.uniform3fv(uniforms.danger, themeColors.danger);
         gl.uniform2f(uniforms.resolution, width, height);
         gl.uniform2f(uniforms.pointer, pointerX, 1 - pointerY);
         gl.uniform1f(uniforms.time, (time - startedAt) / 1000);
@@ -579,6 +575,7 @@ export function WebglDanmakuFlow({
       return () => {
         stopFrameLoop();
         observer.disconnect();
+        themeUniformPalette.dispose();
         runtime.dispose();
       };
     });

@@ -2,8 +2,6 @@ import type { IconName } from "../components/Icon";
 
 export type AppView =
   | "dashboard"
-  | "debug"
-  | "rules"
   | "voices"
   | "overlays"
   | "settings";

@@ -26,13 +26,16 @@ export const ChatPanel = styled.section`
   min-height: 0;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   overflow: hidden;
-  border: 1px solid ${theme.colors.borderStrong};
-  border-radius: 12px;
-  background: color-mix(in srgb, ${theme.colors.surface} 90%, transparent);
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.panelRadius};
+  background:
+    linear-gradient(145deg, color-mix(in srgb, ${theme.colors.highlight} 28%, transparent), transparent 54%),
+    color-mix(in srgb, ${theme.colors.prismSurface} 82%, transparent);
   box-shadow:
-    0 12px 34px color-mix(in srgb, ${theme.colors.brandDeep} 9%, transparent),
-    inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 76%, transparent);
-  backdrop-filter: blur(20px) saturate(1.25);
+    0 14px 40px ${theme.colors.prismShadow},
+    inset 0 1px 0 ${theme.colors.prismRim};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.strongBlur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
+  backdrop-filter: blur(${theme.prismGlass.strongBlur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
 `;
 
 export const ChatHeader = styled.header`
@@ -44,14 +47,12 @@ export const ChatHeader = styled.header`
   gap: 12px;
   padding: 7px;
   overflow: hidden;
-  border-bottom: 1px solid ${theme.colors.border};
+  border-bottom: 1px solid ${theme.colors.prismBorderSoft};
   background:
-    linear-gradient(
-      112deg,
-      color-mix(in srgb, ${theme.colors.highlight} 30%, transparent),
-      transparent 43%
-    ),
-    color-mix(in srgb, ${theme.colors.surface} 68%, transparent);
+    linear-gradient(112deg, color-mix(in srgb, ${theme.colors.highlight} 42%, transparent), transparent 48%),
+    color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 64%, transparent);
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
 
   &::after {
     position: absolute;
@@ -224,10 +225,12 @@ export const ConnectForm = styled.form`
   align-items: stretch;
   justify-self: end;
   overflow: hidden;
-  border: 1px solid ${theme.colors.borderStrong};
+  border: 1px solid ${theme.colors.prismBorderSoft};
   border-radius: 4px;
-  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 70%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 65%, transparent);
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 82%, transparent);
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
   transition:
     border-color ${theme.motion.fast},
     background ${theme.motion.fast};
@@ -286,14 +289,14 @@ export const ConnectButton = styled.button`
   height: 100%;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 6px;
   padding: 0 11px;
   border: 0;
   border-radius: 0;
   background: linear-gradient(135deg, ${theme.colors.brand}, ${theme.colors.brandDeep});
   color: ${theme.colors.textOnBrand};
-  font-size: 10px;
-  font-weight: 780;
+  font-size: 12px;
+  font-weight: 800;
   transition:
     background ${theme.motion.fast},
     color ${theme.motion.fast},
@@ -324,8 +327,10 @@ export const ChatToolbar = styled.div`
   justify-content: space-between;
   gap: 10px;
   padding: 6px 10px;
-  border-bottom: 1px solid ${theme.colors.border};
-  background: color-mix(in srgb, ${theme.colors.canvasAccent} 48%, transparent);
+  border-bottom: 1px solid ${theme.colors.prismBorderSoft};
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 72%, transparent);
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
 `;
 
 export const FilterGroup = styled.div`
@@ -372,7 +377,7 @@ export const ToolbarActionButton = styled.button`
   border-radius: 4px;
   background: transparent;
   color: ${theme.colors.textMuted};
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 740;
   white-space: nowrap;
   transition:
@@ -436,8 +441,8 @@ export const FilterButton = styled.button`
   }
 
   &[data-active="true"] {
-    border-color: ${theme.colors.brandSoft};
-    background: ${theme.colors.surface};
+    border-color: ${theme.colors.prismBorder};
+    background: ${theme.colors.prismSurfaceStrong};
     color: ${theme.colors.brandDeep};
     box-shadow: 0 3px 9px color-mix(in srgb, ${theme.colors.brandDeep} 7%, transparent);
   }
@@ -599,8 +604,8 @@ export const MessageViewport = styled.div`
   overflow-anchor: none;
   padding: 12px;
   background:
-    radial-gradient(circle at 88% 6%, color-mix(in srgb, ${theme.colors.cyanSoft} 52%, transparent), transparent 28%),
-    linear-gradient(180deg, color-mix(in srgb, ${theme.colors.canvas} 52%, transparent), color-mix(in srgb, ${theme.colors.canvasAccent} 38%, transparent));
+    radial-gradient(circle at 88% 6%, color-mix(in srgb, ${theme.colors.cyanSoft} 48%, transparent), transparent 28%),
+    linear-gradient(180deg, color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 34%, transparent), color-mix(in srgb, ${theme.colors.prismSurface} 46%, transparent));
   scrollbar-color: ${theme.colors.brandSoft} transparent;
   scrollbar-width: thin;
 `;
@@ -1003,11 +1008,13 @@ export const Composer = styled.form`
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
+  align-items: stretch;
   gap: 8px;
   padding: 8px 10px 7px;
-  border-top: 1px solid ${theme.colors.border};
-  background: color-mix(in srgb, ${theme.colors.surface} 84%, transparent);
+  border-top: 1px solid ${theme.colors.prismBorderSoft};
+  background: color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 62%, transparent);
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
 `;
 
 export const ComposerField = styled.div`
@@ -1019,15 +1026,17 @@ export const ComposerField = styled.div`
 export const ComposerInputShell = styled.div`
   display: grid;
   min-width: 0;
-  height: 34px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  height: 44px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 7px;
   padding: 0 8px;
-  border: 1px solid ${theme.colors.borderStrong};
-  border-radius: 6px;
-  background: color-mix(in srgb, ${theme.colors.surface} 94%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 72%, transparent);
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.controlRadius};
+  background: color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 78%, transparent);
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
   transition:
     border-color ${theme.motion.fast},
     background ${theme.motion.fast},
@@ -1051,7 +1060,11 @@ export const ComposerInputShell = styled.div`
 
 export const ComposerInput = styled.input`
   width: 100%;
+  height: 100%;
   min-width: 0;
+  align-self: stretch;
+  box-sizing: border-box;
+  padding: 0;
   appearance: none;
   border: 0;
   outline: 0;
@@ -1063,6 +1076,14 @@ export const ComposerInput = styled.input`
   &::placeholder {
     color: ${theme.colors.textMuted};
     font-weight: 520;
+  }
+
+  /* 聚焦反馈由外层 ComposerInputShell 统一绘制，避免与全局输入框焦点环重叠。 */
+  &:focus,
+  &:focus-visible {
+    border: 0;
+    outline: 0;
+    box-shadow: none;
   }
 
   &:disabled {
@@ -1081,31 +1102,24 @@ export const ComposerCounter = styled.span`
   }
 `;
 
-export const ComposerAssist = styled.span`
-  display: block;
-  min-height: 10px;
+/** 发送状态仅供辅助技术读取，不再占用发送栏的视觉空间。 */
+export const ComposerStatus = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
-  padding-left: 2px;
-  color: ${theme.colors.textMuted};
-  font-size: 8px;
-  font-weight: 620;
-  line-height: 10px;
-  text-overflow: ellipsis;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
-
-  &[data-state="success"] {
-    color: ${theme.colors.success};
-  }
-
-  &[data-state="error"] {
-    color: ${theme.colors.danger};
-  }
 `;
 
 export const ComposerButton = styled.button`
   display: flex;
   min-width: 68px;
-  height: 34px;
+  height: 44px;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -1142,82 +1156,4 @@ export const ComposerButton = styled.button`
     opacity: 0.46;
     box-shadow: none;
   }
-`;
-
-/** 主播数据按需打开为覆盖聊天区的抽屉，默认不占用首页空间。 */
-export const AnalyticsDrawer = styled.aside`
-  position: absolute;
-  z-index: 8;
-  top: 8px;
-  right: 8px;
-  bottom: 8px;
-  width: min(620px, calc(100% - 16px));
-  overflow: auto;
-  padding: 8px;
-  border: 1px solid ${theme.colors.borderStrong};
-  border-radius: 10px;
-  background: color-mix(in srgb, ${theme.colors.surface} 96%, transparent);
-  box-shadow: -14px 0 36px color-mix(in srgb, ${theme.colors.brandDeep} 16%, transparent);
-  backdrop-filter: blur(24px) saturate(1.24);
-  animation: bilimaku-analytics-in 180ms ease-out both;
-
-  @keyframes bilimaku-analytics-in {
-    from {
-      opacity: 0;
-      transform: translateX(12px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }
-`;
-
-export const DrawerBar = styled.div`
-  position: sticky;
-  z-index: 2;
-  top: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 7px;
-  padding: 7px 8px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: 8px;
-  background: color-mix(in srgb, ${theme.colors.surface} 90%, transparent);
-  backdrop-filter: blur(18px);
-`;
-
-export const DrawerTitle = styled.strong`
-  color: ${theme.colors.textSecondary};
-  font-size: 10px;
-  font-weight: 820;
-`;
-
-export const DrawerClose = styled.button`
-  display: inline-flex;
-  height: 26px;
-  align-items: center;
-  gap: 4px;
-  padding: 0 8px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: 6px;
-  background: ${theme.colors.surfaceMuted};
-  color: ${theme.colors.textMuted};
-  font-size: 8px;
-  font-weight: 750;
-
-  &:hover {
-    border-color: ${theme.colors.brandSoft};
-    color: ${theme.colors.brand};
-  }
-`;
-
-export const DrawerLoading = styled.div`
-  display: grid;
-  min-height: 220px;
-  place-items: center;
-  color: ${theme.colors.textMuted};
-  font-size: 9px;
 `;

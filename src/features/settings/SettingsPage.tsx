@@ -1,5 +1,5 @@
 import { styled } from "@linaria/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { CSSProperties } from "react";
 import { CardDanmakuParticles } from "../../components/CardDanmakuParticles";
 import { Icon } from "../../components/Icon";
@@ -31,7 +31,17 @@ import {
   saveTtsSettingsPersisted,
 } from "../../services/tts";
 import { cancelSpeech } from "../../services/ttsPlayback";
-import { DEFAULT_MESSAGE_BUBBLE_COLOR, theme } from "../../styles/theme";
+import {
+  getThemeMode,
+  setThemeMode,
+  subscribeThemeMode,
+} from "../../services/theme";
+import {
+  darkTheme,
+  DEFAULT_MESSAGE_BUBBLE_COLOR,
+  lightTheme,
+  theme,
+} from "../../styles/theme";
 import type { BilibiliLoginStatus } from "../../types/account";
 import {
   DEFAULT_STARTUP_BEHAVIOR_SETTINGS,
@@ -111,14 +121,14 @@ const AvatarFallback = styled.div`
   border-radius: 50%;
   background: ${theme.gradients.brand};
   color: ${theme.colors.textOnBrand};
-  font-size: 22px;
+  font-size: ${theme.typography.fontSize.hero};
   font-weight: 900;
 `;
 
 const AccountName = styled.div`
   overflow: hidden;
   color: ${theme.colors.textPrimary};
-  font-size: 16px;
+  font-size: ${theme.typography.fontSize.display};
   font-weight: 850;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -128,14 +138,14 @@ const AccountUid = styled.div`
   margin-top: 4px;
   color: ${theme.colors.textMuted};
   font-family: ${theme.typography.mono};
-  font-size: 10px;
+  font-size: ${theme.typography.fontSize.body};
 `;
 
 
 const AccountStats = styled.div`
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(3, minmax(86px, 1fr));
+  grid-template-columns: repeat(3, minmax(110px, 1fr));
   align-items: stretch;
   border-left: 1px solid ${theme.colors.border};
 
@@ -149,10 +159,10 @@ const AccountStats = styled.div`
 const AccountStat = styled.div`
   display: grid;
   min-width: 0;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
-  padding: 2px 14px;
+  gap: 6px;
+  padding: 2px 9px;
 
   & + & {
     border-left: 1px solid ${theme.colors.border};
@@ -170,18 +180,17 @@ const AccountStatCopy = styled.div`
 `;
 
 const AccountStatValue = styled.strong`
-  overflow: hidden;
   color: ${theme.colors.textPrimary};
-  font-size: 18px;
+  font-size: ${theme.typography.fontSize.display};
   font-weight: 860;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 const AccountStatLabel = styled.span`
   color: ${theme.colors.textMuted};
-  font-size: 10px;
+  font-size: ${theme.typography.fontSize.label};
   font-weight: 680;
   white-space: nowrap;
 `;
@@ -197,7 +206,7 @@ const LogoutButton = styled.button`
   border-radius: 5px;
   background: color-mix(in srgb, ${theme.colors.dangerSoft} 58%, transparent);
   color: ${theme.colors.danger};
-  font-size: 10px;
+  font-size: ${theme.typography.fontSize.meta};
   font-weight: 800;
   transition:
     transform ${theme.motion.fast},
@@ -246,15 +255,14 @@ const PreferenceSwitch = styled.label`
   gap: 11px;
   padding: 11px 12px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, ${theme.colors.borderStrong} 66%, transparent);
-  border-radius: 4px;
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.controlRadius};
   background:
-    linear-gradient(
-      128deg,
-      color-mix(in srgb, ${theme.colors.highlight} 16%, transparent),
-      transparent 48%
-    ),
-    color-mix(in srgb, ${theme.colors.surface} 38%, transparent);
+    linear-gradient(128deg, color-mix(in srgb, ${theme.colors.highlight} 36%, transparent), transparent 50%),
+    color-mix(in srgb, ${theme.colors.prismSurface} 84%, transparent);
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation});
   cursor: pointer;
   transition:
     border-color ${theme.motion.fast},
@@ -320,14 +328,14 @@ const PreferenceCopy = styled.span`
 
 const PreferenceTitle = styled.strong`
   color: ${theme.colors.textPrimary};
-  font-size: 11px;
+  font-size: ${theme.typography.fontSize.title};
   font-weight: 820;
   letter-spacing: 0.01em;
 `;
 
 const PreferenceDescription = styled.span`
   color: ${theme.colors.textMuted};
-  font-size: 9px;
+  font-size: ${theme.typography.fontSize.caption};
   font-weight: 620;
   line-height: 1.5;
 `;
@@ -345,22 +353,56 @@ const ThemeBody = styled.div`
   padding: 20px;
 `;
 
-const ThemeOption = styled.div`
+const ThemeChoiceGrid = styled.div`
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+
+  @media (max-width: 680px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`;
+
+const ThemeOption = styled.button`
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 52px minmax(0, 1fr) 18px;
   align-items: center;
   gap: 13px;
   padding: 13px;
-  border: 1px solid color-mix(in srgb, ${theme.colors.brand} 27%, ${theme.colors.border});
-  border-radius: 5px;
-  background: linear-gradient(
-    122deg,
-    color-mix(in srgb, ${theme.colors.surface} 27%, transparent),
-    color-mix(in srgb, ${theme.colors.brandSubtle} 20%, transparent)
-  );
-  -webkit-backdrop-filter: blur(6px) saturate(1.34) brightness(1.025);
-  backdrop-filter: blur(6px) saturate(1.34) brightness(1.025);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 62%, transparent);
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.controlRadius};
+  background: linear-gradient(122deg, color-mix(in srgb, ${theme.colors.prismSurfaceStrong} 70%, transparent), color-mix(in srgb, ${theme.colors.prismSurface} 82%, transparent));
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color ${theme.motion.normal},
+    background-color ${theme.motion.normal},
+    box-shadow ${theme.motion.normal},
+    transform ${theme.motion.spring};
+
+  &[data-active="true"] {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 58%, ${theme.colors.prismBorderSoft});
+    background: linear-gradient(122deg, color-mix(in srgb, ${theme.colors.brand} 12%, ${theme.colors.prismSurfaceStrong}), color-mix(in srgb, ${theme.colors.cyan} 8%, ${theme.colors.prismSurface}));
+    box-shadow:
+      inset 3px 0 0 ${theme.colors.brand},
+      inset 0 1px 0 ${theme.colors.prismRim},
+      0 8px 22px color-mix(in srgb, ${theme.colors.brand} 10%, transparent);
+  }
+
+  &:hover {
+    border-color: color-mix(in srgb, ${theme.colors.brand} 42%, ${theme.colors.borderStrong});
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in srgb, ${theme.colors.brand} 54%, transparent);
+    outline-offset: 2px;
+  }
 `;
 
 const BubbleColorOption = styled.div`
@@ -369,12 +411,12 @@ const BubbleColorOption = styled.div`
   align-items: center;
   gap: 13px;
   padding: 13px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: 5px;
-  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 26%, transparent);
-  -webkit-backdrop-filter: blur(6px) saturate(1.34) brightness(1.025);
-  backdrop-filter: blur(6px) saturate(1.34) brightness(1.025);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 58%, transparent);
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.controlRadius};
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 82%, transparent);
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
 `;
 
 const BubblePreview = styled.div`
@@ -394,7 +436,7 @@ const BubblePreview = styled.div`
     ${theme.colors.surface}
   );
   color: ${theme.colors.textSecondary};
-  font-size: 8px;
+  font-size: ${theme.typography.fontSize.caption};
   font-weight: 700;
   box-shadow: 0 4px 12px color-mix(
     in srgb,
@@ -427,12 +469,12 @@ const MessageLimitOption = styled.div`
   align-items: center;
   gap: 16px;
   padding: 13px;
-  border: 1px solid ${theme.colors.border};
-  border-radius: 5px;
-  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 26%, transparent);
-  -webkit-backdrop-filter: blur(6px) saturate(1.34) brightness(1.025);
-  backdrop-filter: blur(6px) saturate(1.34) brightness(1.025);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 58%, transparent);
+  border: 1px solid ${theme.colors.prismBorderSoft};
+  border-radius: ${theme.prismGlass.controlRadius};
+  background: color-mix(in srgb, ${theme.colors.prismSurface} 82%, transparent);
+  -webkit-backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
+  backdrop-filter: blur(${theme.prismGlass.blur}) saturate(${theme.prismGlass.saturation}) brightness(${theme.prismGlass.brightness});
+  box-shadow: inset 0 1px 0 ${theme.colors.prismRim};
 `;
 
 const MessageLimitField = styled.label`
@@ -465,7 +507,7 @@ const MessageLimitInput = styled.input`
   background: transparent;
   color: ${theme.colors.textPrimary};
   font-family: ${theme.typography.mono};
-  font-size: 14px;
+  font-size: ${theme.typography.fontSize.body};
   font-weight: 800;
   text-align: right;
 
@@ -484,7 +526,7 @@ const MessageLimitUnit = styled.span`
   border-left: 1px solid ${theme.colors.border};
   background: ${theme.colors.surfaceMuted};
   color: ${theme.colors.textMuted};
-  font-size: 11px;
+  font-size: ${theme.typography.fontSize.caption};
   font-weight: 750;
 `;
 
@@ -497,22 +539,26 @@ const Swatches = styled.div`
   border: 1px solid ${theme.colors.borderStrong};
   border-radius: 4px;
 
-  span:nth-child(1) { background: ${theme.colors.brand}; }
-  span:nth-child(2) { background: ${theme.colors.cyan}; }
-  span:nth-child(3) { background: ${theme.colors.brandSoft}; }
-  span:nth-child(4) { background: ${theme.colors.surface}; }
+  &[data-mode="light"] span:nth-child(1) { background: ${lightTheme.colors.brand}; }
+  &[data-mode="light"] span:nth-child(2) { background: ${lightTheme.colors.cyan}; }
+  &[data-mode="light"] span:nth-child(3) { background: ${lightTheme.colors.brandSoft}; }
+  &[data-mode="light"] span:nth-child(4) { background: ${lightTheme.colors.surface}; }
+  &[data-mode="dark"] span:nth-child(1) { background: ${darkTheme.colors.brand}; }
+  &[data-mode="dark"] span:nth-child(2) { background: ${darkTheme.colors.cyan}; }
+  &[data-mode="dark"] span:nth-child(3) { background: ${darkTheme.colors.brandSoft}; }
+  &[data-mode="dark"] span:nth-child(4) { background: ${darkTheme.colors.surface}; }
 `;
 
 const OptionTitle = styled.div`
   color: ${theme.colors.textPrimary};
-  font-size: 11px;
+  font-size: ${theme.typography.fontSize.title};
   font-weight: 800;
 `;
 
 const OptionDescription = styled.div`
   margin-top: 3px;
   color: ${theme.colors.textMuted};
-  font-size: 9px;
+  font-size: ${theme.typography.fontSize.caption};
 `;
 
 const Detail = styled.div`
@@ -524,7 +570,7 @@ const Detail = styled.div`
   backdrop-filter: blur(6px) saturate(1.32) brightness(1.025);
   box-shadow: inset 0 1px 0 color-mix(in srgb, ${theme.colors.highlight} 52%, transparent);
   color: ${theme.colors.textMuted};
-  font-size: 9px;
+  font-size: ${theme.typography.fontSize.caption};
   line-height: 1.65;
   word-break: break-all;
 `;
@@ -534,7 +580,7 @@ const ErrorMessage = styled.div`
   border-radius: 4px;
   background: ${theme.colors.dangerSoft};
   color: ${theme.colors.danger};
-  font-size: 9px;
+  font-size: ${theme.typography.fontSize.caption};
 `;
 
 function errorText(error: unknown) {
@@ -547,6 +593,12 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [appearanceError, setAppearanceError] = useState("");
+  const [themeError, setThemeError] = useState("");
+  const themeMode = useSyncExternalStore(
+    subscribeThemeMode,
+    getThemeMode,
+    getThemeMode,
+  );
   const [messageSettingsError, setMessageSettingsError] = useState("");
   const [messageLimitDraft, setMessageLimitDraft] = useState(() =>
     String(live.messageSettings.maxStoredMessages),
@@ -644,6 +696,17 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
     },
     [],
   );
+
+  const chooseTheme = async (mode: "light" | "dark") => {
+    if (mode === themeMode) return;
+    setThemeError("");
+    try {
+      await setThemeMode(mode, { animate: true, persist: true });
+    } catch (reason) {
+      await setThemeMode(themeMode, { animate: true, persist: false });
+      setThemeError(`保存主题失败：${errorText(reason)}`);
+    }
+  };
 
   const updateMessageBubbleColor = (messageBubbleColor: string) => {
     const next = { messageBubbleColor };
@@ -888,14 +951,35 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
             </PanelHeading>
           </PanelHeader>
           <ThemeBody>
-            <ThemeOption>
-              <Swatches><span /><span /><span /><span /></Swatches>
-              <div>
-                <OptionTitle>浅蓝晴空</OptionTitle>
-                <OptionDescription>当前默认 · 白色表面 · 浅蓝强调色</OptionDescription>
-              </div>
-              <Icon name="check" size={17} />
-            </ThemeOption>
+            <ThemeChoiceGrid aria-label="界面主题">
+              <ThemeOption
+                type="button"
+                data-active={themeMode === "light"}
+                aria-pressed={themeMode === "light"}
+                onClick={() => void chooseTheme("light")}
+              >
+                <Swatches data-mode="light"><span /><span /><span /><span /></Swatches>
+                <div>
+                  <OptionTitle>浅色模式</OptionTitle>
+                  <OptionDescription>白色玻璃表面 · 浅蓝强调色</OptionDescription>
+                </div>
+                {themeMode === "light" ? <Icon name="check" size={17} /> : <span />}
+              </ThemeOption>
+              <ThemeOption
+                type="button"
+                data-active={themeMode === "dark"}
+                aria-pressed={themeMode === "dark"}
+                onClick={() => void chooseTheme("dark")}
+              >
+                <Swatches data-mode="dark"><span /><span /><span /><span /></Swatches>
+                <div>
+                  <OptionTitle>深色模式</OptionTitle>
+                  <OptionDescription>深蓝玻璃表面 · 冰川蓝高光</OptionDescription>
+                </div>
+                {themeMode === "dark" ? <Icon name="check" size={17} /> : <span />}
+              </ThemeOption>
+            </ThemeChoiceGrid>
+            {themeError ? <ErrorMessage>{themeError}</ErrorMessage> : null}
             <BubbleColorOption>
               <BubblePreview style={bubblePreviewStyle}>进入了直播间</BubblePreview>
               <div>
