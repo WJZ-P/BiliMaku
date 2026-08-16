@@ -170,4 +170,4 @@ jobs:
           retryAttempts: 2
           uploadUpdaterJson: false
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
-          releaseAssetNamePattern: BiliMaku-v[version]-[platform]-[arch][setup][ext]
+          releaseAssetNamePattern: BiliMaku-v[version]-[platform]-[arch][ext]
