@@ -2,9 +2,9 @@
   <img src="public/icon.png" alt="BiliMaku" width="256" />
 </p>
 
-<h1 align="center">BiliMaku · 哔哩播报</h1>
+<h1 align="center">BiliMaku · 哔哩弹幕姬</h1>
 
-<p align="center">基于 React、Rust 与 Tauri 2 的桌面直播弹幕播报工具。</p>
+<p align="center">基于 React、Rust 与 Tauri 2 的桌面直播小工具！支持弹幕的播报、滚动等功能。</p>
 
 <p align="center">
   <a href="https://github.com/WJZ-P/BiliMaku/releases"><img src="https://img.shields.io/github/v/release/WJZ-P/BiliMaku?label=release" alt="Release" /></a>

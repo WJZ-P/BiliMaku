@@ -487,7 +487,7 @@ export function Sidebar({ activeView, onNavigate, onPreload }: SidebarProps) {
           <BrandName>
             Bili<span>Maku</span>
           </BrandName>
-          <BrandCaption>哔哩播报</BrandCaption>
+          <BrandCaption>哔哩弹幕姬</BrandCaption>
         </BrandText>
       </Brand>
 
