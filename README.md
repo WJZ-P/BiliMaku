@@ -124,3 +124,10 @@ Release 标题仅使用 Tag，例如 `v1.0.0`。
 ## License
 
 [GNU AGPL v3](LICENSE)
+
+## ⭐ Star 历史
+
+
+**如果你喜欢这个项目，请给个 ⭐ 吧(๑>◡<๑)！**
+
+[![Stargazers over time](https://starchart.cc/WJZ-P/BiliMaku.svg?variant=adaptive)](https://starchart.cc/WJZ-P/BiliMaku)
