@@ -170,4 +170,41 @@ jobs:
           retryAttempts: 2
           uploadUpdaterJson: false
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
-          releaseAssetNamePattern: BiliMaku-v[version]-[platform]-[arch][ext]
+          releaseAssetNamePattern: BiliMaku-v[version]-[platform]-[arch][setup][ext]
+
+      - name: Package Windows portable build
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        id: windows-portable
+        shell: pwsh
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $targetBinary = Join-Path $env:GITHUB_WORKSPACE "src-tauri/target/$env:BUILD_TARGET/release/bilimaku.exe"
+          $hostBinary = Join-Path $env:GITHUB_WORKSPACE "src-tauri/target/release/bilimaku.exe"
+          $binaryPath = @($targetBinary, $hostBinary) |
+            Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+            Select-Object -First 1
+
+          if (-not $binaryPath) {
+            throw "Windows 主程序不存在：$targetBinary"
+          }
+
+          $version = $env:RELEASE_TAG -replace '^v', ''
+          $archive = & "$env:GITHUB_WORKSPACE/scripts/package-windows-portable.ps1" `
+            -BinaryPath $binaryPath `
+            -Version $version `
+            -OutputDirectory $env:RUNNER_TEMP
+          "archive=$archive" >> $env:GITHUB_OUTPUT
+
+      - name: Upload Windows portable package
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PORTABLE_ARCHIVE: ${{ steps.windows-portable.outputs.archive }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release upload $env:RELEASE_TAG $env:PORTABLE_ARCHIVE `
+            --repo $env:GITHUB_REPOSITORY `
+            --clobber
