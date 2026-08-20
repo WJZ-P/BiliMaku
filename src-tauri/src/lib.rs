@@ -10,6 +10,7 @@ mod performance;
 mod store;
 mod tts;
 mod types;
+mod update;
 
 #[tauri::command]
 fn get_app_status() -> AppStatus {
@@ -25,6 +26,7 @@ pub fn run() {
     let startup_performance = performance::StartupPerformanceState::default();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(account::BiliAccountState::default())
         .manage(anchor_analytics::AnchorAnalyticsState::default())
         .manage(live::LiveConnectionState::default())
@@ -90,6 +92,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_app_status,
+            update::check_app_update,
+            update::open_release_page,
             performance::record_startup_metrics,
             performance::get_startup_performance_log_path,
             account::get_bilibili_login_status,

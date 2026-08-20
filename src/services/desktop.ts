@@ -13,7 +13,7 @@ import type {
   PopularityUpdate,
   RoomConnectionInfo,
 } from "../types/events";
-import type { DesktopStatus } from "../types/app";
+import type { AppUpdateStatus, DesktopStatus } from "../types/app";
 import { DEFAULT_THEME_MODE, type ThemeMode } from "../types/theme";
 import { DEFAULT_MESSAGE_BUBBLE_COLOR } from "../styles/theme";
 import type { LiveAppearanceSettings } from "../types/liveAppearance";
@@ -41,6 +41,23 @@ export async function getDesktopStatus(): Promise<DesktopStatus | null> {
   }
 
   return invoke<DesktopStatus>("get_app_status");
+}
+
+/** 从 Rust 后端查询 GitHub 最新正式 Release，并进行 SemVer 比较。 */
+export async function checkAppUpdate(): Promise<AppUpdateStatus> {
+  if (!isDesktopRuntime()) {
+    throw new Error("版本检测需要从 BiliMaku 桌面窗口运行");
+  }
+  return invoke<AppUpdateStatus>("check_app_update");
+}
+
+/** 使用系统默认浏览器打开项目最新 Release 页面。 */
+export async function openAppReleasePage(): Promise<void> {
+  if (!isDesktopRuntime()) {
+    window.open("https://github.com/WJZ-P/BiliMaku/releases/latest", "_blank", "noopener");
+    return;
+  }
+  await invoke<void>("open_release_page");
 }
 
 /** 返回 Rust 统一配置文件的绝对路径。 */

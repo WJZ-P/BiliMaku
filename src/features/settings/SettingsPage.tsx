@@ -53,6 +53,7 @@ import {
   MIN_STORED_LIVE_MESSAGES,
 } from "../../types/liveMessages";
 import { useLiveRoom } from "../dashboard/LiveRoomContext";
+import { AppUpdatePanel } from "./AppUpdatePanel";
 
 interface SettingsPageProps {
   accountStatus: BilibiliLoginStatus;
@@ -1034,6 +1035,8 @@ export function SettingsPage({ accountStatus, onAccountStatusChange }: SettingsP
             </ThemeBody>
           </SettingsPanelSurface>
         </SettingsPanel>
+
+        <AppUpdatePanel />
       </Grid>
     </Page>
   );
