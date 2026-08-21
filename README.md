@@ -91,6 +91,133 @@
 
 > Release 不包含 PyTorch、BERT、音色权重或用户 Cookie。
 
+## 安装 BERT-VITS2 自定义音色
+
+BiliMaku 内置了 BERT-VITS2 架构适配器，可以直接识别模型原本的 `config.json`、`data.spk2id` 与 `G_<step>.pth`，无需向模型目录添加 BiliMaku 专用清单。下面以魔搭社区的 [Genius-Society/hoyoTTS](https://modelscope.cn/models/Genius-Society/hoyoTTS) 为例；该模型包含《原神》和《崩坏：星穹铁道》的多角色音色。模型权重由第三方提供，下载与使用时请同时遵守模型页面标注的许可证和使用约定。
+
+> 以下命令以 Windows PowerShell 为例。模型、Python 环境和 Chinese BERT 均保存在应用目录之外，升级 BiliMaku 时无需重新下载。
+
+### 1. 准备目录与 Python
+
+推荐把音色模型、共享 BERT 和 Python 虚拟环境放在同一个根目录：
+
+```text
+D:\BiliMaku-TTS\
+├─ hoyoTTS\
+├─ shared\
+│  └─ chinese-roberta-wwm-ext-large\
+└─ runtime\
+   └─ bert-vits2\
+      └─ Scripts\python.exe
+```
+
+BiliMaku 支持 Python 3.10 及以上版本；推荐使用 Python 3.11 或 3.12 创建独立环境：
+
+```powershell
+$root = "D:\BiliMaku-TTS"
+py -3.11 -m venv "$root\runtime\bert-vits2"
+$python = "$root\runtime\bert-vits2\Scripts\python.exe"
+& $python -m pip install --upgrade pip modelscope
+```
+
+如果模型与运行时采用上述相对位置，BiliMaku 会自动找到这个 Python。放在其他位置时，可以设置用户环境变量，重新启动 BiliMaku 后生效：
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+  "BILIMAKU_TTS_PYTHON",
+  "D:\BiliMaku-TTS\runtime\bert-vits2\Scripts\python.exe",
+  "User"
+)
+```
+
+### 2. 下载 hoyoTTS 音色模型
+
+使用 ModelScope CLI 下载到指定目录：
+
+```powershell
+$modelscope = "D:\BiliMaku-TTS\runtime\bert-vits2\Scripts\modelscope.exe"
+& $modelscope download `
+  --model "Genius-Society/hoyoTTS" `
+  --local_dir "D:\BiliMaku-TTS\hoyoTTS"
+```
+
+也可以使用模型页给出的 Python SDK：
+
+```python
+from modelscope import snapshot_download
+
+model_dir = snapshot_download(
+    "Genius-Society/hoyoTTS",
+    local_dir=r"D:\BiliMaku-TTS\hoyoTTS",
+)
+print(model_dir)
+```
+
+下载结束后，`hoyoTTS` 根目录中应能看到 `config.json`、生成器权重 `G_<step>.pth`，并且配置中的 `data.spk2id` 包含音色映射。Git 克隆方式还需要 Git LFS；使用 ModelScope CLI/SDK 可以直接取得完整权重。
+
+### 3. 安装 PyTorch 与推理依赖
+
+首先选择一种 PyTorch。NVIDIA 显卡示例：
+
+```powershell
+$python = "D:\BiliMaku-TTS\runtime\bert-vits2\Scripts\python.exe"
+& $python -m pip install torch --index-url https://download.pytorch.org/whl/cu128
+```
+
+纯 CPU 环境使用：
+
+```powershell
+& $python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+```
+
+PyTorch 的 CUDA wheel 自带所需 CUDA runtime，通常只需保证 NVIDIA 驱动可用。随后安装 BiliMaku 内置适配器需要的其余依赖：
+
+```powershell
+& $python -m pip install `
+  "transformers>=4.45,<5" `
+  "huggingface_hub>=0.34,<1" `
+  numpy cn2an jieba numba pypinyin requests scipy tqdm
+```
+
+### 4. 下载共享 Chinese BERT
+
+BERT-VITS2 的中文文本特征依赖 `chinese-roberta-wwm-ext-large`。同一台电脑上的多个兼容音色包可以共享这一份资源：
+
+```powershell
+$modelscope = "D:\BiliMaku-TTS\runtime\bert-vits2\Scripts\modelscope.exe"
+& $modelscope download `
+  --model "dienstag/chinese-roberta-wwm-ext-large" `
+  --local_dir "D:\BiliMaku-TTS\shared\chinese-roberta-wwm-ext-large"
+```
+
+资源目录至少需要包含：
+
+```text
+chinese-roberta-wwm-ext-large/
+├─ config.json
+├─ tokenizer.json 或 vocab.txt
+└─ model.safetensors 或 pytorch_model.bin
+```
+
+放在推荐的 `shared/` 目录时会被自动发现；放在其他位置时，可在 BiliMaku 的 **语音角色 → 选择 Chinese BERT** 中登记文件夹。登记结果会持久化，无需复制到每个音色模型中。
+
+### 5. 在 BiliMaku 中导入并播报
+
+1. 打开 **语音角色** 页面，点击 **导入模型**；
+2. 选择 `D:\BiliMaku-TTS\hoyoTTS`，即包含 `config.json` 和 `G_<step>.pth` 的模型根目录；
+3. 等待 BiliMaku 自动识别 BERT-VITS2 架构并列出全部音色；
+4. 在 **运行环境** 卡片中点击 **重新检查环境**，按提示补齐仍缺少的项目；
+5. 选择音色并试听，确认成功后开启 **自动语音播报**，再勾选需要播报的弹幕、关注、礼物等事件。
+
+第一次试听需要加载 PyTorch、Chinese BERT 与音色权重，耗时会明显高于后续播报；环境就绪后，BiliMaku 会复用常驻推理进程。更详细的目录探测、环境缓存与适配器说明见 [TTS 架构文档](docs/tts-model-package.md)。
+
+常见问题：
+
+- **导入后没有出现模型**：确认选择的是模型根目录，并检查 `G_<step>.pth` 是否为完整权重而非 Git LFS 指针；
+- **提示缺少 Chinese BERT**：在语音角色页重新选择 `chinese-roberta-wwm-ext-large` 文件夹；
+- **推理速度较慢**：查看运行环境是否显示 `GPU 就绪`；CPU 推理会明显更慢；
+- **安装了依赖仍提示缺失**：确认安装依赖使用的 Python 与运行环境卡片显示的是同一个解释器。
+
 ## 开发
 
 需要 Node.js 22、npm、Rust stable、Microsoft C++ Build Tools 和 WebView2 Runtime。
@@ -112,7 +239,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --locked
 
 ## 发布
 
-推送 `vMAJOR.MINOR.PATCH` 格式的 Git Tag 后，`.github/workflows/release.yml` 会校验所有版本号、构建 Windows NSIS/MSI 安装包，并创建同名 Release：
+推送 `vMAJOR.MINOR.PATCH` 格式的 Git Tag 后，`.github/workflows/release.yml` 会校验所有版本号，构建 Windows、Linux 与 macOS 产物（Windows 同时提供 NSIS、MSI 和免安装 ZIP），并创建同名 Release：
 
 ```powershell
 git tag v1.0.0
