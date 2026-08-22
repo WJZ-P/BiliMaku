@@ -759,7 +759,7 @@ async fn install_windows_update(
         "更新已准备完成，BiliMaku 即将退出；重新打开后生效",
     );
     tokio::time::sleep(Duration::from_millis(700)).await;
-    app.exit(0);
+    crate::lifecycle::request_app_exit(app);
     Ok(())
 }
 

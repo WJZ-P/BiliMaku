@@ -1,4 +1,5 @@
 import { styled } from "@linaria/react";
+import { invoke } from "@tauri-apps/api/core";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState, type MouseEvent as ReactMouseEvent } from "react";
@@ -557,7 +558,8 @@ export function WindowTitleBar({
     void appWindow.toggleMaximize().then(() => appWindow.isMaximized()).then(setMaximized);
   };
   const close = () => {
-    if (desktopRuntime) void getCurrentWindow().close();
+    if (!desktopRuntime) return;
+    void invoke<void>("exit_application").catch(() => getCurrentWindow().close());
   };
   const drag = (event: ReactMouseEvent<HTMLElement>) => {
     if (!desktopRuntime || event.button !== 0) return;

@@ -10,8 +10,17 @@ use tauri::{
 pub const SETTINGS_EVENT: &str = "overlay://settings";
 pub const PREVIEW_EVENT: &str = "overlay://preview";
 pub const WINDOW_STATE_EVENT: &str = "overlay://window-state";
-const DANMAKU_LABEL: &str = "danmaku-overlay";
-const SIDEBAR_LABEL: &str = "event-sidebar";
+pub const DANMAKU_LABEL: &str = "danmaku-overlay";
+pub const SIDEBAR_LABEL: &str = "event-sidebar";
+
+/// 关闭全部悬浮 WebView，但保留自动恢复偏好供下次冷启动使用。
+pub fn close_all_overlay_windows<R: tauri::Runtime>(app: &AppHandle<R>) {
+    for label in [DANMAKU_LABEL, SIDEBAR_LABEL] {
+        if let Some(window) = app.get_webview_window(label) {
+            let _ = window.close();
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct ScreenRect {

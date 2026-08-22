@@ -4,6 +4,7 @@ use tauri::{Manager, RunEvent};
 
 mod account;
 mod anchor_analytics;
+mod lifecycle;
 mod live;
 mod overlay;
 mod performance;
@@ -29,11 +30,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(account::BiliAccountState::default())
         .manage(anchor_analytics::AnchorAnalyticsState::default())
+        .manage(lifecycle::AppLifecycleState::default())
         .manage(live::LiveConnectionState::default())
         .manage(startup_performance)
         .manage(store::AppConfigStore::default())
         .manage(tts::TtsWorkerState::default())
         .manage(update::AppUpdateRuntimeState::default())
+        .on_window_event(lifecycle::handle_window_event)
         .setup(|app| {
             let startup = app.state::<performance::StartupPerformanceState>();
             let log_path = startup
@@ -93,6 +96,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_app_status,
+            lifecycle::exit_application,
             update::check_app_update,
             update::install_app_update,
             update::open_release_page,
@@ -147,6 +151,7 @@ pub fn run() {
 
     app.run(|handle, event| match event {
         RunEvent::ExitRequested { code, .. } => {
+            let _ = lifecycle::prepare_for_exit(handle);
             let _ = handle.state::<performance::StartupPerformanceState>().mark(
                 "rust",
                 "process-exit-requested",
