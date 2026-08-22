@@ -42,7 +42,9 @@ BiliMaku v$Version 免安装版
 1. 请先解压整个 BiliMaku 文件夹，再运行 BiliMaku.exe。
 2. 账号、直播间与界面配置仍保存在当前 Windows 用户的应用数据目录。
 3. 自定义 TTS 模型、Python、CUDA 与 Chinese BERT 运行环境不包含在此压缩包中。
+4. portable.flag 用于识别免安装版本，请与 BiliMaku.exe 保持在同一目录。
 "@ | Set-Content -LiteralPath (Join-Path $portableRoot 'README.txt') -Encoding utf8
+  Set-Content -LiteralPath (Join-Path $portableRoot 'portable.flag') -Value 'bilimaku-portable-v1' -Encoding ascii
 
   Remove-Item -LiteralPath $archivePath -Force -ErrorAction SilentlyContinue
   Compress-Archive -LiteralPath $portableRoot -DestinationPath $archivePath -CompressionLevel Optimal
@@ -56,6 +58,9 @@ BiliMaku v$Version 免安装版
     }
     if ($entries -notcontains 'BiliMaku/README.txt') {
       throw '免安装压缩包缺少 BiliMaku/README.txt。'
+    }
+    if ($entries -notcontains 'BiliMaku/portable.flag') {
+      throw '免安装压缩包缺少 BiliMaku/portable.flag。'
     }
   }
   finally {

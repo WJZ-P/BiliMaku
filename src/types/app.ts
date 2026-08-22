@@ -22,4 +22,30 @@ export interface AppUpdateStatus {
   releaseName: string;
   /** Release 发布时间，格式为 RFC 3339；平台未返回时为空。 */
   publishedAt: string | null;
+  /** 当前平台是否存在可直接安装的 Release 资产。 */
+  installSupported: boolean;
+  /** 应用内更新器选择的 Release 资产名称。 */
+  assetName: string | null;
+}
+
+/** 应用内更新下载、校验与暂存阶段。 */
+export type AppUpdatePhase =
+  | "checking"
+  | "downloading"
+  | "verifying"
+  | "staging"
+  | "ready";
+
+/** Rust 更新器向设置页推送的实时进度。 */
+export interface AppUpdateProgress {
+  /** 当前更新阶段。 */
+  phase: AppUpdatePhase;
+  /** 可计算时为 0 到 100；未知文件大小时为空。 */
+  percent: number | null;
+  /** 已下载字节数。 */
+  downloadedBytes: number;
+  /** Release 资产总字节数。 */
+  totalBytes: number | null;
+  /** 面向用户的中文状态说明。 */
+  message: string;
 }

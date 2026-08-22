@@ -36,6 +36,13 @@ export const ICON_REGISTRY = {
       <path d="m15.5 15.5 4.5 4.5" />
     </>
   ),
+  download: () => (
+    <>
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M4 20h16" />
+    </>
+  ),
   waveform: () => <path d="M3 12h2l2-6 4 12 3-9 3 6 2-3h2" />,
   plug: () => <path d="m12 22 1-7-5-2 7-11-1 8 5 2-7 10Z" />,
   power: () => (

@@ -13,7 +13,11 @@ import type {
   PopularityUpdate,
   RoomConnectionInfo,
 } from "../types/events";
-import type { AppUpdateStatus, DesktopStatus } from "../types/app";
+import type {
+  AppUpdateProgress,
+  AppUpdateStatus,
+  DesktopStatus,
+} from "../types/app";
 import { DEFAULT_THEME_MODE, type ThemeMode } from "../types/theme";
 import { DEFAULT_MESSAGE_BUBBLE_COLOR } from "../styles/theme";
 import type { LiveAppearanceSettings } from "../types/liveAppearance";
@@ -49,6 +53,22 @@ export async function checkAppUpdate(): Promise<AppUpdateStatus> {
     throw new Error("版本检测需要从 BiliMaku 桌面窗口运行");
   }
   return invoke<AppUpdateStatus>("check_app_update");
+}
+
+/** 下载、校验并暂存更新；Windows 会退出应用并由独立进程替换文件。 */
+export async function installAppUpdate(): Promise<void> {
+  if (!isDesktopRuntime()) {
+    throw new Error("应用内更新需要从 BiliMaku 桌面窗口运行");
+  }
+  await invoke<void>("install_app_update");
+}
+
+/** 监听 Rust 更新器的下载、校验与暂存进度。 */
+export async function listenToAppUpdateProgress(
+  callback: (progress: AppUpdateProgress) => void,
+): Promise<UnlistenFn> {
+  if (!isDesktopRuntime()) return () => undefined;
+  return listen<AppUpdateProgress>("update://progress", (event) => callback(event.payload));
 }
 
 /** 使用系统默认浏览器打开项目最新 Release 页面。 */

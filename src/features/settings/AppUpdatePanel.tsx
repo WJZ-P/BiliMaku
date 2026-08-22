@@ -1,5 +1,6 @@
 import { styled } from "@linaria/react";
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { CardDanmakuParticles } from "../../components/CardDanmakuParticles";
 import { Icon } from "../../components/Icon";
 import {
@@ -13,12 +14,14 @@ import {
 import {
   checkAppUpdate,
   getDesktopStatus,
+  installAppUpdate,
+  listenToAppUpdateProgress,
   openAppReleasePage,
 } from "../../services/desktop";
 import { theme } from "../../styles/theme";
-import type { AppUpdateStatus } from "../../types/app";
+import type { AppUpdateProgress, AppUpdateStatus } from "../../types/app";
 
-type UpdateViewState = "idle" | "current" | "available" | "error";
+type UpdateViewState = "idle" | "current" | "available" | "installing" | "error";
 
 const UpdateBody = styled.div`
   display: grid;
@@ -130,6 +133,41 @@ const UpdateActions = styled.div`
   }
 `;
 
+const UpdateProgressArea = styled.div`
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 6px;
+  padding-top: 2px;
+`;
+
+const UpdateProgressTrack = styled.div`
+  position: relative;
+  height: 5px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, ${theme.colors.brand} 22%, ${theme.colors.border});
+  border-radius: 3px;
+  background: color-mix(in srgb, ${theme.colors.surfaceMuted} 72%, transparent);
+`;
+
+const UpdateProgressFill = styled.div`
+  width: var(--update-progress, 0%);
+  height: 100%;
+  background: ${theme.gradients.brand};
+  box-shadow: 0 0 10px color-mix(in srgb, ${theme.colors.brand} 34%, transparent);
+  transition: width 180ms ease-out;
+`;
+
+const UpdateProgressMeta = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: ${theme.colors.textMuted};
+  font-family: ${theme.typography.mono};
+  font-size: ${theme.typography.fontSize.meta};
+  font-variant-numeric: tabular-nums;
+`;
+
 const UpdateButton = styled.button`
   display: inline-flex;
   min-width: 104px;
@@ -190,11 +228,19 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function formatBytes(value: number) {
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MiB`;
+}
+
 /** 应用设置页中的版本检测与 Release 跳转卡片。 */
 export function AppUpdatePanel() {
   const [currentVersion, setCurrentVersion] = useState("");
   const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus | null>(null);
   const [busy, setBusy] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [progress, setProgress] = useState<AppUpdateProgress | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -207,10 +253,26 @@ export function AppUpdatePanel() {
     };
   }, []);
 
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void listenToAppUpdateProgress((next) => {
+      if (!disposed) setProgress(next);
+    }).then((dispose) => {
+      if (disposed) dispose();
+      else unlisten = dispose;
+    }).catch(() => undefined);
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
   const checkUpdate = async () => {
     if (busy) return;
     setBusy(true);
     setError("");
+    setProgress(null);
     try {
       const result = await checkAppUpdate();
       setUpdateStatus(result);
@@ -219,6 +281,25 @@ export function AppUpdatePanel() {
       setError(errorText(reason));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const installUpdate = async () => {
+    if (installing) return;
+    setInstalling(true);
+    setError("");
+    setProgress({
+      phase: "checking",
+      percent: null,
+      downloadedBytes: 0,
+      totalBytes: null,
+      message: "正在确认最新正式版本",
+    });
+    try {
+      await installAppUpdate();
+    } catch (reason) {
+      setError(errorText(reason));
+      setInstalling(false);
     }
   };
 
@@ -233,29 +314,37 @@ export function AppUpdatePanel() {
 
   const state: UpdateViewState = error
     ? "error"
-    : updateStatus?.updateAvailable
-      ? "available"
-      : updateStatus
-        ? "current"
-        : "idle";
+    : installing
+      ? "installing"
+      : updateStatus?.updateAvailable
+        ? "available"
+        : updateStatus
+          ? "current"
+          : "idle";
   const badge = busy
     ? "检查中"
-    : state === "available"
-      ? "发现新版本"
-      : state === "current"
-        ? "已是最新"
-        : state === "error"
-          ? "检查失败"
-          : "手动检查";
+    : state === "installing"
+      ? "正在更新"
+      : state === "available"
+        ? "发现新版本"
+        : state === "current"
+          ? "已是最新"
+          : state === "error"
+            ? "检查失败"
+            : "手动检查";
   const description = busy
     ? "正在连接 GitHub Release…"
-    : error
-      ? error
-      : updateStatus?.updateAvailable
-        ? `最新正式版 v${updateStatus.latestVersion}，点击即可前往下载`
-        : updateStatus
-          ? `GitHub 最新正式版同为 v${updateStatus.latestVersion}`
-          : "检查 GitHub 最新正式 Release；更新下载将在系统浏览器中打开";
+    : installing
+      ? progress?.message || "正在准备应用内更新"
+      : error
+        ? error
+        : updateStatus?.updateAvailable
+          ? updateStatus.installSupported
+            ? `最新正式版 v${updateStatus.latestVersion}，可在应用内下载并安装；重新打开后生效`
+            : `最新正式版 v${updateStatus.latestVersion}，点击即可前往下载`
+          : updateStatus
+            ? `GitHub 最新正式版同为 v${updateStatus.latestVersion}`
+            : "检查 GitHub 最新正式 Release；Windows x64 免安装版支持应用内更新";
 
   return (
     <SettingsPanel>
@@ -264,7 +353,7 @@ export function AppUpdatePanel() {
         <PanelHeader>
           <PanelHeading>
             <PanelTitle>版本与更新</PanelTitle>
-            <PanelDescription>检查正式版本并前往 Release 下载</PanelDescription>
+            <PanelDescription>检查正式版本，Windows 免安装版可直接更新</PanelDescription>
           </PanelHeading>
         </PanelHeader>
         <UpdateBody>
@@ -287,16 +376,36 @@ export function AppUpdatePanel() {
           <UpdateActions>
             {updateStatus?.updateAvailable ? (
               <>
+                {updateStatus.installSupported ? (
+                  <UpdateButton
+                    type="button"
+                    data-primary="true"
+                    disabled={installing}
+                    onClick={() => void installUpdate()}
+                  >
+                    <Icon name="download" size={14} />
+                    {installing
+                      ? progress?.percent == null
+                        ? "正在准备…"
+                        : `下载 ${progress.percent}%`
+                      : "下载并安装"}
+                  </UpdateButton>
+                ) : (
+                  <UpdateButton
+                    type="button"
+                    data-primary="true"
+                    onClick={() => void openReleasePage()}
+                  >
+                    <Icon name="download" size={14} />
+                    下载 v{updateStatus.latestVersion}
+                  </UpdateButton>
+                )}
                 <UpdateButton
                   type="button"
-                  data-primary="true"
+                  disabled={installing}
                   onClick={() => void openReleasePage()}
                 >
-                  <Icon name="arrow" size={14} />
-                  下载 v{updateStatus.latestVersion}
-                </UpdateButton>
-                <UpdateButton type="button" disabled={busy} onClick={() => void checkUpdate()}>
-                  {busy ? "检查中…" : "重新检查"}
+                  Release 页面
                 </UpdateButton>
               </>
             ) : (
@@ -317,6 +426,30 @@ export function AppUpdatePanel() {
               </>
             )}
           </UpdateActions>
+          {installing && progress ? (
+            <UpdateProgressArea aria-live="polite">
+              <UpdateProgressTrack
+                role="progressbar"
+                aria-label="应用更新进度"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress.percent ?? undefined}
+              >
+                <UpdateProgressFill
+                  style={{
+                    "--update-progress": `${progress.percent ?? 8}%`,
+                  } as CSSProperties}
+                />
+              </UpdateProgressTrack>
+              <UpdateProgressMeta>
+                <span>{progress.message}</span>
+                <span>
+                  {formatBytes(progress.downloadedBytes)}
+                  {progress.totalBytes ? ` / ${formatBytes(progress.totalBytes)}` : ""}
+                </span>
+              </UpdateProgressMeta>
+            </UpdateProgressArea>
+          ) : null}
         </UpdateBody>
       </SettingsPanelSurface>
     </SettingsPanel>

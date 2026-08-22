@@ -1,6 +1,6 @@
 [package]
 name = "bilimaku"
-version = "1.0.0"
+version = "1.0.1"
 description = "bilimaku desktop danmaku voice assistant"
 authors = ["bilimaku contributors"]
 edition = "2021"
@@ -19,7 +19,7 @@ flate2 = "1.1.9"
 futures-util = "0.3.33"
 md-5 = "0.11.0"
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
-reqwest = { version = "0.13.4", features = ["cookies", "json", "multipart", "query"] }
+reqwest = { version = "0.13.4", features = ["cookies", "json", "multipart", "query", "stream"] }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -27,5 +27,9 @@ sha2 = "0.10.9"
 tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
-tokio = { version = "1", features = ["io-util", "macros", "process", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "process", "rt-multi-thread", "sync", "time"] }
 tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-webpki-roots"] }
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+tempfile = "3"

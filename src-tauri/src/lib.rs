@@ -33,6 +33,7 @@ pub fn run() {
         .manage(startup_performance)
         .manage(store::AppConfigStore::default())
         .manage(tts::TtsWorkerState::default())
+        .manage(update::AppUpdateRuntimeState::default())
         .setup(|app| {
             let startup = app.state::<performance::StartupPerformanceState>();
             let log_path = startup
@@ -93,6 +94,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_app_status,
             update::check_app_update,
+            update::install_app_update,
             update::open_release_page,
             performance::record_startup_metrics,
             performance::get_startup_performance_log_path,
