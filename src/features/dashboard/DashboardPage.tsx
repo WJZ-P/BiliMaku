@@ -86,6 +86,8 @@ const AnchorAnalyticsPanel = lazy(() =>
 );
 
 interface DashboardPageProps {
+  /** 页面是否正处于前台；后台保持挂载以维持聊天虚拟列表与滚动状态。 */
+  active?: boolean;
   /** 从直播间消息工具栏跳转到其他工作台模块。 */
   onNavigate?: (view: AppView) => void;
 }
@@ -423,6 +425,8 @@ interface MessageFeedListProps {
   viewportRef: RefObject<HTMLDivElement | null>;
   /** 把单条消息的右键操作交给工作台级浮层。 */
   onOpenContextMenu: (event: LiveEvent, clientX: number, clientY: number) => void;
+  /** 直播间视图是否处于前台；重新激活时同步校准尺寸并置底。 */
+  viewActive: boolean;
 }
 
 /**
@@ -443,6 +447,7 @@ const MessageFeedList = memo(function MessageFeedList({
   onLoadOlder,
   viewportRef,
   onOpenContextMenu,
+  viewActive,
 }: MessageFeedListProps) {
   const feedRef = useRef<HTMLDivElement>(null);
   const previousVisibleEventIdsRef = useRef<ReadonlySet<string>>(new Set(visibleEventIds));
@@ -460,6 +465,8 @@ const MessageFeedList = memo(function MessageFeedList({
   const initialScrollFrameRef = useRef<number | null>(null);
   const filterScrollFrameRef = useRef<number | null>(null);
   const historyLoadPendingRef = useRef(false);
+  const viewActiveRef = useRef(viewActive);
+  const activationScrollFrameRef = useRef<number | null>(null);
   requestedFilterRef.current = filter;
   requestedVisibleEventIdsRef.current = visibleEventIds;
   if (previousFilterRef.current !== filter) {
@@ -744,6 +751,37 @@ const MessageFeedList = memo(function MessageFeedList({
   }, [hasInitialMessages, rowVirtualizer, viewportRef]);
 
   /**
+   * 页面从其他 Tab 回到直播间时，虚拟列表仍保持挂载；在本次提交的布局阶段
+   * 重新读取行高并置底，避免等待 ResizeObserver 或异步双帧后才出现消息。
+   */
+  useLayoutEffect(() => {
+    const becameActive = viewActive && !viewActiveRef.current;
+    viewActiveRef.current = viewActive;
+    if (!becameActive) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const pinToLatestMessage = () => {
+      rowVirtualizer.scrollToEnd({ behavior: "auto" });
+      viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    };
+    rowVirtualizer.measure();
+    pinToLatestMessage();
+    activationScrollFrameRef.current = window.requestAnimationFrame(() => {
+      pinToLatestMessage();
+      previousVirtualSizeRef.current = rowVirtualizer.getTotalSize();
+      activationScrollFrameRef.current = null;
+    });
+
+    return () => {
+      if (activationScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(activationScrollFrameRef.current);
+        activationScrollFrameRef.current = null;
+      }
+    };
+  }, [renderedEvents.length, rowVirtualizer, viewActive, viewportRef]);
+
+  /**
    * 分类切换先等待旧消息完成退场，再在目标虚拟列表挂载和测量后滚到底部。
    * 双帧校正用于覆盖动态行高从预估值切换为真实值时产生的末端偏差。
    */
@@ -982,6 +1020,7 @@ const MessageFeedList = memo(function MessageFeedList({
   && previous.onLoadOlder === next.onLoadOlder
   && previous.viewportRef === next.viewportRef
   && previous.onOpenContextMenu === next.onOpenContextMenu
+  && previous.viewActive === next.viewActive
 ));
 let dashboardFirstFrameReported = false;
 
@@ -990,7 +1029,7 @@ let dashboardFirstFrameReported = false;
  *
  * 首页仅承担连接、实时事件阅读与播报控制；复杂配置通过右侧功能栏进入独立模块。
  */
-export function DashboardPage({ onNavigate }: DashboardPageProps) {
+export function DashboardPage({ active = true, onNavigate }: DashboardPageProps) {
   const live = useLiveRoom();
   const [roomId, setRoomId] = useState("");
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
@@ -1487,6 +1526,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               onLoadOlder={loadOlderMessages}
               viewportRef={messageViewportRef}
               onOpenContextMenu={openMessageContextMenu}
+              viewActive={active}
             />
           </MessageViewport>
 

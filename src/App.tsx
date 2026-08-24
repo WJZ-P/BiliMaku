@@ -10,7 +10,12 @@ import {
 } from "./services/startupPerformance";
 import { hydrateThemeMode } from "./services/theme";
 import { configureMainWindow, revealMainWindowOnce } from "./services/window";
-import { AppFrame, Main, ViewLoading } from "./styles/AppStyles";
+import {
+  AppFrame,
+  Main,
+  PersistentDashboardView,
+  ViewLoading,
+} from "./styles/AppStyles";
 import { GlobalStyles } from "./styles/GlobalStyles";
 import type { BilibiliLoginStatus } from "./types/account";
 import type { AppView } from "./types/navigation";
@@ -217,7 +222,7 @@ function Workspace({ accountStatus, onAccountStatusChange }: WorkspaceProps) {
       <Suspense fallback={<ViewLoading>正在初始化直播会话…</ViewLoading>}>
         <LiveRoomProvider>
           <WorkspaceTitleBar profile={accountStatus.profile} />
-          {/* 视图仍可按需卸载，但直播长链与事件缓冲由上层 Provider 持续持有。 */}
+          {/* Provider 持有实时会话；直播间视图常驻，其他功能页仍按需挂载。 */}
           <AppFrame>
             <Sidebar
               activeView={activeView}
@@ -225,17 +230,29 @@ function Workspace({ accountStatus, onAccountStatusChange }: WorkspaceProps) {
               onPreload={(view) => void preloadView(view)}
             />
             <Main data-view={activeView}>
-              <Suspense fallback={<ViewLoading>正在加载功能模块…</ViewLoading>}>
-                {activeView === "dashboard" && <DashboardPage onNavigate={navigate} />}
-                {activeView === "voices" && <VoiceStudioPage />}
-                {activeView === "overlays" && <OverlaySettingsPage />}
-                {activeView === "settings" && (
-                  <SettingsPage
-                    accountStatus={accountStatus}
-                    onAccountStatusChange={onAccountStatusChange}
+              <PersistentDashboardView
+                data-active={activeView === "dashboard"}
+                aria-hidden={activeView !== "dashboard"}
+              >
+                <Suspense fallback={<ViewLoading>正在初始化直播会话…</ViewLoading>}>
+                  <DashboardPage
+                    active={activeView === "dashboard"}
+                    onNavigate={navigate}
                   />
-                )}
-              </Suspense>
+                </Suspense>
+              </PersistentDashboardView>
+              {activeView !== "dashboard" ? (
+                <Suspense fallback={<ViewLoading>正在加载功能模块…</ViewLoading>}>
+                  {activeView === "voices" && <VoiceStudioPage />}
+                  {activeView === "overlays" && <OverlaySettingsPage />}
+                  {activeView === "settings" && (
+                    <SettingsPage
+                      accountStatus={accountStatus}
+                      onAccountStatusChange={onAccountStatusChange}
+                    />
+                  )}
+                </Suspense>
+              ) : null}
             </Main>
           </AppFrame>
         </LiveRoomProvider>

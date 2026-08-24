@@ -27,6 +27,27 @@ export const Main = styled.main`
   }
 `;
 
+/**
+ * 直播间常驻视图。
+ *
+ * 切换侧边栏时只改变可见性，不卸载聊天虚拟列表；绝对定位仍保留完整布局尺寸，
+ * 避免 display:none 让 ResizeObserver 把消息视口测量成 0。
+ */
+export const PersistentDashboardView = styled.section`
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+
+  &[data-active="true"] {
+    z-index: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+`;
+
 /** 路由代码分块尚未完成时显示的轻量占位。 */
 export const ViewLoading = styled.div`
   display: grid;
