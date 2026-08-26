@@ -258,3 +258,7 @@ Release 标题仅使用 Tag，例如 `v1.0.0`。
 **如果你喜欢这个项目，请给个 ⭐ 吧(๑>◡<๑)！**
 
 [![Stargazers over time](https://starchart.cc/WJZ-P/BiliMaku.svg?variant=adaptive)](https://starchart.cc/WJZ-P/BiliMaku)
+
+## 友情链接
+
+- [LINUX DO](https://linux.do/)
