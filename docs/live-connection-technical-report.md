@@ -94,7 +94,7 @@ bilimaku 现在支持两种 **Web 观看会话**：匿名连接的长链鉴权 `
 8. 连接直播间时复用同一个 HTTP 会话，前端只得到非敏感账号摘要与 `accessMode`；
 9. 登出或切换账号时替换整个 Cookie Jar 并更新内存 Store，避免旧会话残留。
 
-统一 `account://event` 会发送 `login`、`restored`、`validated`、`cookie-expired`、`logout` 等状态，Cookie 与二维码密钥不进入事件载荷。当前 Demo 只使用统一的明文 `config.json`，方便用户在应用关闭后检查和手动调整。详细格式见 [`account-session-persistence.md`](account-session-persistence.md)。
+统一 `account://event` 会发送 `login`、`restored`、`validated`、`cookie-expired`、`logout` 等状态，Cookie 与二维码密钥不进入事件载荷。会话 Cookie 保存在操作系统凭据库中；明文 `config.json` 只保留账号资料与其余设置，方便用户在应用关闭后检查和手动调整。详细格式见 [`account-session-persistence.md`](account-session-persistence.md)。
 
 对两条真实 `INTERACT_WORD_V2` 原始 Protobuf 做逐字段审计后，匿名会话收到的昵称字段本身就是类似 `在***`、`啦***` 的值；`uinfo.base.name` 只是重复该脱敏值，包内没有对应的完整昵称或数字 UID。因此这不是 bilimaku 解析器主动打码，也不是漏读了另一个普通字段；星号字符串本身没有可供本地还原的映射信息。
 

@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// 当前统一配置文件结构版本。
-pub const CONFIG_SCHEMA_VERSION: u32 = 4;
+///
+/// 版本 5 起，账号 Cookie 不再写入本文件，改由操作系统凭据库保管。
+pub const CONFIG_SCHEMA_VERSION: u32 = 5;
 
 /// bilimaku 统一配置文件。
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -58,11 +60,12 @@ impl Default for AppearanceStorageConfig {
 }
 
 /// 持久化账号登录态。
+///
+/// 这里只保存用于渲染账号卡片的公开资料。可以访问账号的 Cookie 属于登录凭据，
+/// 由 [`crate::credentials`] 写入操作系统凭据库，不再出现在配置文件中。
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AccountStorageConfig {
-    /// 可重新构建 Cookie Jar 的完整 Cookie 请求头。
-    pub cookie_header: String,
     /// 最近一次成功读取到的账号资料。
     pub profile: Option<AccountProfile>,
     /// 登录态写入配置时的 Unix 秒级时间戳。

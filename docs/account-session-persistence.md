@@ -2,7 +2,25 @@
 
 ## 1. 当前持久化方式
 
-扫码确认成功后，Rust Cookie Jar 接收登录 Cookie，并立即调用账号导航接口读取 UID、昵称和头像。验证通过后，账号段会写入统一配置：
+登录态分成两部分保存，凭据与普通配置互相隔离。
+
+### 1.1 会话 Cookie：操作系统凭据库
+
+扫码确认成功后，Rust Cookie Jar 接收登录 Cookie，并立即调用账号导航接口读取 UID、昵称和头像。验证通过后，完整 Cookie 请求头经由 `keyring` 写入操作系统凭据库：
+
+| 平台 | 凭据库 |
+| --- | --- |
+| Windows | 凭据管理器（通用凭据） |
+| macOS | 钥匙串 Keychain |
+| Linux 等 *nix | Secret Service（经由 D-Bus） |
+
+条目使用服务名 `wjz.bilimaku.desktop` 与条目名 `bilibili-web-session`，实现位于 `src-tauri/src/credentials.rs`。**Cookie 不会写入 `config.json`、日志或任何其他磁盘文件。**
+
+系统没有可用凭据库时（例如未运行 Secret Service 的精简 Linux 桌面），写入会失败，此时软件拒绝持久化登录态并提示用户本次登录仅在本次运行内有效。
+
+### 1.2 账号资料与其他设置：统一配置文件
+
+不属于凭据的账号资料（UID、昵称、头像地址、等级、经验与硬币）与其余设置写入统一配置：
 
 ```text
 <Tauri app_data_dir>/config.json
@@ -14,7 +32,7 @@ Windows 默认位置为：
 C:\Users\<用户名>\AppData\Roaming\wjz.bilimaku.desktop\config.json
 ```
 
-配置采用可读、可编辑的明文 JSON。Cookie 属于敏感登录凭据，请勿把真实配置上传到 Git、日志、截图或问题反馈中。
+配置采用可读、可编辑的明文 JSON。其中不再包含任何登录凭据，但仍会暴露账号身份，分享前请自行判断。
 
 ## 2. 启动与内存 Store
 
@@ -22,7 +40,7 @@ C:\Users\<用户名>\AppData\Roaming\wjz.bilimaku.desktop\config.json
 
 1. 应用启动时从磁盘读取 `config.json` 一次；
 2. 若配置不存在，直接创建当前结构的默认 `config.json`；
-3. 账号模块用配置中的 Cookie 重建只属于 `.bilibili.com` 的 Rust Cookie Jar；
+3. 账号模块从操作系统凭据库读取 Cookie，重建只属于 `.bilibili.com` 的 Rust Cookie Jar；配置中有账号资料但凭据库中没有会话时，退回匿名会话并清理账号段；
 4. 请求 `https://api.bilibili.com/x/web-interface/nav` 在线验证；
 5. `isLogin=true` 时更新账号资料与校验时间，前端直接进入已登录状态；
 6. `isLogin=false` 时清空配置中的 `account` 段、重建匿名 Cookie Jar，并广播 `cookie-expired`；
@@ -37,7 +55,6 @@ C:\Users\<用户名>\AppData\Roaming\wjz.bilimaku.desktop\config.json
 ```json
 {
   "account": {
-    "cookieHeader": "<COOKIE>",
     "profile": {
       "uid": "<UID>",
       "username": "<昵称>",
@@ -48,7 +65,9 @@ C:\Users\<用户名>\AppData\Roaming\wjz.bilimaku.desktop\config.json
 }
 ```
 
-退出账号只清空 `account` 段，不影响房间号、TTS 模型、Chinese BERT 路径和悬浮窗设置。
+退出账号会同时删除凭据库中的 `bilibili-web-session` 条目并清空 `account` 段，不影响房间号、TTS 模型、Chinese BERT 路径和悬浮窗设置。哔哩哔哩报告登录态失效时执行同样的清理。
+
+卸载软件不会自动删除凭据库条目，需要手动清除的用户可参考 [隐私与安全说明](../PRIVACY.md) 第 4.2 节。
 
 ## 4. 原子写入与备份恢复
 
@@ -78,6 +97,7 @@ C:\Users\<用户名>\AppData\Roaming\wjz.bilimaku.desktop\config.json
 - 统一配置首次创建、原子更新与相同值跳过写入；
 - 启动后只读内存、不随磁盘临时改动而变化；
 - Cookie 字符串恢复到 `.bilibili.com` Cookie Jar；
+- 凭据库写入、读取与删除的完整往返；系统没有凭据库时该用例自动跳过；
 - 初始 `checking` 状态；
 - TypeScript 类型检查、Rust 全目标测试与 Release 编译。
 

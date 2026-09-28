@@ -1,3 +1,4 @@
+use crate::credentials;
 use crate::store::AppConfigStore;
 use crate::types::account::{AccountEvent, AccountProfile, LoginStatus, QrLoginTicket};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -326,9 +327,26 @@ fn write_persisted_session(
     if cookie_header.is_empty() || !cookie_header.contains("SESSDATA=") {
         return Err("登录 Cookie 中缺少 SESSDATA，暂不写入本地会话".to_string());
     }
-    store.set_account_session(cookie_header, profile.clone())?;
+    if !credentials::is_available() {
+        return Err(
+            "系统凭据库不可用，登录态无法安全保存；本次登录仅在本次运行内有效".to_string(),
+        );
+    }
+    credentials::save_cookie_header(&cookie_header)?;
+    // 凭据写入成功后才记录账号资料，避免配置显示已登录但凭据库中没有会话。
+    if let Err(error) = store.set_account_session(profile.clone()) {
+        let _ = credentials::delete_cookie_header();
+        return Err(error);
+    }
     state.persisted.store(true, Ordering::Release);
     Ok(())
+}
+
+/// 同时清除配置中的账号资料与凭据库中的会话 Cookie。
+fn clear_persisted_session(store: &AppConfigStore) -> Result<(), String> {
+    let cleared = credentials::delete_cookie_header();
+    store.clear_account_session()?;
+    cleared
 }
 
 fn build_http_session_with_cookies(cookie_header: &str) -> Result<HttpSession, String> {
@@ -412,7 +430,7 @@ fn expire_persisted_session(
     message: impl Into<String>,
 ) -> Result<LoginStatus, String> {
     state.reset_http_session()?;
-    store.clear_account_session()?;
+    clear_persisted_session(store)?;
     let status = set_anonymous_state(state, message)?;
     emit_account_event(app, "cookie-expired", status.clone())?;
     Ok(status)
@@ -447,7 +465,7 @@ pub(crate) async fn ensure_bilibili_session_initialized(
             return set_anonymous_state(state, "当前为匿名 Web 会话");
         }
         Err(error) => {
-            let _ = store.clear_account_session();
+            let _ = clear_persisted_session(store);
             state.reset_http_session()?;
             let status = set_anonymous_state(
                 state,
@@ -462,10 +480,34 @@ pub(crate) async fn ensure_bilibili_session_initialized(
         .clone()
         .ok_or_else(|| "统一配置中的账号资料为空".to_string())?;
 
-    let restored_http = match build_http_session_with_cookies(&persisted.cookie_header) {
+    // 账号资料在配置文件里，登录凭据在系统凭据库里；两者缺一都要退回匿名会话。
+    let stored_cookie_header = match credentials::load_cookie_header() {
+        Ok(Some(cookie_header)) => cookie_header,
+        Ok(None) => {
+            let _ = clear_persisted_session(store);
+            state.reset_http_session()?;
+            let status = set_anonymous_state(
+                state,
+                "系统凭据库中没有登录会话，已切换匿名会话",
+            )?;
+            emit_account_event(app, "session-error", status.clone())?;
+            return Ok(status);
+        }
+        Err(error) => {
+            state.reset_http_session()?;
+            let status = set_anonymous_state(
+                state,
+                format!("读取系统凭据库失败，已切换匿名会话：{error}"),
+            )?;
+            emit_account_event(app, "session-error", status.clone())?;
+            return Ok(status);
+        }
+    };
+
+    let restored_http = match build_http_session_with_cookies(&stored_cookie_header) {
         Ok(session) => session,
         Err(error) => {
-            let _ = store.clear_account_session();
+            let _ = clear_persisted_session(store);
             state.reset_http_session()?;
             let status = set_anonymous_state(
                 state,
@@ -747,7 +789,7 @@ pub async fn logout_bilibili_account(
 ) -> Result<LoginStatus, String> {
     ensure_bilibili_session_initialized(&app, &state, &store).await?;
     state.reset_http_session()?;
-    store.clear_account_session()?;
+    clear_persisted_session(&store)?;
     let status = set_anonymous_state(&state, "已退出账号并清理本地登录态")?;
     emit_account_event(&app, "logout", status.clone())?;
     Ok(status)

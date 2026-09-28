@@ -223,36 +223,30 @@ impl AppConfigStore {
         Ok(true)
     }
 
-    /// 读取内存中的账号会话。
+    /// 读取内存中的账号资料。
+    ///
+    /// 登录凭据保存在操作系统凭据库中，需要通过 [`crate::credentials`] 单独读取。
     pub fn account_session(&self) -> Result<Option<AccountStorageConfig>, String> {
         let account = self.snapshot()?.account;
-        Ok(
-            (!account.cookie_header.trim().is_empty() && account.profile.is_some())
-                .then_some(account),
-        )
+        Ok(account.profile.is_some().then_some(account))
     }
 
-    /// 保存账号 Cookie 与账号资料。
-    pub fn set_account_session(
-        &self,
-        cookie_header: String,
-        profile: AccountProfile,
-    ) -> Result<bool, String> {
+    /// 保存账号资料；Cookie 由调用方写入操作系统凭据库。
+    pub fn set_account_session(&self, profile: AccountProfile) -> Result<bool, String> {
         self.update(|config| {
-            if config.account.cookie_header == cookie_header
-                && config.account.profile.as_ref() == Some(&profile)
-            {
+            if config.account.profile.as_ref() == Some(&profile) {
                 return;
             }
             config.account = AccountStorageConfig {
-                cookie_header,
                 profile: Some(profile),
                 saved_at: unix_timestamp(),
             };
         })
     }
 
-    /// 清除账号登录态，不影响其他配置。
+    /// 清除配置中的账号资料，不影响其他配置。
+    ///
+    /// 凭据库中的 Cookie 由调用方一并清理，避免两处状态不一致。
     pub fn clear_account_session(&self) -> Result<bool, String> {
         self.update(|config| config.account = AccountStorageConfig::default())
     }

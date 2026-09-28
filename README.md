@@ -89,7 +89,9 @@
 - 提供全屏滚动弹幕与透明侧边事件悬浮窗；
 - 支持浅色模式、深色模式与 WebGL 界面动效。
 
-> Release 不包含 PyTorch、BERT、音色权重或用户 Cookie。
+> Release 安装包不包含 PyTorch、BERT 或音色权重，也不附带任何账号数据。扫码登录后，B 站下发的
+> 会话 Cookie 会保存在本机的操作系统凭据库中（Windows 凭据管理器、macOS 钥匙串、Linux Secret
+> Service），不会写入配置文件。详见 [隐私与安全说明](PRIVACY.md)。
 
 ## 安装 BERT-VITS2 自定义音色
 

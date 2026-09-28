@@ -4,6 +4,7 @@ use tauri::{Manager, RunEvent};
 
 mod account;
 mod anchor_analytics;
+mod credentials;
 mod lifecycle;
 mod live;
 mod overlay;
